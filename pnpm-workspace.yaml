@@ -1,0 +1,11 @@
+allowBuilds:
+  workerd: true
+  esbuild: true
+  # lefthook.yml relies on the postinstall script to install the git hooks.
+  lefthook: true
+
+# drizzle-kit still pulls the deprecated @esbuild-kit/core-utils, which pins
+# esbuild ~0.18 — vulnerable to GHSA-67mh-4wv8-2f99. Force a patched esbuild so
+# `pnpm audit` is clean and the pre-commit/CI gates stay meaningful.
+overrides:
+  '@esbuild-kit/core-utils>esbuild': '^0.25.0'

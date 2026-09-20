@@ -1,0 +1,18 @@
+# Normalize to LF in the repository and in every working tree.
+# Prettier's default `endOfLine: "lf"` otherwise flags every file on Windows
+# checkouts that use core.autocrlf=true, while CI on Linux passes.
+* text=auto eol=lf
+
+# Keep binaries and lockfiles out of text conversion.
+pnpm-lock.yaml -diff linguist-generated
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.ogg binary
+*.wav binary

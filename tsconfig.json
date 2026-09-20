@@ -1,0 +1,16 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"rewriteRelativeImportExtensions": true,
+		// SvelteKit defaults checkJs to true, which drags every generated .js file
+		// into the type program — including the compiled bundle under .svelte-kit,
+		// reached via GlobalProps.mainModule in worker-configuration.d.ts. This
+		// project has no hand-written .js, so nothing of ours goes unchecked.
+		"checkJs": false,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"types": ["$app/types", "./worker-configuration.d.ts"]
+	},
+	"include": ["src", "drizzle.config.ts"]
+}

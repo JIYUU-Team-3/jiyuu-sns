@@ -1,0 +1,37 @@
+# https://lefthook.dev/configuration/
+#
+# Hooks are installed automatically by lefthook's postinstall script when you
+# run `pnpm install`. To (re)install them by hand: `pnpm exec lefthook install`.
+# To skip them for a single command: `LEFTHOOK=0 git commit ...`
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      glob: '*.{js,ts,svelte,json,jsonc,css,html,md,yml,yaml}'
+      run: pnpm exec prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+
+    - name: lint
+      glob: '*.{js,ts,svelte}'
+      run: pnpm exec eslint --no-warn-ignored {staged_files}
+
+    # `pnpm audit`, not `npm audit`: there is no package-lock.json in this repo,
+    # so npm would have nothing to read. Scoped by glob to commits that actually
+    # change the dependency graph — that is when the result can change, and it
+    # keeps a doc-only commit from needing the network. Drop the `glob:` line to
+    # run it on every commit instead. CI runs it unconditionally either way.
+    - name: audit
+      glob: '{package.json,pnpm-lock.yaml,pnpm-workspace.yaml}'
+      run: pnpm audit --audit-level moderate
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: typecheck
+      # `pnpm run check` rather than svelte-check directly: it runs `wrangler
+      # types` first, and worker-configuration.d.ts is generated, not committed.
+      run: pnpm run check
+
+    - name: unit tests
+      run: pnpm exec vitest --run

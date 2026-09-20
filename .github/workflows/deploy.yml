@@ -1,0 +1,133 @@
+name: Deploy
+
+# `development` is the deploy branch: every merge into it ships the production
+# Worker (single-environment setup, see wrangler.jsonc).
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+# Never cancel a deploy that is already running - a half-applied migration or a
+# killed `wrangler deploy` is worse than waiting.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  WRANGLER_SEND_METRICS: false
+  DO_NOT_TRACK: 1
+
+jobs:
+  # Gate: the exact same lint/typecheck/test/build jobs that run on PRs.
+  # A red build here means the deploy job never starts.
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Migrate & deploy
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      # Aikido Safe Chain blocks known-malicious packages at install time, so it
+      # must be installed BEFORE pnpm install. The installer is pinned to a
+      # release and checksum-verified, so the guard cannot itself be swapped out.
+      # `--ci` sets up PATH shims instead of shell aliases.
+      - name: Install safe-chain
+        run: |
+          curl -fsSL https://github.com/AikidoSec/safe-chain/releases/download/1.5.20/install-safe-chain.sh -o /tmp/install-safe-chain.sh
+          echo "0ad25efe15d1fa56105157a454d647223e78eb0c53d1f85e3d10afcd722e7bfd  /tmp/install-safe-chain.sh" | sha256sum -c -
+          sh /tmp/install-safe-chain.sh --ci
+          rm /tmp/install-safe-chain.sh
+      - run: pnpm install --frozen-lockfile
+
+      # Schema first, so the Worker never boots against a database it is newer than.
+      - name: Apply D1 migrations
+        run: pnpm exec drizzle-kit migrate
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_DATABASE_ID: ${{ secrets.CLOUDFLARE_DATABASE_ID }}
+          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
+
+      # `wrangler types` (run by `pnpm run build`) bakes the keys from `.env`
+      # into worker-configuration.d.ts, so without one the regenerated file is
+      # missing them and the build fails. Only the key names matter, never the
+      # values. Removed again immediately so the placeholder values cannot reach
+      # the deploy step below - that one gets its credentials from secrets.
+      - name: Build
+        run: |
+          cp -n .env.example .env
+          pnpm run build
+          rm -f .env
+
+      - name: Deploy to Cloudflare Workers
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          wranglerVersion: '4.125.0'
+          command: deploy
+
+      # Verification that the deploy is actually serving, not just that the
+      # upload returned 200. Retries cover Cloudflare's propagation window.
+      - name: Smoke check
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::wrangler did not report a deployment URL"
+            exit 1
+          fi
+          echo "Checking $DEPLOY_URL"
+          curl -sS -f --retry 6 --retry-delay 5 --retry-all-errors \
+            -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\n' "$DEPLOY_URL"
+
+      # Same Playwright suite as CI, pointed at the deployment instead of a
+      # local server (see playwright.config.ts).
+      #
+      # `@writes` is excluded: that test plays a run and submits a score, and
+      # verifying a deploy must not leave an entry on the real leaderboard.
+      # What remains is read-only, so it also passes before the production
+      # question bank has been seeded (see README - seeding is a manual,
+      # one-time `pnpm db:seed:remote`, deliberately not run on every deploy).
+      - name: E2E against the deployment
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright test --project=chromium --grep-invert @writes
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-deploy
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          {
+            echo "### Deploy"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo "- URL: ${DEPLOY_URL:-_not deployed_}"
+          } >> "$GITHUB_STEP_SUMMARY"

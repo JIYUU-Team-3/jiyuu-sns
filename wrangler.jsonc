@@ -1,0 +1,36 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "sns-website",
+	"compatibility_date": "2026-09-16",
+	"compatibility_flags": ["nodejs_als"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare",
+	},
+	// `src/hooks.server.ts` requires this binding and throws without it, so every
+	// request 500s if it is missing. `database_id` is the same database that
+	// `drizzle.config.ts` migrates via CLOUDFLARE_DATABASE_ID; it is an account
+	// -scoped identifier, not a secret, and belongs in version control.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "sns-db",
+			"database_id": "e7da79ec-501a-4177-a829-55f1afd5b129",
+			// drizzle-kit writes its migrations here; `wrangler d1 migrations apply`
+			// reads the same directory and ignores the meta/ subfolder.
+			"migrations_dir": "drizzle",
+		},
+	],
+	// Bound to the existing `sns_kv` namespace. Reachable at runtime as `env.KV`
+	// via `cloudflare:workers`, same as the D1 binding above; `wrangler types`
+	// picks it up automatically.
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "9fccb61c440845498d309ba3bd7098b8",
+		},
+	],
+	"workers_dev": true,
+	"preview_urls": true,
+}
