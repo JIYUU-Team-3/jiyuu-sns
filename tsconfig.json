@@ -10,6 +10,11 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
+		// The package.json "imports" map resolves #lib/* at runtime, but TypeScript
+		// does not infer extensions or /index for "imports" targets, so #lib/server/db
+		// and friends come back unresolved. "paths" does infer both. Keep the two in
+		// sync; the imports map stays authoritative for Vite and Node.
+		"paths": { "#lib/*": ["./src/lib/*"] },
 		"types": ["$app/types", "./worker-configuration.d.ts"]
 	},
 	"include": ["src", "drizzle.config.ts"]

@@ -1,15 +1,19 @@
-import { sequence } from '@sveltejs/kit/hooks'
+import { sequence, type Handle } from '@sveltejs/kit/hooks'
 import { env } from 'cloudflare:workers'
 import { building } from '$app/env'
 import { createAuth } from '#lib/server/auth'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
-import type { Handle } from '@sveltejs/kit'
 import { getTextDirection } from '#lib/paraglide/runtime'
 import { paraglideMiddleware } from '#lib/paraglide/server'
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) => {
-		event.request = request
+		// Kit 3 made `RequestEvent.request` readonly, but paraglide's documented
+		// SvelteKit integration swaps in the de-localized request here. The cast
+		// keeps that exact runtime behaviour; removing the assignment instead
+		// would lean on the `reroute` hook in src/hooks.ts, which is a behaviour
+		// change, not a type fix.
+		;(event as { request: Request }).request = request
 
 		return resolve(event, {
 			transformPageChunk: ({ html }) =>
