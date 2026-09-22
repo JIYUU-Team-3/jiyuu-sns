@@ -16,7 +16,9 @@ const baseURL = externalBaseURL ?? 'http://127.0.0.1:4173'
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-	testDir: './tests',
+	/* E2E specs live next to the routes they cover, e.g. src/routes/demo/playwright/page.svelte.e2e.ts. */
+	testDir: './src',
+	testMatch: '**/*.e2e.{ts,js}',
 	/* Run tests in files in parallel */
 	fullyParallel: true,
 	/* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -81,9 +83,9 @@ export default defineConfig({
 	 * Serve the built app, unless we were pointed at an already-deployed URL.
 	 *
 	 * `preview:ci` runs wrangler with `--local`, so D1 is the emulated database
-	 * under .wrangler/state. `tests/game-loop.spec.ts` plays a real run against
-	 * it, so seed it first with `pnpm db:reset:local` — on an empty bank both
-	 * courses read OUT OF SERVICE and the game has nothing to ask.
+	 * under .wrangler/state. It starts empty, and src/hooks.server.ts queries
+	 * the auth tables on every request, so create them first with
+	 * `pnpm db:migrate:local`.
 	 */
 	webServer: externalBaseURL
 		? undefined

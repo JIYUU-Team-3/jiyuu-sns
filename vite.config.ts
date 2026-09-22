@@ -17,6 +17,8 @@ export default defineConfig({
 			experimental: { remoteFunctions: true },
 		}),
 
+		// The `paraglide` script in package.json compiles the same output for
+		// `pnpm check`, which never runs Vite. Keep its flags in sync with these.
 		paraglideVitePlugin({
 			project: './project.inlang',
 			outdir: './src/lib/paraglide',

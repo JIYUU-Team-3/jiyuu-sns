@@ -101,11 +101,9 @@ jobs:
       # Same Playwright suite as CI, pointed at the deployment instead of a
       # local server (see playwright.config.ts).
       #
-      # `@writes` is excluded: that test plays a run and submits a score, and
-      # verifying a deploy must not leave an entry on the real leaderboard.
-      # What remains is read-only, so it also passes before the production
-      # question bank has been seeded (see README - seeding is a manual,
-      # one-time `pnpm db:seed:remote`, deliberately not run on every deploy).
+      # Tests tagged `@writes` are excluded: verifying a deploy must not create
+      # data (users, sessions, ...) in the production database. Tag any e2e
+      # test that writes with `@writes` so it only runs against local D1.
       - name: E2E against the deployment
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.deploy.outputs.deployment-url }}
