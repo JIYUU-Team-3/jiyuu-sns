@@ -19,9 +19,9 @@ SvelteKit 3 app deployed as a Cloudflare Worker, backed by D1 (via Drizzle ORM) 
 ## Getting started
 
 ```sh
-pnpm install          # also installs the lefthook git hooks
-cp .env.example .env  # then fill in the values
-pnpm db:migrate:local   # apply migrations to the local (emulated) D1
+pnpm install           # also installs the lefthook git hooks
+cp .env.example .env   # then fill in the values
+pnpm db:migrate:local  # apply migrations to the local (emulated) D1
 pnpm dev
 ```
 
@@ -86,17 +86,18 @@ To change the schema: edit `schema.ts`, run `pnpm db:generate`, check the SQL it
 
 ## Scripts
 
-| Script                 | What it does                                                    |
-| ---------------------- | --------------------------------------------------------------- |
-| `pnpm dev`             | Vite dev server                                                 |
-| `pnpm build`           | `wrangler types` + production build                             |
-| `pnpm preview`         | Serve the built Worker with wrangler on port 4173               |
-| `pnpm check`           | `wrangler types` + `svelte-kit sync` + `svelte-check`           |
-| `pnpm lint` / `format` | Prettier + ESLint                                               |
-| `pnpm test:unit`       | Vitest (`client` project in Chromium, `server` project in Node) |
-| `pnpm test:e2e`        | Playwright against `pnpm preview:ci` (local D1, no credentials) |
-| `pnpm test`            | Unit tests then e2e                                             |
-| `pnpm gen`             | Regenerate `worker-configuration.d.ts`                          |
+| Script                 | What it does                                                             |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `pnpm dev`             | Vite dev server                                                          |
+| `pnpm build`           | `wrangler types` + production build                                      |
+| `pnpm preview`         | Serve the built Worker with wrangler on port 4173                        |
+| `pnpm check`           | `wrangler types` + `paraglide` + `svelte-kit sync` + `svelte-check`      |
+| `pnpm lint` / `format` | Prettier + ESLint                                                        |
+| `pnpm test:unit`       | Vitest (`client` project in Chromium, `server` project in Node)          |
+| `pnpm test:e2e`        | Playwright against `pnpm preview:ci` (local D1, no credentials)          |
+| `pnpm test`            | Unit tests then e2e                                                      |
+| `pnpm gen`             | Regenerate `worker-configuration.d.ts`                                   |
+| `pnpm paraglide`       | Compile `src/lib/paraglide` without Vite (flags mirror `vite.config.ts`) |
 
 E2E specs are `*.e2e.ts` files under `src/`, next to the routes they cover. Set `PLAYWRIGHT_BASE_URL` to point Playwright at a deployed URL instead of starting a local server. Tag any e2e test that writes data with `@writes`; the post-deploy run skips those so it never touches production data.
 
