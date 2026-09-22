@@ -190,7 +190,7 @@ jobs:
       # The emulated D1 starts empty, so create the tables before the app boots:
       # src/hooks.server.ts binds D1 on every request.
       - name: Migrate the local database
-        run: pnpm run db:reset:local
+        run: pnpm run db:migrate:local
       - run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
