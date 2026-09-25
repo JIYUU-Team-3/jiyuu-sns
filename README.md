@@ -1,6 +1,6 @@
 # sns-website
 
-SvelteKit 3 app deployed as a Cloudflare Worker, backed by D1 (via Drizzle ORM) and KV, with Better Auth (email/password + GitHub) and Paraglide i18n (`en`, `ja`).
+SvelteKit 3 app deployed as a Cloudflare Worker, backed by D1 (via Drizzle ORM) and KV, with Better Auth (email/password + Google) and Paraglide i18n (`en`, `ja`).
 
 ## Stack
 
@@ -10,7 +10,7 @@ SvelteKit 3 app deployed as a Cloudflare Worker, backed by D1 (via Drizzle ORM) 
 | Runtime         | Cloudflare Workers (`@sveltejs/adapter-cloudflare`)                     |
 | Database        | Cloudflare D1 (`DB` binding, database `sns-db`) + Drizzle ORM           |
 | Key-value       | Cloudflare KV (`KV` binding, namespace `sns_kv`)                        |
-| Auth            | Better Auth (email/password, GitHub OAuth)                              |
+| Auth            | Better Auth (email/password, Google OAuth)                              |
 | i18n            | Paraglide JS, locale resolved by `url` → `cookie` → `baseLocale`        |
 | Tests           | Vitest (browser + node projects), Playwright (e2e)                      |
 | Git hooks       | Lefthook                                                                |
@@ -33,7 +33,7 @@ Declared in [`src/env.ts`](src/env.ts) and read through `$app/env/private`; `.en
 | ------------------------------------------------------------------------ | ------------------------------------- |
 | `ORIGIN`                                                                 | Better Auth base URL                  |
 | `BETTER_AUTH_SECRET`                                                     | Better Auth token signing (32+ chars) |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                               | GitHub OAuth                          |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                               | Google OAuth                          |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN` | `drizzle-kit` (remote D1 over HTTP)   |
 
 `wrangler types` bakes the keys from `.env` into `worker-configuration.d.ts`, so a `.env` must exist (placeholder values are fine) before `check` or `build`. That file is generated and git-ignored; every script that typechecks regenerates it.
@@ -129,4 +129,4 @@ Every job installs [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) 
 
 Deploys are never cancelled once they start.
 
-Required repository secrets (`production` environment): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN`. Runtime secrets (`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_*`, `ORIGIN`) have to be set on the Worker with `wrangler secret put`.
+Required repository secrets (`production` environment): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN`. Runtime secrets (`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_*`, `ORIGIN`) have to be set on the Worker with `wrangler secret put`.
