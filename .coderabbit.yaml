@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit is a READ-ONLY reviewer here: it posts review comments on real
+# problems and nothing else. It never commits, opens PRs, labels, assigns,
+# blocks merges, or edits the PR description. Style, lint, types and quality
+# gates belong to CI (ci.yml) and SonarCloud, so CodeRabbit stays out of them.
+language: 'en-US'
+early_access: false
+
+tone_instructions: >-
+  Only comment on bugs, errors, security issues, or logic that must be fixed.
+  No praise, nitpicks, style, or optional suggestions. Be brief.
+
+reviews:
+  profile: 'chill' # fewer, higher-signal comments
+  request_changes_workflow: false # comment only, never "Request changes"
+  fail_commit_status: false # never fail a status check
+
+  # No summaries, walkthrough extras or PR description edits
+  high_level_summary: false
+  high_level_summary_in_walkthrough: false
+  auto_title_placeholder: ''
+  review_details: false
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  poem: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: false
+  slop_detection:
+    enabled: false
+
+  # No side effects on the PR
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - 'development'
+      - 'main'
+    ignore_title_keywords:
+      - 'WIP'
+      - '[skip review]'
+
+  # Generated / vendored files are never reviewed
+  path_filters:
+    - '!pnpm-lock.yaml'
+    - '!drizzle/**'
+    - '!worker-configuration.d.ts'
+    - '!design/mockup/screenshots/**'
+    - '!static/**'
+    - '!**/*.snap'
+    - '!.svelte-kit/**'
+    - '!playwright-report/**'
+
+  path_instructions:
+    - path: '**/*'
+      instructions: |
+        Only comment when something must be fixed:
+        - bugs, runtime errors, crashes, wrong results
+        - security issues (injection, XSS, auth bypass, leaked secrets)
+        - broken logic, race conditions, unhandled errors, data loss
+        Do NOT comment on formatting, naming, import order, readability,
+        refactoring ideas, "consider..." suggestions, or anything ESLint,
+        Prettier, svelte-check or SonarCloud already enforce.
+        If nothing needs fixing, post no comments.
+    - path: 'src/routes/**/+*.server.ts'
+      instructions: |
+        Also check auth/authorization, input validation, and that secrets
+        or server-only data never reach the client.
+
+  # No PR-blocking checks on title/description/docstrings
+  pre_merge_checks:
+    docstrings:
+      mode: 'off'
+    title:
+      mode: 'off'
+    description:
+      mode: 'off'
+    issue_assessment:
+      mode: 'off'
+
+  # CodeRabbit must never write code, commits or PRs
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+
+  # CI + SonarCloud already run linters; avoid duplicate/style findings
+  tools:
+    eslint:
+      enabled: false
+    biome:
+      enabled: false
+    oxc:
+      enabled: false
+    stylelint:
+      enabled: false
+    htmlhint:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    vale:
+      enabled: false
+    yamllint:
+      enabled: false
+    actionlint:
+      enabled: true # real workflow errors; nothing else checks these
+    gitleaks:
+      enabled: true # leaked secrets are always a must-fix
+
+chat:
+  auto_reply: false # only responds when @coderabbitai is mentioned
+  art: false
+
+# Don't touch GitHub issues either
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: false
+  labeling:
+    auto_apply_labels: false
