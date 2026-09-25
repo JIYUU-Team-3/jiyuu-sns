@@ -1,10 +1,15 @@
 // Screenshots design/mockup/index.html across pages × devices × themes.
-// Run: NODE_PATH=~/.cache/jiyuu-shots/node_modules node .claude/skills/mockup-screenshots/shoot.cjs [page-filter]
-const path = require("path");
-const fs = require("fs");
-const { chromium } = require("playwright");
+// Run: node .claude/skills/mockup-screenshots/shoot.mjs [page-filter]
+// Playwright is installed outside the repo (see SKILL.md), so resolve it from there.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createRequire } from "node:module";
 
-const ROOT = path.resolve(__dirname, "../../..");
+const PW_PREFIX = process.env.JIYUU_SHOTS_DIR || path.join(os.homedir(), ".cache/jiyuu-shots");
+const { chromium } = createRequire(path.join(PW_PREFIX, "package.json"))("playwright");
+
+const ROOT = path.resolve(import.meta.dirname, "../../..");
 const MOCKUP = path.join(ROOT, "design/mockup/index.html");
 const OUT = path.join(ROOT, "design/mockup/screenshots");
 
@@ -49,12 +54,10 @@ async function shoot(browser, device, theme, pages) {
   await ctx.close();
 }
 
-(async () => {
-  const filter = process.argv[2];
-  const pages = filter ? PAGES.filter(([n]) => n === filter) : PAGES;
-  fs.mkdirSync(OUT, { recursive: true });
-  const browser = await chromium.launch();
-  for (const device of Object.keys(DEVICES))
-    for (const theme of THEMES) await shoot(browser, device, theme, pages);
-  await browser.close();
-})();
+const filter = process.argv[2];
+const pages = filter ? PAGES.filter(([n]) => n === filter) : PAGES;
+fs.mkdirSync(OUT, { recursive: true });
+const browser = await chromium.launch();
+for (const device of Object.keys(DEVICES))
+  for (const theme of THEMES) await shoot(browser, device, theme, pages);
+await browser.close();
