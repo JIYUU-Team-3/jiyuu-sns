@@ -1,8 +1,8 @@
 import {
 	ORIGIN,
 	BETTER_AUTH_SECRET,
-	GITHUB_CLIENT_ID,
-	GITHUB_CLIENT_SECRET,
+	GOOGLE_CLIENT_ID,
+	GOOGLE_CLIENT_SECRET,
 } from '$app/env/private'
 
 import { betterAuth } from 'better-auth/minimal'
@@ -16,9 +16,9 @@ const authConfig = {
 	secret: BETTER_AUTH_SECRET,
 	emailAndPassword: { enabled: true },
 	socialProviders: {
-		github: {
-			clientId: GITHUB_CLIENT_ID,
-			clientSecret: GITHUB_CLIENT_SECRET,
+		google: {
+			clientId: GOOGLE_CLIENT_ID,
+			clientSecret: GOOGLE_CLIENT_SECRET,
 		},
 	},
 	plugins: [

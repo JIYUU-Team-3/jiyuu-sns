@@ -39,10 +39,10 @@ Priority: **P0** is required for the MVP, **P1** is the next thing if we have ti
 
 ### F1. Authentication — P0
 
-Already scaffolded with Better Auth (email/password + GitHub). The demo lives in `src/routes/demo/better-auth`.
+Already scaffolded with Better Auth (email/password + Google). The demo lives in `src/routes/demo/better-auth`.
 
 - Sign up with email + password; log in; log out
-- Log in with GitHub
+- Log in with Google
 - Redirect logged-out users to `/login` from pages that need a session
 - On first login, send the user to profile setup (F2) if they have no username yet
 - P1: password reset by email (needs an email provider)
@@ -54,7 +54,7 @@ Already scaffolded with Better Auth (email/password + GitHub). The demo lives in
 - Each user has a unique `@username` (3–20 chars, `a-z0-9_`), display name, bio (≤ 160 chars), and avatar
 - Public profile page at `/u/[username]`, showing the header, the user's posts, and follower/following counts
 - `/settings/profile` to edit your own profile
-- Avatar: MVP uses the GitHub avatar or a generated initial. P2: upload an image (needs an R2 bucket binding, which isn't set up yet)
+- Avatar: MVP uses the Google avatar or a generated initial. P2: upload an image (needs an R2 bucket binding, which isn't set up yet)
 
 **Done when:** a new user can pick a username, and other users can visit their profile page.
 
@@ -187,6 +187,5 @@ Set dates to fit the class schedule.
 ## 10. Open questions
 
 - Should posts be public to logged-out visitors, or only to classmates?
-- Is GitHub login needed, given not everyone in class has an account? Should we add Google login instead?
 - Does the class want a "Japanese practice" angle (e.g. furigana, a JLPT-level tag on posts)? That would be a P2 feature.
 - Do we need image uploads for the demo? That needs an R2 bucket and binding.
