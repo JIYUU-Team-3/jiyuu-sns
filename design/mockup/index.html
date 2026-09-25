@@ -2536,7 +2536,7 @@ function createDM() {
 const ACTIONS = {
   compose: () => openComposer(),
   reply: el => openComposer("reply", el.dataset.id),
-  like: el => toggleLike(el.dataset.id, el),
+  like: el => toggleLike(el.dataset.id),
   bookmark: el => toggleBookmark(el.dataset.id),
   share: el => { navigator.clipboard?.writeText(location.href.split("#")[0] + "#/post/" + el.dataset.id).catch(() => {}); toast("Link copied to clipboard"); },
   "repost-menu": el => {
