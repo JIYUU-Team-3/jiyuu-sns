@@ -1126,6 +1126,11 @@ function lerpHue(a, b, t) {
   const d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
+/**
+ * Interpolate a Daylight palette for a time in fractional hours from midnight (0 <= hour < 24).
+ * The final keyframe wraps into midnight; lightness switches midway across light/dark bands.
+ * The returned name belongs to the preceding keyframe.
+ */
 function daySeed(hour) {
   const n = DAY_KEYS.length;
   let i = n - 1;
@@ -1287,6 +1292,7 @@ function linkToken(m, url, tag, h) {
   if (tag) return `<a class="lnk" href="#/tag/${esc(tag.toLowerCase())}">#${esc(tag)}</a>`;
   return `<a class="lnk" href="#/profile/${esc(h)}">@${esc(h)}</a>`;
 }
+/** Escape text while linking HTTP(S) URLs, hashtags, and handles. */
 function richText(t) {
   let out = "", last = 0;
   for (const m of String(t).matchAll(TOKEN_RE)) {
@@ -1310,6 +1316,7 @@ function nameBadges(h) {
   if (u.official) s += `<span class="lock" title="Official account" style="color:var(--accent)">${icon("checkCircle", "sm")}</span>`;
   return s;
 }
+/** Return the first muted entry found in post text, ignoring case and the entry's leading #. */
 function hasMutedWord(p) {
   const t = p.text.toLowerCase();
   return S.mutedWords.find(w => t.includes(w.toLowerCase().replace(/^#/, "")));
@@ -1323,6 +1330,10 @@ function threadPosts(tid) { return POSTS.filter(p => p.thread === tid); }
 /* ============================================================
    Router
    ============================================================ */
+/**
+ * Parse the hash into a route name, decoded path arguments, and query parameters.
+ * An empty hash selects auth; malformed percent escapes propagate a URIError.
+ */
 function parseRoute() {
   const raw = location.hash.replace(/^#\/?/, "") || "auth";
   const [path, qs] = raw.split("?");
@@ -1442,6 +1453,11 @@ function renderActions(p, withCounts = true) {
     ${actionBtn("reply", p, cnt("r"))}${actionBtn("rp", p, cnt("rp"), rp)}${actionBtn("like", p, cnt("l"), liked)}
     <div class="act-right">${actionBtn("bm", p, undefined, bm)}${actionBtn("share", p)}</div></div>`;
 }
+/**
+ * Check the post's reply setting for the current account.
+ * Own posts and "everyone" allow replies. "Following" means the author follows this
+ * account; "mentioned" searches the post text for the current account's @handle as a substring.
+ */
 function canReply(p) {
   const ctl = p.replyCtl || "everyone";
   if (p.by === ME || ctl === "everyone") return true;
@@ -1454,6 +1470,7 @@ function renderPostInner(p) {
     ${renderMedia(p)}${renderPoll(p)}${renderLink(p)}${renderQuote(p)}${renderLoc(p)}
     ${renderActions(p)}`;
 }
+/** Return an empty string for blocked or muted authors, or a row for unrevealed muted words. */
 function renderPost(p, opts = {}) {
   if (isHidden(p)) return "";
   const word = hasMutedWord(p);
@@ -1542,6 +1559,12 @@ function pageBar(title, sub, opts = {}) {
 /* ============================================================
    Views
    ============================================================ */
+/**
+ * Select top-level feed posts, keeping only the first post of each thread.
+ * Following includes own posts, followed authors, and reposts by followed accounts,
+ * sorted newest first. Other tabs retain source order and include the current account's
+ * posts only when fresh.
+ */
 function feedPosts(tab) {
   const all = POSTS.filter(p => !p.replyTo && !(p.thread && threadPosts(p.thread)[0] !== p));
   if (tab === "following") {
@@ -1892,6 +1915,10 @@ function viewAuth() {
       <span>© 2026 Jiyuu (prototype)</span></footer>
   </div>`;
 }
+/**
+ * Return a status and hint for a proposed handle: idle when empty, error when invalid or
+ * taken, and available for 3–20 allowed characters not reserved by the prototype.
+ */
 function handleStatus(v) {
   if (!v) return ["idle", "Letters, numbers, underscores, and periods. 3 to 20 characters."];
   if (!/^[a-z0-9_.]{3,20}$/i.test(v)) return ["err", "Use 3 to 20 letters, numbers, underscores, or periods."];
@@ -2196,6 +2223,7 @@ function renderNewDM(keepFocus) {
    ============================================================ */
 let C = null;
 function newDraft(text = "") { return { text, images: [], gif: null, poll: null, loc: null, panel: null }; }
+/** Open a composer; reply, quote, and edit modes use a target post ID. */
 function openComposer(mode = "new", target = null) {
   const edit = mode === "edit" ? post(target) : null;
   C = { mode, target, replyCtl: edit?.replyCtl || "everyone", drafts: [newDraft(edit ? edit.text : "")], focus: 0 };
@@ -2212,6 +2240,10 @@ function counterHtml(n) {
   const st = charState(n);
   return `<span class="n num ${st}" aria-live="polite">${st ? left : ""}</span>${ringSvg(n)}`;
 }
+/**
+ * Require text, a photo, a GIF, or a poll per draft, at most 280 UTF-16 code units of
+ * text, and at least two nonblank options in any poll.
+ */
 function composerValid() {
   return C.drafts.every(d => (d.text.trim() || d.images.length || d.gif || d.poll) && d.text.length <= LIMIT && (!d.poll || d.poll.opts.filter(o => o.trim()).length >= 2));
 }
@@ -2296,6 +2328,12 @@ function onDraftInput(t) {
   const add = layer.querySelector(".add-thread");
   if (add) add.disabled = !t.value.trim() || C.drafts.length >= 10;
 }
+/**
+ * Leave invalid drafts untouched. Edits update text and mark the post edited; new posts
+ * are prepended and linked to reply or quote targets or to thread predecessors when applicable.
+ * Refresh the view and show a confirmation.
+ * An unknown edit, reply, or quote target propagates a TypeError.
+ */
 function submitComposer() {
   if (!composerValid()) return;
   if (C.mode === "edit") {
@@ -2454,6 +2492,7 @@ function clipSiblings(bar, ceil, floor, next) {
   }
 }
 const DAY_VARS = Object.keys(dayTokens(12).vars);
+/** Parse H:MM, HH:MM, HMM, or HHMM into minutes after midnight; return null for invalid times. */
 function parseHHMM(v) {
   const m = /^(\d{1,2}):?(\d{2})$/.exec(v || "");
   return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
@@ -2501,6 +2540,11 @@ function refreshAcctMenu(focusSel) {
   else { const a = document.querySelector(".acct-chip"); if (a) openPop(a, acctMenuHtml(), "left"); }
   layer.querySelector(focusSel)?.focus({ preventScroll: true });
 }
+/**
+ * Append a pending attachment and nonblank text as separate messages in the conversation.
+ * Only text carries a reply reference. With neither content nor attachment, do nothing.
+ * An unknown conversation ID raises a TypeError when sending content.
+ */
 function sendDM(form) {
   const c = CONVOS.find(x => x.id === form.dataset.c);
   const text = form.text.value.trim();
@@ -2521,6 +2565,7 @@ function toggleReact(ci, i, e) {
   if (!list.length) delete m.reacts[e];
   closeLayer(); render();
 }
+/** Reuse a one-to-one conversation when present, or create one for the selected members. */
 function createDM() {
   const sel = newDM.sel;
   const name = document.getElementById("dm-group-name")?.value.trim();

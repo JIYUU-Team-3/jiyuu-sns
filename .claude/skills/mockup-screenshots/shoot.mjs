@@ -29,10 +29,16 @@ const DEVICES = {
 };
 const THEMES = ["light", "dark"];
 
+/** Build a mockup URL with the theme query before the hash route. */
 function pageUrl(route, theme) {
   return `file://${MOCKUP}?theme=${theme}#/${route}`;
 }
 
+/**
+ * Wait for network idle and for images starting above the viewport bottom to complete,
+ * excluding images with inline `visibility: hidden`.
+ * Network idle and image wait failures are tolerated; the final 400 ms pause still runs.
+ */
 async function waitForImages(page) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForFunction(() => [...document.images]
@@ -41,6 +47,10 @@ async function waitForImages(page) {
   await page.waitForTimeout(400);
 }
 
+/**
+ * Capture viewport PNGs for the selected routes at one device size and theme.
+ * Existing files are overwritten, and navigation or screenshot errors propagate.
+ */
 async function shoot(browser, device, theme, pages) {
   const ctx = await browser.newContext({ ...DEVICES[device], colorScheme: theme, reducedMotion: "reduce" });
   const page = await ctx.newPage();
