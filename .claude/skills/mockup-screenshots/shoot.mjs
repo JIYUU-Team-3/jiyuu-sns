@@ -29,10 +29,16 @@ const DEVICES = {
 };
 const THEMES = ["light", "dark"];
 
+/** Put the theme query before the hash route so the mockup reads both. */
 function pageUrl(route, theme) {
   return `file://${MOCKUP}?theme=${theme}#/${route}`;
 }
 
+/**
+ * Wait for network idle and images above the viewport's lower edge to settle.
+ * The image wait has a 15-second timeout; failures in either wait are ignored
+ * before the final 400 ms delay.
+ */
 async function waitForImages(page) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForFunction(() => [...document.images]
@@ -41,6 +47,11 @@ async function waitForImages(page) {
   await page.waitForTimeout(400);
 }
 
+/**
+ * Capture viewport PNGs for each page in the selected device and theme.
+ * Playwright failures during context creation, navigation, capture, or close propagate.
+ * @param {Array<[string, string]>} pages Screenshot basename and hash route pairs.
+ */
 async function shoot(browser, device, theme, pages) {
   const ctx = await browser.newContext({ ...DEVICES[device], colorScheme: theme, reducedMotion: "reduce" });
   const page = await ctx.newPage();

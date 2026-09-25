@@ -1126,6 +1126,11 @@ function lerpHue(a, b, t) {
   const d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
+/**
+ * Interpolate the daylight palette for a fractional clock hour, wrapping across midnight.
+ * The light/dark band switches midway between key times; the displayed name
+ * remains the preceding key's name until the next key time.
+ */
 function daySeed(hour) {
   const n = DAY_KEYS.length;
   let i = n - 1;
@@ -1140,7 +1145,7 @@ function daySeed(hour) {
   return { name: a.name, dark: a.dark === b.dark ? a.dark : near.dark, L, H: lerpHue(a.H, b.H, e), C: lerp(a.C, b.C, e), aH: lerpHue(a.aH, b.aH, e) };
 }
 
-/* OKLCH -> sRGB, with chroma reduced until in gamut */
+/** Convert OKLCH components to linear sRGB channels without gamut adjustment. */
 function oklchToLinear(L, C, H) {
   const hr = H * Math.PI / 180, a = C * Math.cos(hr), b = C * Math.sin(hr);
   const l = (L + .3963377774 * a + .2158037573 * b) ** 3;
@@ -1153,6 +1158,7 @@ function oklchToLinear(L, C, H) {
   ];
 }
 const inGamut = rgb => rgb.every(v => v >= -1e-4 && v <= 1 + 1e-4);
+/** Reduce chroma when needed to bring linear sRGB channels within gamut tolerance. */
 function oklch(L, C, H) {
   let lin = oklchToLinear(L, C, H);
   if (inGamut(lin)) return lin;
@@ -1253,7 +1259,9 @@ const INITIAL_FOLLOWING = new Set(S.following);
 const user = h => USERS[h];
 const post = id => POSTS.find(p => p.id === id);
 
+/** Return a stored preference, or null when it is absent or storage is unavailable. */
 function storeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+/** Attempt to save a preference; ignore storage failures. */
 function storeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }
 
 /* ============================================================
@@ -1268,6 +1276,7 @@ function fmtNum(n) {
   if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
   return String(n);
 }
+/** Format minutes before the prototype's fixed noon reference on September 25, 2026. */
 function fmtAgo(min) {
   if (min < 1) return "now";
   if (min < 60) return min + "m";
@@ -1275,6 +1284,7 @@ function fmtAgo(min) {
   const d = new Date(Date.parse("2026-09-25T12:00:00") - min * 60000);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+/** Format a full local date and time from minutes before the prototype's fixed noon reference. */
 function fmtFull(min) {
   const d = new Date(Date.parse("2026-09-25T12:00:00") - min * 60000);
   const t = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -1287,6 +1297,7 @@ function linkToken(m, url, tag, h) {
   if (tag) return `<a class="lnk" href="#/tag/${esc(tag.toLowerCase())}">#${esc(tag)}</a>`;
   return `<a class="lnk" href="#/profile/${esc(h)}">@${esc(h)}</a>`;
 }
+/** Escape text and link matched URLs, hashtags, and account handles. */
 function richText(t) {
   let out = "", last = 0;
   for (const m of String(t).matchAll(TOKEN_RE)) {
@@ -1310,6 +1321,7 @@ function nameBadges(h) {
   if (u.official) s += `<span class="lock" title="Official account" style="color:var(--accent)">${icon("checkCircle", "sm")}</span>`;
   return s;
 }
+/** Return the first muted entry matched case-insensitively in post text, ignoring its leading #, or undefined. */
 function hasMutedWord(p) {
   const t = p.text.toLowerCase();
   return S.mutedWords.find(w => t.includes(w.toLowerCase().replace(/^#/, "")));
@@ -1323,6 +1335,10 @@ function threadPosts(tid) { return POSTS.filter(p => p.thread === tid); }
 /* ============================================================
    Router
    ============================================================ */
+/**
+ * Parse the current hash into a route name, decoded path arguments, and query.
+ * An empty hash selects auth; malformed path escapes propagate a URIError.
+ */
 function parseRoute() {
   const raw = location.hash.replace(/^#\/?/, "") || "auth";
   const [path, qs] = raw.split("?");
@@ -1442,6 +1458,11 @@ function renderActions(p, withCounts = true) {
     ${actionBtn("reply", p, cnt("r"))}${actionBtn("rp", p, cnt("rp"), rp)}${actionBtn("like", p, cnt("l"), liked)}
     <div class="act-right">${actionBtn("bm", p, undefined, bm)}${actionBtn("share", p)}</div></div>`;
 }
+/**
+ * Check the current account's reply access: own and open posts allow replies;
+ * restricted posts require the author to follow or mention the current account,
+ * according to that post's reply setting.
+ */
 function canReply(p) {
   const ctl = p.replyCtl || "everyone";
   if (p.by === ME || ctl === "everyone") return true;
@@ -1454,6 +1475,10 @@ function renderPostInner(p) {
     ${renderMedia(p)}${renderPoll(p)}${renderLink(p)}${renderQuote(p)}${renderLoc(p)}
     ${renderActions(p)}`;
 }
+/**
+ * Render a feed post, a muted-word notice, or nothing for a blocked or muted author.
+ * The options control thread continuation, hover styling, and pinned context.
+ */
 function renderPost(p, opts = {}) {
   if (isHidden(p)) return "";
   const word = hasMutedWord(p);
@@ -1542,6 +1567,11 @@ function pageBar(title, sub, opts = {}) {
 /* ============================================================
    Views
    ============================================================ */
+/**
+ * Select top-level feed posts. Following includes the current account's posts,
+ * followed authors, and reposts by followed accounts, newest first. For You
+ * keeps source order and only includes the current account's posts when fresh.
+ */
 function feedPosts(tab) {
   const all = POSTS.filter(p => !p.replyTo && !(p.thread && threadPosts(p.thread)[0] !== p));
   if (tab === "following") {
@@ -1869,6 +1899,7 @@ function renderChat(c) {
       <button class="icon-btn accent" aria-label="Send">${icon("send")}</button></div></form>
   </section>`;
 }
+/** Render the conversation list and open chat, marking an opened chat as read. */
 function viewMessages(id) {
   const c = CONVOS.find(x => x.id === id);
   if (c) c.unread = false;
@@ -1892,6 +1923,10 @@ function viewAuth() {
       <span>© 2026 Jiyuu (prototype)</span></footer>
   </div>`;
 }
+/**
+ * Return a status and message for a proposed handle: idle when empty, err for
+ * invalid or taken names, and ok otherwise. The current handle is reusable.
+ */
 function handleStatus(v) {
   if (!v) return ["idle", "Letters, numbers, underscores, and periods. 3 to 20 characters."];
   if (!/^[a-z0-9_.]{3,20}$/i.test(v)) return ["err", "Use 3 to 20 letters, numbers, underscores, or periods."];
@@ -1935,6 +1970,7 @@ function viewFor(route) {
     default: return viewHome();
   }
 }
+/** Replace the app with the current hash route's view and, for content routes, its shell. */
 function render() {
   const route = parseRoute();
   const app = document.getElementById("app");
@@ -1949,6 +1985,7 @@ function render() {
   queueClip();
 }
 function scrollChat() { const el = document.getElementById("chat"); if (el) el.scrollTop = el.scrollHeight; }
+/** Redraw the current view while restoring the window's vertical scroll position. */
 function rerender() { const y = scrollY; render(); scrollTo(0, y); }
 
 /* ============================================================
@@ -1957,6 +1994,10 @@ function rerender() { const y = scrollY; render(); scrollTo(0, y); }
 const layer = document.getElementById("layer");
 let popAnchor = null;
 function closeLayer() { layer.innerHTML = ""; popAnchor = null; document.body.style.overflow = ""; }
+/**
+ * Open and focus a popover aligned to an anchor's left or right edge.
+ * Clamp its horizontal position and try above the anchor when space is short.
+ */
 function openPop(anchor, html, align = "right") {
   closeLayer();
   popAnchor = anchor;
@@ -1985,6 +2026,10 @@ function openDrawer(html) {
   document.body.style.overflow = "hidden";
 }
 let toastTimer;
+/**
+ * Replace the current toast with HTML content and clear it after 3.2 seconds.
+ * An optional link supplies the displayed label and destination as a pair.
+ */
 function toast(msg, link) {
   const el = document.getElementById("toast");
   el.innerHTML = `<div class="toast"><span>${msg}</span>${link ? `<a href="${link[1]}">${link[0]}</a>` : ""}</div>`;
@@ -2100,6 +2145,10 @@ function openMuteWords(p) {
 }
 
 /* ---------- Carousel + photo viewer ---------- */
+/**
+ * Scroll a photo track by 60% of its width, or a full width in the viewer.
+ * Do nothing without a track; negative direction moves toward previous photos.
+ */
 function stepTrack(track, dir) {
   if (!track) return;
   const step = track.classList.contains("vw-track") ? track.clientWidth : track.clientWidth * 0.6;
@@ -2212,6 +2261,10 @@ function counterHtml(n) {
   const st = charState(n);
   return `<span class="n num ${st}" aria-live="polite">${st ? left : ""}</span>${ringSvg(n)}`;
 }
+/**
+ * Require content in every draft, at most 280 text characters per draft, and
+ * at least two nonempty choices in each attached poll.
+ */
 function composerValid() {
   return C.drafts.every(d => (d.text.trim() || d.images.length || d.gif || d.poll) && d.text.length <= LIMIT && (!d.poll || d.poll.opts.filter(o => o.trim()).length >= 2));
 }
@@ -2296,6 +2349,11 @@ function onDraftInput(t) {
   const add = layer.querySelector(".add-thread");
   if (add) add.disabled = !t.value.trim() || C.drafts.length >= 10;
 }
+/**
+ * Ignore invalid drafts; otherwise edit text or add linked reply, quote, and
+ * thread posts to in-memory data, then redraw and show confirmation.
+ * @throws {TypeError} If a valid edit, reply, or quote targets a missing post.
+ */
 function submitComposer() {
   if (!composerValid()) return;
   if (C.mode === "edit") {
@@ -2410,6 +2468,10 @@ function isDarkNow() {
   if (S.theme === "time") return dayTokens(dayMinutes() / 60).seed.dark;
   return S.theme === "dark" || (S.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
 }
+/**
+ * Apply the selected theme, refresh Daylight colors each minute when active,
+ * and attempt to persist the choice. Storage failures are ignored.
+ */
 function applyTheme() {
   const r = document.documentElement;
   if (S.theme === "system") r.removeAttribute("data-theme");
@@ -2434,6 +2496,7 @@ function queueClip() {
   clipQueued = true;
   requestAnimationFrame(() => { clipQueued = false; clipUnderBars(); });
 }
+/** Clip content beneath sticky bars in transparent mode and clear stale clipping. */
 function clipUnderBars() {
   const next = new Set();
   if (S.clear) {
@@ -2454,6 +2517,10 @@ function clipSiblings(bar, ceil, floor, next) {
   }
 }
 const DAY_VARS = Object.keys(dayTokens(12).vars);
+/**
+ * Parse a one- or two-digit hour and two-digit minutes, with an optional colon.
+ * Return minutes after midnight, or null outside 00:00–23:59 or for bad syntax.
+ */
 function parseHHMM(v) {
   const m = /^(\d{1,2}):?(\d{2})$/.exec(v || "");
   return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
@@ -2501,6 +2568,11 @@ function refreshAcctMenu(focusSel) {
   else { const a = document.querySelector(".acct-chip"); if (a) openPop(a, acctMenuHtml(), "left"); }
   layer.querySelector(focusSel)?.focus({ preventScroll: true });
 }
+/**
+ * Append attachment and nonempty text as separate messages to the selected chat.
+ * A blank send without an attachment does nothing; a send clears reply and
+ * attachment state, redraws the chat, and refocuses its input.
+ */
 function sendDM(form) {
   const c = CONVOS.find(x => x.id === form.dataset.c);
   const text = form.text.value.trim();
@@ -2521,6 +2593,10 @@ function toggleReact(ci, i, e) {
   if (!list.length) delete m.reacts[e];
   closeLayer(); render();
 }
+/**
+ * Reuse an existing one-to-one chat for the selected person, or create a chat
+ * for the selected recipients, then navigate to it.
+ */
 function createDM() {
   const sel = newDM.sel;
   const name = document.getElementById("dm-group-name")?.value.trim();
