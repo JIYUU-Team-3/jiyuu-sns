@@ -26,7 +26,7 @@ Screenshots are viewport-only (not full page): the feed is long and images are l
    If launch fails with "Executable doesn't exist", rerun the `install` line from that directory.
 2. From the repo root:
    ```sh
-   NODE_PATH=~/.cache/jiyuu-shots/node_modules node .claude/skills/mockup-screenshots/shoot.cjs
+   node .claude/skills/mockup-screenshots/shoot.mjs
    ```
    Pass a page name (e.g. `home`) as the argument to capture just that page.
 
@@ -37,5 +37,5 @@ theme actually differs, mobile shows the bottom tab bar, images are not blank.
 
 ## Changing the set
 
-Edit `PAGES`, `DEVICES`, or `THEMES` at the top of `shoot.cjs`. Routes come from `viewFor()` / `render()` in the mockup
-(`auth`, `onboarding`, `home`, `post/<id>`, `profile/<handle>`, `explore`, `tag/<tag>`, `notifications`, `bookmarks`, `messages[/<handle>]`).
+Edit `PAGES`, `DEVICES`, or `THEMES` at the top of `shoot.mjs`. Routes come from `viewFor()` / `render()` in the mockup
+(`auth`, `onboarding`, `home`, `post/<id>`, `profile/<handle>`, `explore`, `tag/<tag>`, `notifications`, `bookmarks`, `messages[/<convo-id>]` e.g. `c1`).
