@@ -13,3 +13,6 @@ bun.lockb
 worker-configuration.d.ts
 /project.inlang/.meta.json
 /project.inlang/README.md
+/.claude
+DESIGN.md
+design/
