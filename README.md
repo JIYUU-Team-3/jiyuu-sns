@@ -1,4 +1,4 @@
-# sns-website
+# jiyuu-sns
 
 SvelteKit 3 app deployed as a Cloudflare Worker, backed by D1 (via Drizzle ORM) and KV, with Better Auth (email/password + Google) and Paraglide i18n (`en`, `ja`).
 
