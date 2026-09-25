@@ -88,7 +88,7 @@
 }
 
 /* ---------- Daylight theme ----------
-   Every token is written inline on <html> by applyDaylight(). Registering the color tokens
+   Every token is written inline on the root element by applyDaylight(). Registering the color tokens
    lets them transition, so minute ticks drift and the dawn/dusk band flip cross-fades. */
 @property --bg { syntax: "<color>"; inherits: true; initial-value: #fff; }
 @property --bg-2 { syntax: "<color>"; inherits: true; initial-value: #f7f8f9; }
@@ -1175,7 +1175,7 @@ function surfaceTokens(s) {
   const d = s.dark ? 1 : -1, sf = (dl, cm = 1) => col(Math.min(.998, s.L + d * dl), s.C * cm, s.H);
   return {
     "--bg": sf(0), "--bg-2": sf(.022), "--bg-3": sf(.045), "--bg-elev": s.dark ? sf(.03) : sf(-.02),
-    "--line": sf(s.dark ? .075 : .065, 1.2), "--line-2": sf(s.dark ? .15 : .14, 1.1), "--img-fallback": sf(s.dark ? .07 : .07),
+    "--line": sf(s.dark ? .075 : .065, 1.2), "--line-2": sf(s.dark ? .15 : .14, 1.1), "--img-fallback": sf(.07),
   };
 }
 function inkTokens(s) {
@@ -2198,8 +2198,7 @@ let C = null;
 function newDraft(text = "") { return { text, images: [], gif: null, poll: null, loc: null, panel: null }; }
 function openComposer(mode = "new", target = null) {
   const edit = mode === "edit" ? post(target) : null;
-  C = { mode, target, replyCtl: edit?.replyCtl || "everyone", drafts: [newDraft(edit ? edit.text : mode === "reply" ? "" : "")], focus: 0 };
-  if (mode === "reply") { const p = post(target); if (p && p.by !== ME) C.drafts[0].text = ""; }
+  C = { mode, target, replyCtl: edit?.replyCtl || "everyone", drafts: [newDraft(edit ? edit.text : "")], focus: 0 };
   renderComposer();
 }
 function charState(n) { return n > LIMIT ? "over" : n > LIMIT - 20 ? "warn" : ""; }
