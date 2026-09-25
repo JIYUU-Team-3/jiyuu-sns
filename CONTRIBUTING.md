@@ -130,7 +130,7 @@ Tests:
 ## Secrets
 
 - Never commit `.env`. It's git-ignored; keep it that way.
-- Don't paste real secrets (Cloudflare tokens, `BETTER_AUTH_SECRET`, GitHub OAuth secret) into issues, PRs, or chat. The production values live in GitHub repository secrets and in Worker secrets.
+- Don't paste real secrets (Cloudflare tokens, `BETTER_AUTH_SECRET`, Google OAuth secret) into issues, PRs, or chat. The production values live in GitHub repository secrets and in Worker secrets.
 
 ## Reviewing a PR
 

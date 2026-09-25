@@ -13,7 +13,10 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
 				experimental: { async: true },
 			},
-			adapter: adapter(),
+			// Both test projects below start their own Workers runtime. Sharing the
+			// persisted .wrangler/state between them fails with SQLITE_BUSY, so
+			// tests get throwaway in-memory bindings instead.
+			adapter: adapter({ platformProxy: { persist: !process.env.VITEST } }),
 			experimental: { remoteFunctions: true },
 		}),
 
