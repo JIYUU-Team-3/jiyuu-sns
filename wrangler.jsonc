@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "sns-website",
+	"name": "jiyuu-sns",
 	"compatibility_date": "2026-09-16",
 	"compatibility_flags": ["nodejs_als"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
@@ -33,4 +33,17 @@
 	],
 	"workers_dev": true,
 	"preview_urls": true,
+	"observability": {
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 0.1,
+			"invocation_logs": true,
+			"persist": true,
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 0.1,
+			"persist": true,
+		},
+	},
 }
