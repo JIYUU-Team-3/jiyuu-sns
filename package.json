@@ -29,6 +29,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@fontsource-variable/kantumruy-pro": "^5.3.0",
 		"@inlang/paraglide-js": "^2.18.2",
 		"@playwright/test": "^1.60.0",
 		"@sveltejs/adapter-cloudflare": "next",
