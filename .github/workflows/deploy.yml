@@ -81,7 +81,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: pnpm
-          wranglerVersion: '4.125.0'
+          wranglerVersion: '4.132.0'
           command: deploy
 
       # Verification that the deploy is actually serving, not just that the
