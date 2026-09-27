@@ -42,6 +42,38 @@ export function read_profile(data: FormData): ProfileDraft {
 	}
 }
 
+/** Lowercase ASCII words of some text, with accents dropped, e.g. `José Núñez` → `jose`, `nunez`. */
+const ascii_words = (text: string) =>
+	text
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.split(/[^a-z0-9]+/)
+		.filter(Boolean)
+
+/**
+ * A handle from as many whole words as fit, or undefined when they don't make a usable one.
+ * Only a first word that is too long on its own gets cut.
+ */
+function handle_from(words: string[]) {
+	let handle = (words[0] ?? '').slice(0, HANDLE_MAX)
+	for (const word of words.slice(1)) {
+		if (handle.length + 1 + word.length > HANDLE_MAX) break
+		handle += `_${word}`
+	}
+	return handle_problem(handle) ? undefined : handle
+}
+
+/**
+ * A starting handle from the Google account: the name's words joined by underscores, e.g.
+ * `Mika Tanaka` → `mika_tanaka`. Names without Latin letters fall back to the email's local
+ * part. Empty when neither gives a usable handle. Availability is still unchecked.
+ */
+export function suggest_handle(name: string, email: string) {
+	const local_part = email.split('@')[0] ?? ''
+	return handle_from(ascii_words(name)) ?? handle_from(ascii_words(local_part)) ?? ''
+}
+
 /** A stable avatar hue for someone without a photo, so their initials keep one colour. */
 export function avatar_hue(seed: string) {
 	let hash = 0

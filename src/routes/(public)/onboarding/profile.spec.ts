@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { avatar_hue, handle_problem, initials, profile_errors, read_profile } from './profile'
+import {
+	avatar_hue,
+	handle_problem,
+	initials,
+	profile_errors,
+	read_profile,
+	suggest_handle,
+} from './profile'
 
 describe('handle_problem', () => {
 	it('accepts 3 to 20 lowercase letters, numbers, underscores, and periods', () => {
@@ -54,6 +61,33 @@ describe('read_profile', () => {
 
 	it('reads missing fields as empty', () => {
 		expect(read_profile(new FormData())).toEqual({ name: '', handle: '', bio: '' })
+	})
+})
+
+describe('suggest_handle', () => {
+	it('joins the name in lowercase with underscores', () => {
+		expect(suggest_handle('Mika Tanaka', 'mt@example.com')).toBe('mika_tanaka')
+	})
+
+	it('drops accents and punctuation', () => {
+		expect(suggest_handle("José O'Núñez-Ruiz", 'j@example.com')).toBe('jose_o_nunez_ruiz')
+	})
+
+	it('keeps only whole words that fit in 20 characters', () => {
+		expect(suggest_handle('Alexandria Ocasio Cortez', 'a@example.com')).toBe('alexandria_ocasio')
+		expect(suggest_handle('Wolfeschlegelsteinhausen Berger', 'w@example.com')).toBe(
+			'wolfeschlegelsteinha',
+		)
+	})
+
+	it('falls back to the email when the name has no Latin letters', () => {
+		expect(suggest_handle('田中 美香', 'mika.tanaka99@gmail.com')).toBe('mika_tanaka99')
+		expect(suggest_handle('ហុង ម៉ានុត', 'manut@example.com')).toBe('manut')
+	})
+
+	it('skips reserved or too-short results', () => {
+		expect(suggest_handle('Admin', 'jo@example.com')).toBe('')
+		expect(suggest_handle('Al', 'support@example.com')).toBe('')
 	})
 })
 

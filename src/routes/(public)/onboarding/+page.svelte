@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
 	import { enhance, type SubmitFunction } from '$app/forms'
 	import { m } from '#lib/paraglide/messages.js'
 	import type { PageProps } from './$types'
@@ -13,9 +14,13 @@
 
 	// Writable deriveds: prefilled from Google, or from a rejected submit, then edited freely.
 	let name = $derived(form?.draft.name ?? data.account.name.slice(0, NAME_MAX))
-	let handle = $derived(form?.draft.handle ?? '')
+	let handle = $derived(form?.draft.handle ?? data.suggested_handle)
 	let bio = $derived(form?.draft.bio ?? '')
 	let pending = $state(false)
+	// Without JavaScript nothing can re-enable the button, so it stays usable until hydration and
+	// the server action rejects anything invalid.
+	let hydrated = $state(false)
+	onMount(() => (hydrated = true))
 
 	const ready = $derived(
 		Object.keys(profile_errors({ name: name.trim(), handle: handle.trim(), bio })).length === 0,
@@ -70,7 +75,9 @@
 			bind:value={bio}
 		/>
 
-		<button class="continue" disabled={!ready || pending}>{m.onboarding_continue()}</button>
+		<button class="continue" disabled={hydrated && (!ready || pending)}
+			>{m.onboarding_continue()}</button
+		>
 	</form>
 </main>
 

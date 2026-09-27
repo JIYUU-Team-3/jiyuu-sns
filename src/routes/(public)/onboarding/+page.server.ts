@@ -1,13 +1,16 @@
 import { fail, redirect } from '@sveltejs/kit'
 import { localizeHref } from '#lib/paraglide/runtime'
 import { home_href } from '../links'
-import { profile_errors, read_profile } from './profile'
+import { profile_errors, read_profile, suggest_handle } from './profile'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = ({ locals }) => {
 	if (!locals.user) return redirect(302, localizeHref('/login'))
 	const { name, email, image } = locals.user
-	return { account: { name, email, image: image ?? undefined } }
+	return {
+		account: { name, email, image: image ?? undefined },
+		suggested_handle: suggest_handle(name, email),
+	}
 }
 
 export const actions: Actions = {
