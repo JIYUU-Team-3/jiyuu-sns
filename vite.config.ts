@@ -3,6 +3,15 @@ import { defineConfig } from 'vitest/config'
 import { playwright } from '@vitest/browser-playwright'
 import adapter from '@sveltejs/adapter-cloudflare'
 import { sveltekit } from '@sveltejs/kit/vite'
+import { variables } from './src/env.ts'
+
+// SvelteKit validates every private env var from src/env.ts during the build's
+// analyse step, but on Cloudflare the real values are Worker secrets that only
+// exist at runtime. Placeholders let a build without a .env (Workers Builds, CI)
+// succeed; the Worker still validates the real values when it starts.
+if (process.argv.includes('build')) {
+	for (const name of Object.keys(variables)) process.env[name] ??= ''
+}
 
 export default defineConfig({
 	plugins: [
