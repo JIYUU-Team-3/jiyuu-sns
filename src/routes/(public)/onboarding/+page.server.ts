@@ -1,7 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit'
 import { localizeHref } from '#lib/paraglide/runtime'
+import { save_profile } from '#lib/server/profiles'
 import { home_href } from '../links'
-import { profile_errors, read_profile, suggest_handle } from './profile'
+import { profile_errors, read_profile, suggest_handle, type ProfileErrors } from './profile'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = ({ locals }) => {
@@ -21,8 +22,12 @@ export const actions: Actions = {
 		const errors = profile_errors(draft)
 		if (Object.keys(errors).length) return fail(400, { draft, errors })
 
-		// TODO(backend): save name, handle and bio, and turn a handle someone else holds into
-		// `errors.handle = 'taken'`. Only the format is checked until then.
+		const saved = await save_profile(locals.db, locals.user.id, draft)
+		if (saved === 'taken') {
+			const taken: ProfileErrors = { handle: 'taken' }
+			return fail(400, { draft, errors: taken })
+		}
+
 		return redirect(303, home_href())
 	},
 }

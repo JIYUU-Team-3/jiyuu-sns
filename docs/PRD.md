@@ -60,7 +60,7 @@ Already scaffolded with Better Auth (email/password + Google). The demo lives in
 
 ### F3. Posts — P0
 
-- Create a text post (1–500 chars) from the home page
+- Create a text post (1–280 characters, counted as graphemes so an emoji is 1) from the home page or the New post composer
 - View a single post at `/p/[id]`
 - Delete your own post (with a confirm step)
 - Show relative time ("3分前" / "3m ago") in the current locale
@@ -86,13 +86,13 @@ Already scaffolded with Better Auth (email/password + Google). The demo lives in
 
 **Done when:** counts and lists update correctly and the home feed reflects them.
 
-### F6. Likes and comments — P0 (likes) / P1 (comments)
+### F6. Likes and replies — P0 (likes) / P1 (replies)
 
 - Like / unlike a post; show the like count and whether you liked it
-- Comment on a post (1–300 chars), shown oldest first on `/p/[id]`
-- Delete your own comment; a post's author can delete comments on their post
+- Reply to a post, shown oldest first on `/p/[id]`. As on X, replies are posts (same 280 limit, same card) linked by `reply_to_id`
+- Delete your own reply like any other post. Deleting a post keeps other people's replies; they lose the link and stay out of timelines
 
-**Done when:** likes and comments persist, and counts show on feed cards.
+**Done when:** likes and replies persist, and counts show on feed cards.
 
 ### F7. Notifications — P1
 
@@ -124,18 +124,17 @@ Feature owners build their pages with these shared components. Until a component
 
 Better Auth owns `user`, `session`, `account`, `verification` in `auth.schema.ts`. That file is generated, so don't edit it by hand. App tables go in `src/lib/server/db/schema.ts`. Timestamps use the same `timestamp_ms` integer style as the auth schema.
 
-| Table          | Columns                                                                                           | Notes                                   |
-| -------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `profile`      | `user_id` PK → user, `username` unique, `display_name`, `bio`, `avatar_url`, `created_at`         | 1:1 with `user`                         |
-| `post`         | `id` PK, `author_id` → user, `body`, `created_at`, `updated_at`                                   | index `(author_id, created_at)`         |
-| `follow`       | `follower_id` → user, `following_id` → user, `created_at`                                         | PK `(follower_id, following_id)`        |
-| `post_like`    | `user_id` → user, `post_id` → post, `created_at`                                                  | PK `(user_id, post_id)`                 |
-| `comment`      | `id` PK, `post_id` → post, `author_id` → user, `body`, `created_at`                               | index `(post_id, created_at)`           |
-| `notification` | `id` PK, `user_id` → user, `actor_id` → user, `type`, `post_id` nullable, `read_at`, `created_at` | `type`: `follow` \| `like` \| `comment` |
+| Table          | Columns                                                                                           | Notes                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `profile`      | `user_id` PK → user, `handle` unique, `display_name`, `bio`, `avatar_url`, `created_at`           | 1:1 with `user`                                                                          |
+| `post`         | `id` PK, `author_id` → user, `body`, `reply_to_id` → post, `is_reply`, `created_at`, `edited_at`  | indexes `(author_id, created_at)`, `(reply_to_id, created_at)`, `(is_reply, created_at)` |
+| `follow`       | `follower_id` → user, `following_id` → user, `created_at`                                         | PK `(follower_id, following_id)`                                                         |
+| `post_like`    | `user_id` → user, `post_id` → post, `created_at`                                                  | PK `(user_id, post_id)`                                                                  |
+| `notification` | `id` PK, `user_id` → user, `actor_id` → user, `type`, `post_id` nullable, `read_at`, `created_at` | `type`: `follow` \| `like` \| `reply`                                                    |
 
-All foreign keys use `onDelete: 'cascade'`. The demo `task` table is removed.
+All foreign keys use `onDelete: 'cascade'`, except `post.reply_to_id`, which is `set null` so deleting a post doesn't delete other people's replies. `edited_at` is set only by an edit and drives the "Edited" label. The demo `task` table is removed.
 
-**To avoid migration conflicts, land the whole P0 schema (`profile`, `post`, `follow`, `post_like`, `comment`) in one pull request before feature work starts.** Later schema changes follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md#database-changes).
+**To avoid migration conflicts, land the whole P0 schema (`profile`, `post`, `follow`, `post_like`) in one pull request before feature work starts.** Later schema changes follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md#database-changes).
 
 ## 6. Routes
 

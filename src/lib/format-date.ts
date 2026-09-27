@@ -1,5 +1,5 @@
 /** CLDR Khmer month names, as Node's full ICU prints them for `month: 'long'`. */
-const KHMER_MONTHS = [
+export const KHMER_MONTHS = [
 	'មករា',
 	'កុម្ភៈ',
 	'មីនា',

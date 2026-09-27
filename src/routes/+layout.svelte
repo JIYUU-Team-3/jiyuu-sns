@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '../app.css'
 	import type { Path } from '$app/types'
 	import { resolve } from '$app/paths'
 	import { page } from '$app/state'

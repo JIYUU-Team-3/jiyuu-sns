@@ -5,7 +5,7 @@
 	import Mark from './Mark.svelte'
 	import SiteFooter from './SiteFooter.svelte'
 	import Wordmark from './Wordmark.svelte'
-	import { format_long_date } from './format-date'
+	import { format_long_date } from '#lib/format-date'
 	import { localized } from './links'
 
 	/** When the policy pages were last revised. Bump it whenever their text changes. */

@@ -1,0 +1,91 @@
+<script lang="ts">
+	import type { Snippet } from 'svelte'
+	import { page } from '$app/state'
+	import { m } from '#lib/paraglide/messages.js'
+	import Icon from '#lib/ui/Icon.svelte'
+	import Mark from '../(public)/Mark.svelte'
+	import { home_href } from '../(public)/links'
+	import AccountMenu from './AccountMenu.svelte'
+
+	let {
+		title,
+		back = false,
+		children,
+	}: {
+		title: string
+		/** A back arrow before the title, shown on every screen size (post pages). */
+		back?: boolean
+		/** Extra rows under the title, such as the feed tabs. */
+		children?: Snippet
+	} = $props()
+
+	function go_back() {
+		if (history.length > 1) history.back()
+		else location.href = home_href()
+	}
+</script>
+
+<header class="bar">
+	{#if back}
+		<div class="bar-row">
+			<button type="button" class="icon-btn" aria-label={m.app_back()} onclick={go_back}>
+				<Icon name="back" />
+			</button>
+			<h1>{title}</h1>
+		</div>
+	{:else}
+		<!-- Phones get the account avatar and the mark; wider screens get the page title. -->
+		<div class="bar-row mobile-top">
+			<AccountMenu me={page.data.me} compact />
+			<div class="center"><Mark size="28px" /></div>
+			<span class="spacer"></span>
+		</div>
+		<div class="bar-row desk-only"><h1>{title}</h1></div>
+	{/if}
+	{@render children?.()}
+</header>
+
+<style>
+	.bar {
+		position: sticky;
+		top: 0;
+		z-index: 20;
+		background: color-mix(in srgb, var(--bg) 88%, transparent);
+		backdrop-filter: saturate(180%) blur(14px);
+		-webkit-backdrop-filter: saturate(180%) blur(14px);
+		border-bottom: 1px solid var(--line);
+	}
+	.bar-row {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		min-height: 53px;
+		padding: 0 16px;
+	}
+	h1 {
+		font-size: 20px;
+		font-weight: 800;
+		margin: 0;
+		letter-spacing: -0.01em;
+		line-height: 1.2;
+	}
+	.mobile-top {
+		display: none;
+	}
+	.center {
+		flex: 1;
+		display: flex;
+		justify-content: center;
+	}
+	.spacer {
+		width: 32px;
+	}
+	@media (max-width: 700px) {
+		.mobile-top {
+			display: flex;
+		}
+		.desk-only {
+			display: none;
+		}
+	}
+</style>
