@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms'
-	import { resolve } from '$app/paths'
 	import type { PageProps } from './$types'
+	import { localized } from './(public)/links'
 
 	let { data }: PageProps = $props()
 </script>
@@ -14,5 +14,5 @@
 		<button>Log out</button>
 	</form>
 {:else}
-	<a href={resolve('/login')}>Log in</a>
+	<a href={localized('/login')}>Log in</a>
 {/if}
