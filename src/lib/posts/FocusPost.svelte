@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
+	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { format_count, format_timestamp } from './format'
 	import PostActions from './PostActions.svelte'
@@ -19,11 +20,18 @@
 
 <article class="focus">
 	<div class="fhead">
-		<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
-		<div class="who">
-			<div class="nm">{post.author.name}</div>
-			{#if post.author.handle}<div class="hd">@{post.author.handle}</div>{/if}
-		</div>
+		{#if post.author.handle}
+			<a href={profile_href(post.author.handle)} class="av-link" tabindex="-1" aria-hidden="true">
+				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
+			</a>
+			<a class="who" href={profile_href(post.author.handle)}>
+				<div class="nm">{post.author.name}</div>
+				<div class="hd">@{post.author.handle}</div>
+			</a>
+		{:else}
+			<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
+			<div class="who"><div class="nm">{post.author.name}</div></div>
+		{/if}
 		<PostMenu {post} {ondeleted} />
 	</div>
 	{#if post.reply_to?.handle}
@@ -114,5 +122,11 @@
 	.fstats b {
 		color: var(--text);
 		font-weight: 700;
+	}
+	.av-link {
+		display: flex;
+	}
+	a.who:hover .nm {
+		text-decoration: underline;
 	}
 </style>

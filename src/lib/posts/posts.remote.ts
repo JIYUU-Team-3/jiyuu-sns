@@ -40,6 +40,11 @@ export const get_replies = query(v.object({ id: Id, cursor: Cursor }), ({ id, cu
 	posts.replies_page(getRequestEvent().locals.db, viewer(), id, cursor),
 )
 
+export const get_author_posts = query(
+	v.object({ id: v.pipe(v.string(), v.maxLength(64)), cursor: Cursor }),
+	({ id, cursor }) => posts.author_page(getRequestEvent().locals.db, viewer(), id, cursor),
+)
+
 export const create_post = form(
 	v.object({ body: Body, reply_to: v.optional(v.union([v.literal(''), Id])) }),
 	async ({ body, reply_to }) => {

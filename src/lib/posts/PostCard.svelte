@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
+	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { format_age, format_timestamp } from './format'
 	import { post_href } from './links'
@@ -46,12 +47,22 @@
 <article class="post" class:has-next={thread_below} onclick={open}>
 	<div class="row">
 		<div class="gutter">
-			<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+			{#if post.author.handle}
+				<a href={profile_href(post.author.handle)} class="av-link" tabindex="-1" aria-hidden="true">
+					<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+				</a>
+			{:else}
+				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+			{/if}
 			{#if thread_below}<div class="thread-line"></div>{/if}
 		</div>
 		<div class="body">
 			<div class="head">
-				<span class="nm">{post.author.name}</span>
+				{#if post.author.handle}
+					<a class="nm" href={profile_href(post.author.handle)}>{post.author.name}</a>
+				{:else}
+					<span class="nm">{post.author.name}</span>
+				{/if}
 				{#if post.author.handle}<span class="meta">@{post.author.handle}</span>{/if}
 				<span class="time" aria-hidden="true">·</span>
 				<a class="time" {href} title={format_timestamp(post.created_at, getLocale())}>
@@ -158,5 +169,11 @@
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 		margin: 2px 0 0;
+	}
+	.av-link {
+		display: flex;
+	}
+	a.nm:hover {
+		text-decoration: underline;
 	}
 </style>
