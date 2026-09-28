@@ -1,3 +1,5 @@
+import { image_problem, type ImageKind, type ImageProblem } from '#lib/media'
+
 export const NAME_MAX = 50
 export const HANDLE_MAX = 20
 export const BIO_MAX = 160
@@ -18,7 +20,15 @@ export function handle_problem(handle: string): HandleProblem | undefined {
 
 export type ProfileDraft = { name: string; handle: string; bio: string }
 
-export type ProfileErrors = { name?: 'required'; handle?: HandleProblem }
+export type ProfileErrors = {
+	name?: 'required'
+	handle?: HandleProblem
+	avatar?: ImageProblem
+	banner?: ImageProblem
+}
+
+/** The optional avatar and banner a profile form sends. */
+export type ProfileImages = Partial<Record<ImageKind, File>>
 
 /** Field problems in a submitted profile; an empty object means it can be saved. */
 export function profile_errors(draft: ProfileDraft): ProfileErrors {
@@ -26,6 +36,17 @@ export function profile_errors(draft: ProfileDraft): ProfileErrors {
 	if (!draft.name) errors.name = 'required'
 	const handle = handle_problem(draft.handle)
 	if (handle) errors.handle = handle
+	return errors
+}
+
+/** Problems with the picked images; an empty object when there are none. */
+export async function image_errors(images: ProfileImages): Promise<ProfileErrors> {
+	const errors: ProfileErrors = {}
+	for (const kind of ['avatar', 'banner'] as const) {
+		const file = images[kind]
+		const problem = file && (await image_problem(file, kind))
+		if (problem) errors[kind] = problem
+	}
 	return errors
 }
 

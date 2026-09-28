@@ -25,7 +25,8 @@ test('follow and unfollow is one-way @writes', async ({ page, browser }) => {
 	await page.goto(`/u/${alice}`)
 	await expect(counts).toContainText('1 Following')
 	await expect(counts).toContainText('0 Followers')
-	await expect(page.getByRole('button', { name: /Follow/ })).toHaveCount(0)
+	// The counts are buttons too ("1 Following"), so match the follow button's own label.
+	await expect(page.getByRole('button', { name: /^(Follow|Unfollow) @/ })).toHaveCount(0)
 
 	await bob_page.goto(`/u/${alice}`)
 	await expect(bob_page.getByText('Follows you')).toBeVisible()

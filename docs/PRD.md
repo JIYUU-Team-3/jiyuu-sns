@@ -27,11 +27,11 @@ We want a working, deployed MVP that 5 people can build in parallel, one feature
 
 ## 3. Users
 
-| Persona | Needs                                                                  |
-| ------- | ---------------------------------------------------------------------- |
-| Student | Post in Japanese or English, follow classmates, see what they post     |
-| Teacher | Same as a student; reads posts, comments                               |
-| Visitor | Not logged in; can view public profiles and posts, must sign up to act |
+| Persona | Needs                                                              |
+| ------- | ------------------------------------------------------------------ |
+| Student | Post in Japanese or English, follow classmates, see what they post |
+| Teacher | Same as a student; reads posts, comments                           |
+| Visitor | Not logged in; must log in or sign up to see profiles and posts    |
 
 ## 4. Features
 
@@ -51,21 +51,24 @@ Already scaffolded with Better Auth (email/password + Google). The demo lives in
 
 ### F2. Profiles — P0
 
-- Each user has a unique `@username` (3–20 chars, `a-z0-9_`), display name, bio (≤ 160 chars), and avatar
-- Public profile page at `/u/[username]`, showing the header, the user's posts, and follower/following counts
+- Each user has a unique `@username` (3–20 chars, `a-z0-9_.`), display name, bio (≤ 160 chars), and avatar
+- Profile page at `/u/[username]` (login required), showing the header, the user's posts, and follower/following counts
 - `/settings/profile` to edit your own profile
-- Avatar: MVP uses the Google avatar or a generated initial. P2: upload an image (needs an R2 bucket binding, which isn't set up yet)
+- Avatar: the Google photo or a generated initial by default; upload your own (JPEG, PNG, WebP or GIF, up to 2 MB), cropped to a square, during onboarding or from `/settings/profile`, which can also remove it
+- Banner: optional wide image (up to 5 MB) cropped to 3:1 and shown above the profile header; set, replace or remove it during onboarding or from `/settings/profile`
+- Show the join date ("Joined September 2026") on the profile
+- Uploads live in the `MEDIA` R2 bucket and are served from `/media/…` to signed-in users only
 
 **Done when:** a new user can pick a username, and other users can visit their profile page.
 
 ### F3. Posts — P0
 
 - Create a text post (1–280 characters, counted as graphemes so an emoji is 1) from the home page or the New post composer
-- View a single post at `/p/[id]`
+- View a single post at `/p/[id]` (login required)
 - Delete your own post (with a confirm step)
 - Show relative time ("3分前" / "3m ago") in the current locale
 - P1: edit your own post (show "edited")
-- P2: attach one image (needs R2)
+- P2: attach one image (the `MEDIA` R2 bucket is already set up for profile images)
 
 **Done when:** a user can create, view and delete their posts, and the posts appear on their profile.
 
@@ -144,10 +147,10 @@ All foreign keys use `onDelete: 'cascade'`, except `post.reply_to_id`, which is 
 | `/explore`                | F4      | no                      |
 | `/login`, `/signup`       | F1      | no                      |
 | `/settings/profile`       | F2      | yes                     |
-| `/u/[username]`           | F2      | no                      |
-| `/u/[username]/followers` | F5      | no                      |
-| `/u/[username]/following` | F5      | no                      |
-| `/p/[id]`                 | F3, F6  | no (acting needs login) |
+| `/u/[username]`           | F2      | yes                     |
+| `/u/[username]/followers` | F5      | yes                     |
+| `/u/[username]/following` | F5      | yes                     |
+| `/p/[id]`                 | F3, F6  | yes                     |
 | `/notifications`          | F7      | yes                     |
 | `/search`                 | F8      | no                      |
 
@@ -185,6 +188,4 @@ Set dates to fit the class schedule.
 
 ## 10. Open questions
 
-- Should posts be public to logged-out visitors, or only to classmates?
 - Does the class want a "Japanese practice" angle (e.g. furigana, a JLPT-level tag on posts)? That would be a P2 feature.
-- Do we need image uploads for the demo? That needs an R2 bucket and binding.

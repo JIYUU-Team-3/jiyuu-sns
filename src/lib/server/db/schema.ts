@@ -23,7 +23,10 @@ export const profile = sqliteTable('profile', {
 	handle: text('handle').notNull().unique(),
 	displayName: text('display_name').notNull(),
 	bio: text('bio').notNull().default(''),
+	/** A `/media/…` upload, or null to fall back to the account's Google photo. */
 	avatarUrl: text('avatar_url'),
+	/** A `/media/…` upload, or null for the plain fallback colour. */
+	bannerUrl: text('banner_url'),
 	createdAt: created_at(),
 })
 

@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { command, form, getRequestEvent, query } from '$app/server'
 import * as posts from '#lib/server/posts'
 import { post_problem } from './rules'
-import { feed_arg, replies_arg } from './args'
+import { author_arg, feed_arg, replies_arg } from './args'
 
 const Id = v.pipe(v.string(), v.uuid())
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
@@ -56,6 +56,7 @@ export const create_post = form(
 		await Promise.all([
 			get_feed(feed_arg('for_you')).refresh(),
 			get_feed(feed_arg('following')).refresh(),
+			get_author_posts(author_arg(user_id)).refresh(),
 			...(reply_to
 				? [get_replies(replies_arg(reply_to)).refresh(), get_post(reply_to).refresh()]
 				: []),

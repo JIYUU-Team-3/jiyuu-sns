@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state'
 	import { m } from '#lib/paraglide/messages.js'
+	import { profile_href } from '#lib/profiles/links'
+	import { morph_profile_edit } from '#lib/profiles/morph'
 	import { composer } from '#lib/posts/state.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
@@ -14,7 +16,13 @@
 
 	let { data, children }: LayoutProps = $props()
 
+	morph_profile_edit()
+
 	const on_home = $derived(page.route.id === '/(app)')
+	const on_own_profile = $derived(
+		(page.route.id === '/(app)/u/[handle]' && page.params.handle === data.me.handle) ||
+			page.route.id === '/(app)/settings/profile',
+	)
 
 	/** `n` opens the composer, as on X, unless the reader is typing or a dialog is open. */
 	function onkeydown(event: KeyboardEvent) {
@@ -32,9 +40,16 @@
 	<nav class="side" aria-label={m.app_home()}>
 		<a class="brand" href={home_href()} aria-label="Jiyuu"><Mark /><Wordmark /></a>
 		<div class="nav">
-			<!-- Explore, Notifications, Messages, Bookmarks and Profile join as their features land. -->
+			<!-- Explore, Notifications, Messages and Bookmarks join as their features land. -->
 			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
 				<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
+			</a>
+			<a
+				class="nav-item"
+				href={profile_href(data.me.handle)}
+				aria-current={on_own_profile ? 'page' : undefined}
+			>
+				<Icon name="user" size="lg" /><span class="lbl">{m.app_profile()}</span>
 			</a>
 		</div>
 		<button
@@ -57,6 +72,13 @@
 <nav class="tabbar" aria-label={m.app_home()}>
 	<a href={home_href()} aria-label={m.app_home()} aria-current={on_home ? 'page' : undefined}>
 		<Icon name="home" size="lg" />
+	</a>
+	<a
+		href={profile_href(data.me.handle)}
+		aria-label={m.app_profile()}
+		aria-current={on_own_profile ? 'page' : undefined}
+	>
+		<Icon name="user" size="lg" />
 	</a>
 </nav>
 <button

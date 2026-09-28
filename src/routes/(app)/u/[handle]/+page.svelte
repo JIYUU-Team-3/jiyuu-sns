@@ -2,6 +2,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { author_arg } from '#lib/posts/args'
 	import PostList from '#lib/posts/PostList.svelte'
+	import { composer } from '#lib/posts/state.svelte'
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
@@ -23,8 +24,19 @@
 	<PostList load={(cursor) => get_author_posts(author_arg(profile.id, cursor))}>
 		{#snippet empty()}
 			<div class="empty">
-				<h2>{m.profile_posts_empty_title()}</h2>
-				<p>{m.profile_posts_empty_body()}</p>
+				{#if profile.mine}
+					<h2>{m.profile_posts_empty_mine_title()}</h2>
+					<p>{m.profile_posts_empty_mine_body()}</p>
+					<button
+						type="button"
+						class="btn btn-primary"
+						onclick={() => composer.open({ kind: 'new' })}
+						>{m.profile_posts_empty_mine_action()}</button
+					>
+				{:else}
+					<h2>{m.profile_posts_empty_title()}</h2>
+					<p>{m.profile_posts_empty_body()}</p>
+				{/if}
 			</div>
 		{/snippet}
 	</PostList>
@@ -46,5 +58,8 @@
 	.empty p {
 		color: var(--text-2);
 		margin: 0;
+	}
+	.empty .btn {
+		margin-top: 20px;
 	}
 </style>

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
+	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon, { type IconName } from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
@@ -236,7 +237,14 @@
 			<CharCounter {length} />
 		</div>
 	{:else}
-		<Avatar name={me.name} seed={me.id} image={me.image} />
+		{#if me.handle}
+			<!-- A pointer shortcut only: the nav's Profile link already serves keyboards and screen readers. -->
+			<a class="av-link" href={profile_href(me.handle)} tabindex="-1" aria-hidden="true">
+				<Avatar name={me.name} seed={me.id} image={me.image} />
+			</a>
+		{:else}
+			<Avatar name={me.name} seed={me.id} image={me.image} />
+		{/if}
 		<div class="col">
 			{@render editor()}
 			{#if variant === 'inline'}
@@ -400,6 +408,15 @@
 		padding: 8px 24px 10px 60px;
 		border-top: 1px solid var(--line);
 		margin-top: 10px;
+	}
+
+	.av-link {
+		display: flex;
+		align-self: flex-start;
+		border-radius: 50%;
+	}
+	.reply .av-link {
+		align-self: center;
 	}
 
 	/* ---------- Inline (Home) ---------- */

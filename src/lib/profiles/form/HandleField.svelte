@@ -3,12 +3,21 @@
 	import TextField from './TextField.svelte'
 	import { HANDLE_MAX, handle_problem, type HandleProblem } from './profile'
 
-	let { value = $bindable('') }: { value?: string } = $props()
+	let {
+		value = $bindable(''),
+		taken,
+	}: {
+		value?: string
+		/** A handle the server found held by someone else, flagged until it's edited away. */
+		taken?: string
+	} = $props()
 
 	const HINT_ID = 'handle-hint'
 
 	const trimmed = $derived(value.trim())
-	const problem = $derived(trimmed ? handle_problem(trimmed) : undefined)
+	const problem = $derived(
+		trimmed ? (handle_problem(trimmed) ?? (trimmed === taken ? 'taken' : undefined)) : undefined,
+	)
 
 	/** The hint under the field: the rules while empty or fine, otherwise what's wrong. */
 	function hint(problem: HandleProblem | undefined, handle: string) {
