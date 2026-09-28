@@ -24,6 +24,8 @@ export const profile = sqliteTable('profile', {
 	displayName: text('display_name').notNull(),
 	bio: text('bio').notNull().default(''),
 	avatarUrl: text('avatar_url'),
+	// The wide banner above the avatar; null shows a plain fill until uploads land.
+	headerUrl: text('header_url'),
 	createdAt: created_at(),
 })
 

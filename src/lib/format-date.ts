@@ -29,3 +29,16 @@ export function format_long_date(time: number, locale: string): string {
 	if (locale === 'km') return format_khmer_date(time)
 	return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(time)
 }
+
+/** Format `time` as a month and year in `locale`, e.g. `September 2026`, in UTC. */
+export function format_month_year(time: number, locale: string): string {
+	if (locale === 'km') {
+		const date = new Date(time)
+		return `${KHMER_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+	}
+	return new Intl.DateTimeFormat(locale, {
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC',
+	}).format(time)
+}

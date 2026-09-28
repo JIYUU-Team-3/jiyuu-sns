@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { format_long_date } from './format-date'
+import { format_long_date, format_month_year } from './format-date'
 
 describe('format_long_date', () => {
 	const time = Date.UTC(2026, 8, 26)
@@ -23,5 +23,21 @@ describe('format_long_date', () => {
 
 	it('reads the date in UTC', () => {
 		expect(format_long_date(Date.UTC(2026, 0, 1, 23, 30), 'km')).toBe('1 មករា 2026')
+	})
+})
+
+describe('format_month_year', () => {
+	it('matches full ICU output for Khmer', () => {
+		const icu = new Intl.DateTimeFormat('km', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+		for (let month = 0; month < 12; month++) {
+			const t = Date.UTC(2026, month, 1)
+			expect(format_month_year(t, 'km')).toBe(icu.format(t))
+		}
+	})
+
+	it('uses Intl for other locales, in UTC', () => {
+		const time = Date.UTC(2026, 8, 30, 23, 30)
+		expect(format_month_year(time, 'en')).toBe('September 2026')
+		expect(format_month_year(time, 'ja')).toBe('2026年9月')
 	})
 })

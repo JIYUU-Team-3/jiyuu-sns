@@ -65,7 +65,10 @@
 			autocomplete="name"
 			bind:value={name}
 		/>
-		<HandleField bind:value={handle} />
+		<HandleField
+			bind:value={handle}
+			rejected={form?.errors.handle === 'taken' ? form.draft.handle : undefined}
+		/>
 		<TextField
 			name="bio"
 			label={m.onboarding_bio()}

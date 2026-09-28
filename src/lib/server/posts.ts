@@ -147,6 +147,22 @@ export function replies_page(
 	)
 }
 
+/** One author's posts, newest first: top-level posts, or only their replies. */
+export function author_page(
+	db: Db,
+	viewer: string | undefined,
+	author_id: string,
+	replies: boolean,
+	cursor: string | undefined,
+) {
+	return page(
+		db,
+		viewer,
+		[eq(post.authorId, author_id), eq(post.isReply, replies), after(cursor, 'newer_first')],
+		'newer_first',
+	)
+}
+
 export async function find_post(db: Db, viewer: string | undefined, id: string) {
 	const [row] = await select_posts(db, viewer).where(eq(post.id, id)).limit(1)
 	return row ? to_view(row, viewer) : undefined

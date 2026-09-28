@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
+	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { format_age, format_timestamp } from './format'
 	import { post_href } from './links'
@@ -27,6 +28,7 @@
 	const body = $derived(edited_posts.get(post.id) ?? post.body)
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const href = $derived(post_href(post.id))
+	const author_href = $derived(post.author.handle ? profile_href(post.author.handle) : undefined)
 
 	/**
 	 * The whole row opens the post, as on X, except when the click lands on something that does
@@ -46,12 +48,22 @@
 <article class="post" class:has-next={thread_below} onclick={open}>
 	<div class="row">
 		<div class="gutter">
-			<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+			<!-- The name link below is the keyboard path; the avatar is a pointer shortcut. -->
+			<svelte:element
+				this={author_href ? 'a' : 'span'}
+				href={author_href}
+				tabindex="-1"
+				aria-hidden="true"
+			>
+				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+			</svelte:element>
 			{#if thread_below}<div class="thread-line"></div>{/if}
 		</div>
 		<div class="body">
 			<div class="head">
-				<span class="nm">{post.author.name}</span>
+				<svelte:element this={author_href ? 'a' : 'span'} class="nm" href={author_href}
+					>{post.author.name}</svelte:element
+				>
 				{#if post.author.handle}<span class="meta">@{post.author.handle}</span>{/if}
 				<span class="time" aria-hidden="true">·</span>
 				<a class="time" {href} title={format_timestamp(post.created_at, getLocale())}>
@@ -125,6 +137,9 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		flex: 0 1 auto;
+	}
+	a.nm:hover {
+		text-decoration: underline;
 	}
 	.meta {
 		color: var(--text-2);
