@@ -1,16 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-
-async function sign_up(page: Page, handle: string) {
-	const sign_up = await page.request.post('/api/auth/sign-up/email', {
-		data: { email: `${handle}@example.test`, password: crypto.randomUUID(), name: handle },
-	})
-	expect(sign_up.ok()).toBe(true)
-	await page.goto('/')
-	await expect(page).toHaveURL(/\/onboarding$/)
-	await page.getByLabel('Username').fill(handle)
-	await page.getByRole('button', { name: 'Continue' }).click()
-	await expect(page).toHaveURL(/\/$/)
-}
+import { expect, test } from '@playwright/test'
+import { sign_up } from '../../sign-up'
 
 test('follow and unfollow is one-way @writes', async ({ page, browser }) => {
 	const id = crypto.randomUUID().slice(0, 8)
