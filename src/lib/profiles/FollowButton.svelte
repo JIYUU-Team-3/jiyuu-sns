@@ -6,8 +6,11 @@
 
 	let { profile }: { profile: ProfileView } = $props()
 
+	let pending = $state(false)
+
 	async function toggle() {
 		const on = !profile.followed
+		pending = true
 		try {
 			await set_follow({ handle: profile.handle, on }).updates(
 				get_profile(profile.handle).withOverride((current) => ({
@@ -18,6 +21,8 @@
 			)
 		} catch {
 			toast.show(m.toast_error())
+		} finally {
+			pending = false
 		}
 	}
 </script>
@@ -27,6 +32,7 @@
 		type="button"
 		class="btn btn-outline following"
 		aria-label={m.follow_unfollow_label({ handle: profile.handle })}
+		disabled={pending}
 		onclick={toggle}
 	>
 		<span class="idle">{m.follow_following()}</span>
@@ -37,6 +43,7 @@
 		type="button"
 		class="btn btn-ink"
 		aria-label={m.follow_follow_label({ handle: profile.handle })}
+		disabled={pending}
 		onclick={toggle}
 	>
 		{profile.follows_you ? m.follow_follow_back() : m.follow_follow()}
