@@ -7,25 +7,15 @@
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import FollowButton from './FollowButton.svelte'
+	import ProfileBanner from './ProfileBanner.svelte'
 	import type { ProfileView } from './types'
 
 	let { profile }: { profile: ProfileView } = $props()
 
 	const locale = $derived(getLocale())
-
-	/** The header image fell back to the plain fill. */
-	let header_broken = $state(false)
 </script>
 
-<div class="banner">
-	{#if profile.header && !header_broken}
-		<img
-			src={profile.header}
-			alt={m.profile_header_alt({ name: profile.name })}
-			onerror={() => (header_broken = true)}
-		/>
-	{/if}
-</div>
+<ProfileBanner src={profile.header} alt={m.profile_header_alt({ name: profile.name })} />
 
 <section class="top">
 	<div class="head">
@@ -60,17 +50,6 @@
 </section>
 
 <style>
-	.banner {
-		aspect-ratio: 3 / 1;
-		background: var(--img-fallback);
-		overflow: hidden;
-	}
-	.banner img {
-		display: block;
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
 	.top {
 		padding: 12px 16px 0;
 	}
@@ -81,6 +60,8 @@
 		gap: 12px;
 	}
 	.photo {
+		/* Positioned so it paints above the banner it overlaps. */
+		position: relative;
 		width: max-content;
 		margin-top: -80px;
 		border: 4px solid var(--bg);

@@ -8,6 +8,8 @@
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
 	import type { ProfileTab } from '#lib/profiles/types'
+	import EmptyState from '#lib/ui/EmptyState.svelte'
+	import Tabs from '#lib/ui/Tabs.svelte'
 	import PageBar from '../../PageBar.svelte'
 	import type { PageProps } from './$types'
 
@@ -40,17 +42,7 @@
 
 <ProfileHeader {profile} />
 
-<div class="tabs" role="tablist">
-	{#each TABS as [value, label] (value)}
-		<button
-			type="button"
-			class="tab"
-			role="tab"
-			aria-selected={tab === value}
-			onclick={() => (tab = value)}>{label()}</button
-		>
-	{/each}
-</div>
+<div class="tabbar"><Tabs tabs={TABS} bind:value={tab} /></div>
 
 {#key `${profile.id}:${tab}`}
 	<div role="tabpanel">
@@ -59,70 +51,27 @@
 			show_replying={tab === 'replies'}
 		>
 			{#snippet empty()}
-				<div class="empty">
-					{#if tab === 'replies'}
-						<h2>{m.profile_empty_replies_title()}</h2>
-						<p>{m.profile_empty_replies_body()}</p>
-					{:else if profile.mine}
-						<h2>{m.profile_empty_mine_title()}</h2>
-						<p>{m.profile_empty_mine_body()}</p>
-					{:else}
-						<h2>{m.profile_empty_title({ handle: profile.handle })}</h2>
-						<p>{m.profile_empty_body()}</p>
-					{/if}
-				</div>
+				{#if tab === 'replies'}
+					<EmptyState
+						title={m.profile_empty_replies_title()}
+						body={m.profile_empty_replies_body()}
+					/>
+				{:else if profile.mine}
+					<EmptyState title={m.profile_empty_mine_title()} body={m.profile_empty_mine_body()} />
+				{:else}
+					<EmptyState
+						title={m.profile_empty_title({ handle: profile.handle })}
+						body={m.profile_empty_body()}
+					/>
+				{/if}
 			{/snippet}
 		</PostList>
 	</div>
 {/key}
 
 <style>
-	.tabs {
-		display: flex;
+	.tabbar {
 		margin-top: 8px;
 		border-bottom: 1px solid var(--line);
-	}
-	.tab {
-		flex: 1;
-		display: grid;
-		place-items: center;
-		height: 52px;
-		color: var(--text-2);
-		font-weight: 500;
-		transition: background-color 0.15s;
-		position: relative;
-	}
-	.tab:hover {
-		background: var(--bg-2);
-	}
-	.tab[aria-selected='true'] {
-		color: var(--text);
-		font-weight: 700;
-	}
-	.tab[aria-selected='true']::after {
-		content: '';
-		position: absolute;
-		bottom: 0;
-		height: 4px;
-		width: 56px;
-		border-radius: 2px;
-		background: var(--accent);
-	}
-	.empty {
-		padding: 48px 32px;
-		max-width: 420px;
-		margin: 0 auto;
-	}
-	.empty h2 {
-		font-size: 28px;
-		line-height: 1.15;
-		font-weight: 800;
-		margin: 0 0 8px;
-		letter-spacing: -0.02em;
-		overflow-wrap: anywhere;
-	}
-	.empty p {
-		color: var(--text-2);
-		margin: 0;
 	}
 </style>

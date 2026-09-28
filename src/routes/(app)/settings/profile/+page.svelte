@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { enhance, type SubmitFunction } from '$app/forms'
 	import { m } from '#lib/paraglide/messages.js'
+	import ProfileBanner from '#lib/profiles/ProfileBanner.svelte'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
@@ -29,9 +30,6 @@
 		Object.keys(profile_errors({ name: name.trim(), handle: handle.trim(), bio })).length === 0,
 	)
 
-	/** Set when the header fails to load, so the plain fill shows instead. */
-	let header_broken = $state(false)
-
 	const submit: SubmitFunction = () => {
 		pending = true
 		return async ({ result, update }) => {
@@ -57,10 +55,7 @@
 
 <!-- Uploads need an R2 bucket, so both camera buttons stay visible but disabled for now. -->
 <div class="media">
-	<div class="header">
-		{#if data.profile.header && !header_broken}
-			<img src={data.profile.header} alt="" onerror={() => (header_broken = true)} />
-		{/if}
+	<ProfileBanner src={data.profile.header}>
 		<button
 			type="button"
 			class="cam"
@@ -70,7 +65,7 @@
 		>
 			<Icon name="camera" size="sm" />
 		</button>
-	</div>
+	</ProfileBanner>
 	<div class="photo">
 		<Avatar
 			name={name || data.profile.name}
@@ -116,18 +111,6 @@
 </form>
 
 <style>
-	.header {
-		position: relative;
-		aspect-ratio: 3 / 1;
-		background: var(--img-fallback);
-		overflow: hidden;
-	}
-	.header img {
-		display: block;
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
 	.photo {
 		position: relative;
 		width: max-content;
