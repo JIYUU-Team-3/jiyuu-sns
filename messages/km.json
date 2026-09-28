@@ -48,6 +48,7 @@
 	"feed_error": "មិនអាចផ្ទុកការប្រកាសបានទេ។",
 	"feed_retry": "ព្យាយាមម្តងទៀត",
 	"feed_loading": "កំពុងផ្ទុកការប្រកាស",
+	"feed_following_empty_action": "ស្វែងរកអ្នកដើម្បីតាមដាន",
 	"composer_placeholder": "មានអ្វីកើតឡើង?",
 	"composer_reply_placeholder": "ប្រកាសការឆ្លើយតបរបស់អ្នក",
 	"composer_label": "អត្ថបទប្រកាស",
