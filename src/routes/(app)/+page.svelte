@@ -44,6 +44,9 @@
 					{#if tab === 'following'}
 						<h2>{m.feed_following_empty_title()}</h2>
 						<p>{m.feed_following_empty_body()}</p>
+						<button type="button" class="btn btn-primary" onclick={() => (tab = 'for_you')}
+							>{m.feed_following_empty_action()}</button
+						>
 					{:else}
 						<h2>{m.feed_empty_title()}</h2>
 						<p>{m.feed_empty_body()}</p>
@@ -99,5 +102,8 @@
 	.empty p {
 		color: var(--text-2);
 		margin: 0;
+	}
+	.empty .btn {
+		margin-top: 20px;
 	}
 </style>

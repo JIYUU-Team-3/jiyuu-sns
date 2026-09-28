@@ -48,6 +48,7 @@
 	"feed_error": "ポストを読み込めませんでした。",
 	"feed_retry": "もう一度試す",
 	"feed_loading": "ポストを読み込み中",
+	"feed_following_empty_action": "フォローする人を探す",
 	"composer_placeholder": "いまどうしてる？",
 	"composer_reply_placeholder": "返信をポスト",
 	"composer_label": "ポストの本文",

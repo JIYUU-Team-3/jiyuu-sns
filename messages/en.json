@@ -48,6 +48,7 @@
 	"feed_error": "Posts couldn’t be loaded.",
 	"feed_retry": "Try again",
 	"feed_loading": "Loading posts",
+	"feed_following_empty_action": "Find people to follow",
 	"composer_placeholder": "What’s happening?",
 	"composer_reply_placeholder": "Post your reply",
 	"composer_label": "Post text",

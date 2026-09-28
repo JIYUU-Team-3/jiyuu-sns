@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import type { FeedTab, PostPage, PostView } from '#lib/posts/types'
 import type { getDb } from './db'
@@ -10,6 +10,9 @@ export const PAGE_SIZE = 20
 
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
+
+const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
+const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
 
 /**
  * Every post query goes through here: one statement returns the author, the parent's handle and
@@ -28,8 +31,8 @@ function select_posts(db: Db, viewer: string | undefined) {
 			author_handle: profile.handle,
 			author_image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
 			parent_handle: parent_profile.handle,
-			replies: sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`,
-			likes: sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`,
+			replies: reply_count,
+			likes: like_count,
 			liked: viewer
 				? sql<number>`exists(select 1 from post_like l where l.post_id = ${post.id} and l.user_id = ${viewer})`
 				: sql<number>`0`,
@@ -87,6 +90,12 @@ function after(cursor: string | undefined, direction: 'newer_first' | 'older_fir
 	)
 }
 
+function to_page(rows: Row[], viewer: string | undefined, next: (last: PostView) => string) {
+	const posts = rows.slice(0, PAGE_SIZE).map((row) => to_view(row, viewer))
+	const last = posts.at(-1)
+	return { posts, next: rows.length > PAGE_SIZE && last ? next(last) : undefined }
+}
+
 async function page(
 	db: Db,
 	viewer: string | undefined,
@@ -99,31 +108,50 @@ async function page(
 		.orderBy(order(post.createdAt), order(post.id))
 		// One extra row says whether another page exists without a count query.
 		.limit(PAGE_SIZE + 1)
-	const posts = rows.slice(0, PAGE_SIZE).map((row) => to_view(row, viewer))
-	const last = posts.at(-1)
-	return { posts, next: rows.length > PAGE_SIZE && last ? encode_cursor(last) : undefined }
+	return to_page(rows, viewer, encode_cursor)
 }
 
-/**
- * Home timeline, newest first, top-level posts only. `for_you` is every post until there is a
- * ranking; `following` is the viewer's own posts plus the accounts they follow.
- */
+function decode_rank_cursor(cursor: string | undefined) {
+	const [as_of, offset] = (cursor ?? '').split(':').map(Number)
+	if (!Number.isSafeInteger(as_of) || !Number.isSafeInteger(offset) || offset < 0) return undefined
+	return { as_of, offset }
+}
+
+async function ranked_page(
+	db: Db,
+	viewer: string | undefined,
+	cursor: string | undefined,
+): Promise<PostPage> {
+	const { as_of, offset } = decode_rank_cursor(cursor) ?? { as_of: Date.now(), offset: 0 }
+	const followed = viewer
+		? sql`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${post.authorId})`
+		: sql`0`
+	const age = sql`((${as_of} - ${post.createdAt}) / 3600000.0 + 2)`
+	const score = sql`(1.0 + ${like_count} + 2 * ${reply_count} + 3 * ${followed}) / (${age} * ${age})`
+	const rows = await select_posts(db, viewer)
+		.where(and(eq(post.isReply, false), lte(post.createdAt, new Date(as_of))))
+		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
+		.limit(PAGE_SIZE + 1)
+		.offset(offset)
+	return to_page(rows, viewer, () => `${as_of}:${offset + PAGE_SIZE}`)
+}
+
 export function feed_page(
 	db: Db,
 	viewer: string | undefined,
 	tab: FeedTab,
 	cursor: string | undefined,
 ) {
-	const audience =
-		tab === 'following' && viewer
-			? or(
-					eq(post.authorId, viewer),
-					inArray(
-						post.authorId,
-						db.select({ id: follow.followingId }).from(follow).where(eq(follow.followerId, viewer)),
-					),
-				)
-			: undefined
+	if (tab === 'for_you') return ranked_page(db, viewer, cursor)
+	const audience = viewer
+		? or(
+				eq(post.authorId, viewer),
+				inArray(
+					post.authorId,
+					db.select({ id: follow.followingId }).from(follow).where(eq(follow.followerId, viewer)),
+				),
+			)
+		: undefined
 	return page(
 		db,
 		viewer,
