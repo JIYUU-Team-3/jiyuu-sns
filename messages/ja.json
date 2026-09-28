@@ -102,5 +102,16 @@
 	"toast_deleted": "ポストを削除しました",
 	"toast_link_copied": "クリップボードにコピーしました",
 	"toast_coming_soon": "近日対応予定です",
-	"toast_error": "問題が発生しました。もう一度お試しください。"
+	"toast_error": "問題が発生しました。もう一度お試しください。",
+	"follow_follow": "フォローする",
+	"follow_follow_back": "フォローバック",
+	"follow_following": "フォロー中",
+	"follow_unfollow": "フォロー解除",
+	"follow_follow_label": "@{handle}さんをフォロー",
+	"follow_unfollow_label": "@{handle}さんのフォローを解除",
+	"follow_follows_you": "フォローされています",
+	"profile_following": "フォロー",
+	"profile_followers": "フォロワー",
+	"profile_posts_empty_title": "まだポストがありません",
+	"profile_posts_empty_body": "ポストするとここに表示されます。"
 }

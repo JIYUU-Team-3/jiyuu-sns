@@ -132,6 +132,20 @@ export function feed_page(
 	)
 }
 
+export function author_page(
+	db: Db,
+	viewer: string | undefined,
+	author_id: string,
+	cursor: string | undefined,
+) {
+	return page(
+		db,
+		viewer,
+		[eq(post.authorId, author_id), eq(post.isReply, false), after(cursor, 'newer_first')],
+		'newer_first',
+	)
+}
+
 /** Direct replies to a post, oldest first so a conversation reads top to bottom. */
 export function replies_page(
 	db: Db,

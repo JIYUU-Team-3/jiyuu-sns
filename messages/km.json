@@ -102,5 +102,16 @@
 	"toast_deleted": "ការប្រកាសរបស់អ្នកត្រូវបានលុប",
 	"toast_link_copied": "បានចម្លងតំណ",
 	"toast_coming_soon": "នឹងមកដល់ឆាប់ៗ",
-	"toast_error": "មានបញ្ហាកើតឡើង។ សូមព្យាយាមម្តងទៀត។"
+	"toast_error": "មានបញ្ហាកើតឡើង។ សូមព្យាយាមម្តងទៀត។",
+	"follow_follow": "តាមដាន",
+	"follow_follow_back": "តាមដានវិញ",
+	"follow_following": "កំពុងតាមដាន",
+	"follow_unfollow": "ឈប់តាមដាន",
+	"follow_follow_label": "តាមដាន @{handle}",
+	"follow_unfollow_label": "ឈប់តាមដាន @{handle}",
+	"follow_follows_you": "តាមដានអ្នក",
+	"profile_following": "កំពុងតាមដាន",
+	"profile_followers": "អ្នកតាមដាន",
+	"profile_posts_empty_title": "មិនទាន់មានការប្រកាសនៅឡើយ",
+	"profile_posts_empty_body": "នៅពេលពួកគេប្រកាស វានឹងបង្ហាញនៅទីនេះ។"
 }

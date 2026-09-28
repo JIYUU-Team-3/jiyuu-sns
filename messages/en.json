@@ -102,5 +102,16 @@
 	"toast_deleted": "Your post was deleted",
 	"toast_link_copied": "Copied to clipboard",
 	"toast_coming_soon": "Coming soon",
-	"toast_error": "Something went wrong. Please try again."
+	"toast_error": "Something went wrong. Please try again.",
+	"follow_follow": "Follow",
+	"follow_follow_back": "Follow back",
+	"follow_following": "Following",
+	"follow_unfollow": "Unfollow",
+	"follow_follow_label": "Follow @{handle}",
+	"follow_unfollow_label": "Unfollow @{handle}",
+	"follow_follows_you": "Follows you",
+	"profile_following": "Following",
+	"profile_followers": "Followers",
+	"profile_posts_empty_title": "No posts yet",
+	"profile_posts_empty_body": "When they post, it’ll show up here."
 }

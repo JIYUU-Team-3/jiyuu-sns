@@ -28,7 +28,7 @@
 		/** Anything stable for the account, such as its id. */
 		seed: string
 		image?: string
-		size?: 24 | 32 | 36 | 40 | 44 | 48
+		size?: 24 | 32 | 36 | 40 | 44 | 48 | 88
 	} = $props()
 
 	/** Set when the photo fails to load, so the initials show instead. */

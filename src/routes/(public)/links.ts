@@ -30,12 +30,3 @@ export const home_href = () => localizeHref('/', { locale: getLocale() })
 
 /** The one-screen profile setup a new account sees after its first Google sign-in. */
 export const onboarding_href = () => localizeHref('/onboarding', { locale: getLocale() })
-
-/**
- * A Jiyuu profile in the current locale, e.g. `manut` → `/ja/profile/manut`.
- * Viewing it needs an account: the profile route should send signed-out visitors to `/login`,
- * then back to this profile once they sign in.
- * The route doesn't exist yet, so this skips the typed `resolve`.
- */
-export const profile_href = (handle: string) =>
-	localizeHref(`/profile/${encodeURIComponent(handle)}`)
