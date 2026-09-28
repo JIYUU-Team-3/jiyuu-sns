@@ -8,6 +8,20 @@
       "when": 1789928144236,
       "tag": "0000_loving_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790531217514,
+      "tag": "0001_posting_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790531218826,
+      "tag": "0002_drop_demo_task",
+      "breakpoints": true
     }
   ]
 }

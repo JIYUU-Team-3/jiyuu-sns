@@ -2,6 +2,7 @@ import { sequence, type Handle } from '@sveltejs/kit/hooks'
 import { env } from 'cloudflare:workers'
 import { building } from '$app/env'
 import { createAuth } from '#lib/server/auth'
+import { getDb } from '#lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getTextDirection } from '#lib/paraglide/runtime'
 import { paraglideMiddleware } from '#lib/paraglide/server'
@@ -29,6 +30,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	if (!env.DB) throw new Error('D1 binding "DB" not found - are you running with wrangler?')
 
 	event.locals.auth = createAuth(env.DB)
+	event.locals.db = getDb(env.DB)
 
 	const { auth } = event.locals
 	const session = await auth.api.getSession({ headers: event.request.headers })

@@ -1,5 +1,6 @@
 import type { User, Session } from 'better-auth'
 import { createAuth } from '#lib/server/auth'
+import type { getDb } from '#lib/server/db'
 
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
@@ -16,6 +17,7 @@ declare global {
 			user?: User
 			session?: Session
 			auth: ReturnType<typeof createAuth>
+			db: ReturnType<typeof getDb>
 		}
 
 		// interface Error {}

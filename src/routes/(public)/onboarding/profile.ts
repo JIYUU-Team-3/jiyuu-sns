@@ -74,19 +74,5 @@ export function suggest_handle(name: string, email: string) {
 	return handle_from(ascii_words(name)) ?? handle_from(ascii_words(local_part)) ?? ''
 }
 
-/** A stable avatar hue for someone without a photo, so their initials keep one colour. */
-export function avatar_hue(seed: string) {
-	let hash = 0
-	for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) | 0
-	return Math.abs(hash) % 360
-}
-
-/** Up to two initials from a display name, e.g. `Mika Tanaka` → `MT`. */
-export const initials = (name: string) =>
-	name
-		.split(/\s+/)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((word) => [...word][0])
-		.join('')
-		.toUpperCase()
+// Shared with the app's avatars, so a person keeps one colour and one set of initials everywhere.
+export { avatar_hue, initials } from '#lib/ui/Avatar.svelte'
