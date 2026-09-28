@@ -32,7 +32,7 @@ test('create, edit and delete a post @writes', async ({ page }) => {
 	await expect(card).toBeVisible()
 
 	// Open it, then edit through the ⋯ menu.
-	await card.locator('a.time').click()
+	await card.locator('a[href*="/p/"]').click()
 	await expect(page).toHaveURL(/\/p\/[0-9a-f-]{36}$/)
 	const focus = page.locator('article.focus')
 	await expect(focus).toContainText(text)

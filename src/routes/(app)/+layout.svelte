@@ -17,7 +17,7 @@
 
 	const on_home = $derived(page.route.id === '/(app)')
 	const on_my_profile = $derived(
-		page.route.id === '/(app)/profile/[handle]' && page.params.handle === data.me.handle,
+		page.route.id === '/(app)/u/[handle]' && page.params.handle === data.me.handle,
 	)
 
 	/** `n` opens the composer, as on X, unless the reader is typing or a dialog is open. */

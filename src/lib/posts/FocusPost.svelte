@@ -16,25 +16,22 @@
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const locale = $derived(getLocale())
 	const likes = $derived(like_state(post).likes)
-	const author_href = $derived(post.author.handle ? profile_href(post.author.handle) : undefined)
 </script>
 
 <article class="focus">
 	<div class="fhead">
-		<svelte:element
-			this={author_href ? 'a' : 'span'}
-			href={author_href}
-			tabindex="-1"
-			aria-hidden="true"
-		>
+		{#if post.author.handle}
+			<a href={profile_href(post.author.handle)} class="av-link" tabindex="-1" aria-hidden="true">
+				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
+			</a>
+			<a class="who" href={profile_href(post.author.handle)}>
+				<div class="nm">{post.author.name}</div>
+				<div class="hd">@{post.author.handle}</div>
+			</a>
+		{:else}
 			<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
-		</svelte:element>
-		<div class="who">
-			<svelte:element this={author_href ? 'a' : 'div'} class="nm" href={author_href}
-				>{post.author.name}</svelte:element
-			>
-			{#if post.author.handle}<div class="hd">@{post.author.handle}</div>{/if}
-		</div>
+			<div class="who"><div class="nm">{post.author.name}</div></div>
+		{/if}
 		<PostMenu {post} {ondeleted} />
 	</div>
 	{#if post.reply_to?.handle}
@@ -88,14 +85,10 @@
 		line-height: 1.3;
 	}
 	.nm {
-		display: block;
 		font-weight: 700;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-	a.nm:hover {
-		text-decoration: underline;
 	}
 	.hd {
 		color: var(--text-2);
@@ -129,5 +122,11 @@
 	.fstats b {
 		color: var(--text);
 		font-weight: 700;
+	}
+	.av-link {
+		display: flex;
+	}
+	a.who:hover .nm {
+		text-decoration: underline;
 	}
 </style>

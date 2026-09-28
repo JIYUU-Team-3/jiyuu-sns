@@ -11,10 +11,10 @@ export async function find_profile(db: Db, user_id: string) {
 }
 
 /**
- * A public profile by handle, with its counts, in one D1 round trip. The join date is the
- * account's, so it doesn't move if onboarding is finished later.
+ * A public profile by handle, with its counts and the viewer's follow state, in one D1 round
+ * trip. The join date is the account's, so it doesn't move if onboarding is finished later.
  */
-export async function find_profile_view(
+export async function find_profile_by_handle(
 	db: Db,
 	viewer: string | undefined,
 	handle: string,
@@ -29,8 +29,14 @@ export async function find_profile_view(
 			header: profile.headerUrl,
 			joined_at: user.createdAt,
 			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0)`,
-			following: sql<number>`(select count(*) from follow f where f.follower_id = ${profile.userId})`,
 			followers: sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`,
+			following: sql<number>`(select count(*) from follow f where f.follower_id = ${profile.userId})`,
+			followed: viewer
+				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
+				: sql<number>`0`,
+			follows_you: viewer
+				? sql<number>`exists(select 1 from follow f where f.follower_id = ${profile.userId} and f.following_id = ${viewer})`
+				: sql<number>`0`,
 		})
 		.from(profile)
 		.innerJoin(user, eq(user.id, profile.userId))
@@ -42,6 +48,8 @@ export async function find_profile_view(
 		image: row.image ?? undefined,
 		header: row.header ?? undefined,
 		joined_at: row.joined_at.getTime(),
+		followed: !!row.followed,
+		follows_you: !!row.follows_you,
 		mine: row.id === viewer,
 	}
 }
