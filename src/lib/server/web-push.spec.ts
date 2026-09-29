@@ -160,6 +160,7 @@ describe('vapid_authorization', () => {
 describe('is_push_endpoint', () => {
 	it('accepts the browsers’ push services over https', () => {
 		expect(is_push_endpoint('https://fcm.googleapis.com/fcm/send/abc')).toBe(true)
+		expect(is_push_endpoint('https://jmt17.google.com/fcm/send/abc')).toBe(true)
 		expect(is_push_endpoint('https://updates.push.services.mozilla.com/wpush/v2/abc')).toBe(true)
 		expect(is_push_endpoint('https://web.push.apple.com/abc')).toBe(true)
 		expect(is_push_endpoint('https://wns2-db5p.notify.windows.com/w/?token=abc')).toBe(true)
@@ -169,6 +170,7 @@ describe('is_push_endpoint', () => {
 		expect(is_push_endpoint('http://fcm.googleapis.com/fcm/send/abc')).toBe(false)
 		expect(is_push_endpoint('https://evil.example/fcm.googleapis.com')).toBe(false)
 		expect(is_push_endpoint('https://fcm.googleapis.com.evil.example/')).toBe(false)
+		expect(is_push_endpoint('https://notgoogle.com/fcm/send/abc')).toBe(false)
 		expect(is_push_endpoint('not a url')).toBe(false)
 	})
 })

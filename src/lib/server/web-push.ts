@@ -153,7 +153,10 @@ export async function vapid_authorization(endpoint: string, keys: VapidKeys, now
 
 /** The push services browsers actually use; anything else is refused before it's stored. */
 const PUSH_HOSTS = [
-	'fcm.googleapis.com',
+	// Chrome, Edge on Android, Brave and other Chromium browsers use FCM, which hands out both
+	// `fcm.googleapis.com` and hosts like `jmt17.google.com`.
+	'googleapis.com',
+	'google.com',
 	'updates.push.services.mozilla.com',
 	'push.apple.com',
 	'notify.windows.com',

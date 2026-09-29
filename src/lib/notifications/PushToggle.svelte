@@ -3,7 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
-	import { push } from './push.svelte'
+	import { is_brave, push } from './push.svelte'
 
 	onMount(() => {
 		push.check()
@@ -19,7 +19,7 @@
 	}
 </script>
 
-{#if push.state === 'off' || push.state === 'on' || push.state === 'blocked' || push.state === 'install'}
+{#if push.state !== 'checking' && push.state !== 'unsupported'}
 	<section class="push" aria-labelledby="push-title">
 		<span class="ico" class:on={push.state === 'on'}><Icon name="bell" /></span>
 		<div class="text">
@@ -28,15 +28,19 @@
 				{#if push.state === 'on'}{m.push_on_body()}
 				{:else if push.state === 'blocked'}{m.push_blocked()}
 				{:else if push.state === 'install'}{m.push_ios_hint()}
+				{:else if push.state === 'unavailable'}{is_brave()
+						? m.push_unavailable_brave()
+						: m.push_unavailable()}
 				{:else}{m.push_off_body()}{/if}
 			</p>
 		</div>
-		{#if push.state === 'off'}
+		{#if push.state === 'off' || push.state === 'unavailable'}
 			<button
 				type="button"
 				class="btn btn-primary sm"
 				disabled={push.busy}
-				onclick={() => run(() => push.enable())}>{m.push_turn_on()}</button
+				onclick={() => run(() => push.enable())}
+				>{push.state === 'unavailable' ? m.feed_retry() : m.push_turn_on()}</button
 			>
 		{:else if push.state === 'on'}
 			<button

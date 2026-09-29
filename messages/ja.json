@@ -268,5 +268,7 @@
 	"push_turn_on": "オンにする",
 	"push_turn_off": "オフにする",
 	"push_blocked": "このサイトの通知はブロックされています。オンにするには、ブラウザのサイト設定で許可してください。",
-	"push_ios_hint": "iPhone・iPad では、まず Jiyuu をホーム画面に追加し（共有 → ホーム画面に追加）、そこから開いてください。"
+	"push_ios_hint": "iPhone・iPad では、まず Jiyuu をホーム画面に追加し（共有 → ホーム画面に追加）、そこから開いてください。",
+	"push_unavailable": "このブラウザはプッシュサービスに接続できませんでした。通知やバックグラウンドサービスがブロックされていないか確認して、もう一度お試しください。",
+	"push_unavailable_brave": "Brave ではプッシュ通知がオフになっています。brave://settings/privacy を開き、「プッシュメッセージに Google サービスを使用」をオンにして Brave を再起動してから、もう一度お試しください。"
 }
