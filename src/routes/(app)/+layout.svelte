@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
 	import { page } from '$app/state'
+	import { notifications_href } from '#lib/notifications/links'
+	import { get_unread_count } from '#lib/notifications/notifications.remote'
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
 	import { morph_profile_edit } from '#lib/profiles/morph'
 	import { composer } from '#lib/posts/state.svelte'
+	import { explore_href } from '#lib/search/links'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
 	import { home_href } from '../(public)/links'
@@ -19,6 +23,21 @@
 	morph_profile_edit()
 
 	const on_home = $derived(page.route.id === '/(app)')
+	const on_explore = $derived(
+		page.route.id === '/(app)/explore' || page.route.id === '/(app)/search',
+	)
+	const on_notifications = $derived(page.route.id === '/(app)/notifications')
+
+	const unread = $derived(await get_unread_count().catch(() => 0))
+	const unread_label = $derived(unread >= 100 ? '99+' : String(unread))
+
+	// New notifications arrive while the tab is open; check once a minute when it's visible.
+	onMount(() => {
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') get_unread_count().refresh()
+		}, 60_000)
+		return () => clearInterval(timer)
+	})
 	const on_own_profile = $derived(
 		(page.route.id === '/(app)/u/[handle]' && page.params.handle === data.me.handle) ||
 			page.route.id === '/(app)/settings/profile',
@@ -40,9 +59,25 @@
 	<nav class="side" aria-label={m.app_home()}>
 		<a class="brand" href={home_href()} aria-label="Jiyuu"><Mark /><Wordmark /></a>
 		<div class="nav">
-			<!-- Explore, Notifications, Messages and Bookmarks join as their features land. -->
+			<!-- Messages and Bookmarks join as their features land. -->
 			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
 				<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
+			</a>
+			<a class="nav-item" href={explore_href()} aria-current={on_explore ? 'page' : undefined}>
+				<Icon name="search" size="lg" /><span class="lbl">{m.app_explore()}</span>
+			</a>
+			<a
+				class="nav-item"
+				href={notifications_href()}
+				aria-current={on_notifications ? 'page' : undefined}
+			>
+				<span class="ico-wrap">
+					<Icon name="bell" size="lg" />
+					{#if unread}<span class="badge" aria-hidden="true">{unread_label}</span>{/if}
+				</span>
+				<span class="lbl">{m.app_notifications()}</span>
+				{#if unread}<span class="visually-hidden">{m.app_unread({ count: unread_label })}</span
+					>{/if}
 			</a>
 			<a
 				class="nav-item"
@@ -72,6 +107,25 @@
 <nav class="tabbar" aria-label={m.app_home()}>
 	<a href={home_href()} aria-label={m.app_home()} aria-current={on_home ? 'page' : undefined}>
 		<Icon name="home" size="lg" />
+	</a>
+	<a
+		href={explore_href()}
+		aria-label={m.app_explore()}
+		aria-current={on_explore ? 'page' : undefined}
+	>
+		<Icon name="search" size="lg" />
+	</a>
+	<a
+		href={notifications_href()}
+		aria-label={unread
+			? `${m.app_notifications()}, ${m.app_unread({ count: unread_label })}`
+			: m.app_notifications()}
+		aria-current={on_notifications ? 'page' : undefined}
+	>
+		<span class="ico-wrap">
+			<Icon name="bell" size="lg" />
+			{#if unread}<span class="badge" aria-hidden="true">{unread_label}</span>{/if}
+		</span>
 	</a>
 	<a
 		href={profile_href(data.me.handle)}
@@ -137,6 +191,34 @@
 	}
 	.nav-item[aria-current='page'] {
 		font-weight: 700;
+	}
+	.ico-wrap {
+		position: relative;
+		display: flex;
+	}
+	.badge {
+		position: absolute;
+		top: -6px;
+		left: 12px;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9px;
+		background: var(--accent);
+		color: #fff;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 18px;
+		text-align: center;
+		box-shadow: 0 0 0 2px var(--bg);
+	}
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.compose {
 		margin-top: 16px;

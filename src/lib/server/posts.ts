@@ -1,8 +1,10 @@
 import { and, asc, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
+import { extract_mentions, extract_tags } from '#lib/posts/text'
 import type { FeedTab, PostPage, PostView } from '#lib/posts/types'
 import type { getDb } from './db'
-import { follow, post, postLike, profile, user } from './db/schema'
+import { follow, post, postLike, postTag, profile, user } from './db/schema'
+import { notify, retract } from './notifications'
 
 type Db = ReturnType<typeof getDb>
 
@@ -11,14 +13,14 @@ export const PAGE_SIZE = 20
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
 
-const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
-const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
+export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
+export const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
 
 /**
  * Every post query goes through here: one statement returns the author, the parent's handle and
  * the counts, so a page of posts costs one D1 round trip no matter how long it is.
  */
-function select_posts(db: Db, viewer: string | undefined) {
+export function select_posts(db: Db, viewer: string | undefined) {
 	return db
 		.select({
 			id: post.id,
@@ -80,7 +82,7 @@ function decode_cursor(cursor: string) {
 }
 
 /** Posts strictly after the cursor in the given direction. */
-function after(cursor: string | undefined, direction: 'newer_first' | 'older_first') {
+export function after(cursor: string | undefined, direction: 'newer_first' | 'older_first') {
 	const at = cursor ? decode_cursor(cursor) : undefined
 	if (!at) return undefined
 	const before = direction === 'newer_first' ? lt : gt
@@ -90,13 +92,13 @@ function after(cursor: string | undefined, direction: 'newer_first' | 'older_fir
 	)
 }
 
-function to_page(rows: Row[], viewer: string | undefined, next: (last: PostView) => string) {
+export function to_page(rows: Row[], viewer: string | undefined, next: (last: PostView) => string) {
 	const posts = rows.slice(0, PAGE_SIZE).map((row) => to_view(row, viewer))
 	const last = posts.at(-1)
 	return { posts, next: rows.length > PAGE_SIZE && last ? next(last) : undefined }
 }
 
-async function page(
+export async function page(
 	db: Db,
 	viewer: string | undefined,
 	where: (SQL | undefined)[],
@@ -196,6 +198,34 @@ export async function find_post(db: Db, viewer: string | undefined, id: string) 
 	return row ? to_view(row, viewer) : undefined
 }
 
+/** Several posts by id, in no particular order; missing ones are left out. */
+export async function find_posts(db: Db, viewer: string | undefined, ids: string[]) {
+	if (!ids.length) return []
+	const rows = await select_posts(db, viewer).where(inArray(post.id, ids))
+	return rows.map((row) => to_view(row, viewer))
+}
+
+/** Replace a post's hashtags with the ones in `body`. */
+async function save_tags(db: Db, post_id: string, created_at: Date, body: string) {
+	const tags = extract_tags(body)
+	await db.delete(postTag).where(eq(postTag.postId, post_id))
+	if (tags.length) {
+		await db
+			.insert(postTag)
+			.values(tags.map((tag) => ({ postId: post_id, tag, createdAt: created_at })))
+	}
+}
+
+/** The accounts behind the handles a post mentions, leaving out the author and `skip`. */
+async function mentioned_users(db: Db, handles: string[], author_id: string, skip?: string) {
+	if (!handles.length) return []
+	const rows = await db
+		.select({ id: profile.userId })
+		.from(profile)
+		.where(inArray(profile.handle, handles))
+	return rows.map((row) => row.id).filter((id) => id !== author_id && id !== skip)
+}
+
 /** Publish a post, or undefined when the post it replies to no longer exists. */
 export async function insert_post(
 	db: Db,
@@ -203,29 +233,81 @@ export async function insert_post(
 	body: string,
 	reply_to_id: string | undefined,
 ) {
+	let parent_author: string | undefined
 	if (reply_to_id) {
 		const [target] = await db
-			.select({ id: post.id })
+			.select({ author_id: post.authorId })
 			.from(post)
 			.where(eq(post.id, reply_to_id))
 			.limit(1)
 		if (!target) return undefined
+		parent_author = target.author_id
 	}
 	const [created] = await db
 		.insert(post)
 		.values({ authorId: author_id, body, replyToId: reply_to_id ?? null, isReply: !!reply_to_id })
-		.returning({ id: post.id })
-	return created?.id
+		.returning({ id: post.id, created_at: post.createdAt })
+	if (!created) return undefined
+
+	await save_tags(db, created.id, created.created_at, body)
+	// Someone mentioned in a reply to their own post already hears about it as a reply.
+	const mentioned = await mentioned_users(db, extract_mentions(body), author_id, parent_author)
+	await notify(db, [
+		...(parent_author
+			? [
+					{
+						user_id: parent_author,
+						actor_id: author_id,
+						type: 'reply' as const,
+						post_id: created.id,
+					},
+				]
+			: []),
+		...mentioned.map((user_id) => ({
+			user_id,
+			actor_id: author_id,
+			type: 'mention' as const,
+			post_id: created.id,
+		})),
+	])
+	return created.id
 }
 
-/** Replace the text of the author's own post. False when it isn't theirs or doesn't exist. */
+/**
+ * Replace the text of the author's own post. False when it isn't theirs or doesn't exist.
+ * Only people newly mentioned by the edit are notified, so fixing a typo doesn't ping everyone
+ * again.
+ */
 export async function update_post(db: Db, author_id: string, id: string, body: string) {
+	const [before] = await db
+		.select({ body: post.body, created_at: post.createdAt, reply_to_id: post.replyToId })
+		.from(post)
+		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
+		.limit(1)
+	if (!before) return false
 	const updated = await db
 		.update(post)
 		.set({ body, editedAt: new Date() })
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
 		.returning({ id: post.id })
-	return updated.length > 0
+	if (!updated.length) return false
+
+	await save_tags(db, id, before.created_at, body)
+	const already = new Set(extract_mentions(before.body))
+	const added = extract_mentions(body).filter((handle) => !already.has(handle))
+	const [parent] = before.reply_to_id
+		? await db
+				.select({ author_id: post.authorId })
+				.from(post)
+				.where(eq(post.id, before.reply_to_id))
+				.limit(1)
+		: []
+	const mentioned = await mentioned_users(db, added, author_id, parent?.author_id)
+	await notify(
+		db,
+		mentioned.map((user_id) => ({ user_id, actor_id: author_id, type: 'mention', post_id: id })),
+	)
+	return true
 }
 
 /**
@@ -245,11 +327,21 @@ export async function remove_post(db: Db, author_id: string, id: string) {
  * a post deleted a moment ago quietly does nothing instead of tripping the foreign key.
  */
 export async function set_like(db: Db, user_id: string, post_id: string, on: boolean) {
+	const [target] = await db
+		.select({ author_id: post.authorId })
+		.from(post)
+		.where(eq(post.id, post_id))
+		.limit(1)
+	if (!target) return
+	const note = { user_id: target.author_id, actor_id: user_id, type: 'like' as const, post_id }
 	if (on) {
-		await db.run(
-			sql`insert or ignore into post_like (user_id, post_id) select ${user_id}, id from post where id = ${post_id}`,
+		// Only a like that is actually new is announced; a repeated one inserts nothing.
+		const added = await db.all(
+			sql`insert or ignore into post_like (user_id, post_id) select ${user_id}, id from post where id = ${post_id} returning post_id`,
 		)
+		if (added.length) await notify(db, [note])
 	} else {
 		await db.delete(postLike).where(and(eq(postLike.userId, user_id), eq(postLike.postId, post_id)))
+		await retract(db, note)
 	}
 }
