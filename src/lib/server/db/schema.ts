@@ -91,4 +91,45 @@ export const postLike = sqliteTable(
 	],
 )
 
+/** One row per distinct #tag in a post, rewritten whenever the post is edited. */
+export const postTag = sqliteTable(
+	'post_tag',
+	{
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		// Lowercase and NFKC-normalised, without the `#`.
+		tag: text('tag').notNull(),
+		// The post's own creation time, so trending can count a window without joining `post`.
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.postId, table.tag] }),
+		index('post_tag_tag_created_idx').on(table.tag, table.createdAt),
+	],
+)
+
+export const notification = sqliteTable(
+	'notification',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		/** Who sees it. */
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** Who did it. */
+		actorId: text('actor_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		type: text('type', { enum: ['follow', 'like', 'reply', 'mention'] }).notNull(),
+		// The liked post, or the reply or mention itself. Null for a follow.
+		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
+		readAt: integer('read_at', { mode: 'timestamp_ms' }),
+		createdAt: created_at(),
+	},
+	(table) => [index('notification_user_created_idx').on(table.userId, table.createdAt)],
+)
+
 export * from './auth.schema'
