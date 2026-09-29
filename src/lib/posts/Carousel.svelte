@@ -50,7 +50,23 @@
 		})
 	}
 
-	$effect(update_edges)
+	/** How long the track must sit still before a swipe counts as settled, in milliseconds. */
+	const SETTLE = 120
+	let settle: ReturnType<typeof setTimeout> | undefined
+
+	/**
+	 * Hold every update until the swipe settles. iOS Safari re-snaps a track whose page restyles
+	 * mid-swipe, throwing it back to the first slide.
+	 */
+	function onscroll() {
+		clearTimeout(settle)
+		settle = setTimeout(update_edges, SETTLE)
+	}
+
+	$effect(() => {
+		update_edges()
+		return () => clearTimeout(settle)
+	})
 </script>
 
 <div
@@ -67,7 +83,7 @@
 		role="group"
 		aria-label={m.post_photos_label({ count: media.length })}
 		bind:this={track}
-		onscroll={update_edges}
+		{onscroll}
 	>
 		<!-- Keyed by position too: posts from before duplicates were refused may hold one GIF twice. -->
 		{#each media as item, i (`${i}:${item.url}`)}
