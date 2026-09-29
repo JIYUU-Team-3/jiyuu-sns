@@ -66,7 +66,4 @@ export default defineConfig({
 			},
 		],
 	},
-	server: {
-		allowedHosts: ['affiliation-believed-expensive-fairfield.trycloudflare.com'],
-	},
 })
