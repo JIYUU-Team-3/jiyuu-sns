@@ -30,7 +30,8 @@ test('shows and edits your profile @writes', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'E2E Tester', level: 2 })).toBeVisible()
 	await expect(page.locator('section.top .handle')).toHaveText(`@${handle}`)
 	await expect(page.getByText(/^Joined \w+ \d{4}$/)).toBeVisible()
-	await expect(page.getByText('1 post', { exact: true })).toBeVisible()
+	// Scoped to the main column: trending tags in the rail show post counts too.
+	await expect(page.locator('main').getByText('1 post', { exact: true })).toBeVisible()
 	await expect(page.locator('article.post', { hasText: text })).toBeVisible()
 
 	// Replies has its own list, empty for a new account.
