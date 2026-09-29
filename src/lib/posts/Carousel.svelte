@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { carousel_size, SLIDE_GAP } from './carousel-size'
@@ -34,11 +35,19 @@
 	let track: HTMLDivElement
 	let at_start = $state(true)
 	let at_end = $state(false)
+	/** What `onswipe` last heard, so it only hears changes. Plain: nothing renders from it. */
+	let swiped = false
+
+	function report(now: boolean) {
+		if (now === swiped) return
+		swiped = now
+		onswipe?.(now, car.getBoundingClientRect().top)
+	}
 
 	function update_edges() {
 		at_start = track.scrollLeft < 4
 		at_end = track.scrollLeft + track.clientWidth > track.scrollWidth - 4
-		onswipe?.(!at_start, car.getBoundingClientRect().top)
+		report(!at_start)
 	}
 
 	/** Scroll by one slide; snapping lines the next one up with the text column. */
@@ -55,16 +64,19 @@
 	let settle: ReturnType<typeof setTimeout> | undefined
 
 	/**
-	 * Hold every update until the swipe settles. iOS Safari re-snaps a track whose page restyles
-	 * mid-swipe, throwing it back to the first slide.
+	 * Hold every update until the swipe settles: iOS Safari re-snaps a track whose page restyles
+	 * mid-swipe, throwing it back to the first slide. Leaving the start is the one exception, so
+	 * the avatar tucks as the swipe begins; that only rescales it, which needs no layout.
 	 */
 	function onscroll() {
+		if (track.scrollLeft >= 4) report(true)
 		clearTimeout(settle)
 		settle = setTimeout(update_edges, SETTLE)
 	}
 
+	// Untracked: `onswipe` reads the card's tuck, and a rerun mid-swipe would restyle the track.
 	$effect(() => {
-		update_edges()
+		untrack(update_edges)
 		return () => clearTimeout(settle)
 	})
 </script>
