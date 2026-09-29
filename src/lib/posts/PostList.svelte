@@ -8,11 +8,14 @@
 	let {
 		load,
 		show_replying = true,
+		hide,
 		empty,
 	}: {
 		/** The query for one page; `undefined` is the first. */
 		load: (cursor?: string) => RemoteQuery<Page>
 		show_replying?: boolean
+		/** Posts already on screen above the list, such as ones just published. */
+		hide?: ReadonlySet<string>
 		/** Shown when the first page comes back empty. */
 		empty?: Snippet
 	} = $props()
@@ -57,6 +60,7 @@
 			first={i === 0}
 			last={i === cursors.length - 1}
 			{show_replying}
+			{hide}
 			{empty}
 			onmore={(next) => cursors.push(next)}
 		/>

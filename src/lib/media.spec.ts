@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { IMAGE_MAX_BYTES, image_problem, picked_file, sniff_image } from './media'
+import {
+	IMAGE_MAX_BYTES,
+	image_problem,
+	picked_file,
+	sniff_image,
+	sniff_post_upload,
+	sniff_video,
+} from './media'
 
 const ascii = (text: string) => [...text].map((char) => char.charCodeAt(0))
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]
@@ -21,6 +28,35 @@ describe('sniff_image', () => {
 		expect(sniff_image(new Uint8Array(ascii('<svg xmlns=')))).toBeUndefined()
 		expect(sniff_image(new Uint8Array(ascii('RIFF\0\0\0\0WAVE')))).toBeUndefined()
 		expect(sniff_image(new Uint8Array())).toBeUndefined()
+	})
+})
+
+const ftyp = (brand: string) => new Uint8Array([0, 0, 0, 0x18, ...ascii('ftyp' + brand)])
+
+describe('sniff_video', () => {
+	it('recognises MP4 and QuickTime by their brand', () => {
+		expect(sniff_video(ftyp('isom'))).toBe(true)
+		expect(sniff_video(ftyp('mp42'))).toBe(true)
+		expect(sniff_video(ftyp('qt  '))).toBe(true)
+	})
+
+	it('refuses HEIC and AVIF photos, which share the box format', () => {
+		expect(sniff_video(ftyp('heic'))).toBe(false)
+		expect(sniff_video(ftyp('avif'))).toBe(false)
+		expect(sniff_video(ftyp('mif1'))).toBe(false)
+	})
+
+	it('refuses short and unrelated files', () => {
+		expect(sniff_video(new Uint8Array(ascii('ftypisom')))).toBe(false)
+		expect(sniff_video(new Uint8Array(PNG))).toBe(false)
+	})
+})
+
+describe('sniff_post_upload', () => {
+	it('tells photos from videos by their bytes', async () => {
+		expect(await sniff_post_upload(file(PNG, 'video/mp4'))).toBe('image')
+		expect(await sniff_post_upload(file([...ftyp('isom')], 'image/png'))).toBe('video')
+		expect(await sniff_post_upload(file(ascii('<svg>')))).toBeUndefined()
 	})
 })
 

@@ -81,6 +81,14 @@ export function format_timestamp(time: number, locale: Locale, { time_zone }: Zo
 	return `${clock} · ${date}`
 }
 
+/** A running poll's time left, rounded down: `2 days left`, `5 hours left`, `3 minutes left`. */
+export function format_time_left(ends_at: number, now: number, locale: Locale) {
+	const left = Math.max(0, ends_at - now)
+	if (left >= DAY) return m.poll_days_left({ count: Math.floor(left / DAY) }, { locale })
+	if (left >= HOUR) return m.poll_hours_left({ count: Math.floor(left / HOUR) }, { locale })
+	return m.poll_minutes_left({ count: Math.max(1, Math.floor(left / MINUTE)) }, { locale })
+}
+
 /** Engagement counts: `999`, `1.2K`, `12K`, `1.2M` (and `1.2万` in Japanese). */
 export function format_count(count: number, locale: Locale) {
 	// Like X, tens of thousands drop the decimal (12K, not 12.3K).

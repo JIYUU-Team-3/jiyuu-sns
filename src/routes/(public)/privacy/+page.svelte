@@ -13,6 +13,8 @@
 		<li>{m.privacy_collect_google()}</li>
 		<li>{m.privacy_collect_session()}</li>
 		<li>{m.privacy_collect_content()}</li>
+		<li>{m.privacy_collect_photos()}</li>
+		<li>{m.privacy_collect_places()}</li>
 	</ul>
 
 	<h2>{m.privacy_use_heading()}</h2>
@@ -28,9 +30,13 @@
 		<li>{m.privacy_cookie_state()}</li>
 		<li>{m.privacy_cookie_locale()}</li>
 	</ul>
+	<p>{m.privacy_storage_emoji()}</p>
 
 	<h2>{m.privacy_providers_heading()}</h2>
 	<p><RichText parts={m.privacy_providers.parts()} hrefs={EXTERNAL_HREFS} /></p>
+	<p><RichText parts={m.privacy_providers_giphy.parts()} hrefs={EXTERNAL_HREFS} /></p>
+	<p><RichText parts={m.privacy_providers_places.parts()} hrefs={EXTERNAL_HREFS} /></p>
+	<p><RichText parts={m.privacy_providers_emoji.parts()} hrefs={EXTERNAL_HREFS} /></p>
 	<p>
 		<RichText
 			parts={m.privacy_providers_github.parts()}

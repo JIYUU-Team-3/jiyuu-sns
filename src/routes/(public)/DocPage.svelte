@@ -8,7 +8,7 @@
 	import { localized } from './links'
 
 	/** When the policy pages were last revised. Bump it whenever their text changes. */
-	const LAST_UPDATED = Date.UTC(2026, 8, 26)
+	const LAST_UPDATED = Date.UTC(2026, 8, 29)
 
 	let {
 		title,
