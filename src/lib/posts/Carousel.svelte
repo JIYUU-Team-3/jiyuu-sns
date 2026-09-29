@@ -56,8 +56,6 @@
 <div
 	class="car"
 	class:focus
-	class:at-start={at_start}
-	class:at-end={at_end}
 	class:fits={size.fits}
 	style:--h="{size.height}px"
 	style:--gap="{SLIDE_GAP}px"
@@ -85,10 +83,22 @@
 			</div>
 		{/each}
 	</div>
-	<button type="button" class="nav prev" aria-label={m.post_photo_prev()} onclick={() => step(-1)}>
+	<button
+		type="button"
+		class="nav prev"
+		class:off={at_start}
+		aria-label={m.post_photo_prev()}
+		onclick={() => step(-1)}
+	>
 		<Icon name="chev-left" size="sm" />
 	</button>
-	<button type="button" class="nav next" aria-label={m.post_photo_next()} onclick={() => step(1)}>
+	<button
+		type="button"
+		class="nav next"
+		class:off={at_end}
+		aria-label={m.post_photo_next()}
+		onclick={() => step(1)}
+	>
 		<Icon name="chev-right" size="sm" />
 	</button>
 </div>
@@ -156,8 +166,11 @@
 	.fits .nav {
 		display: none;
 	}
-	.car.at-start .prev,
-	.car.at-end .next {
+	/*
+	 * On the buttons, not the carousel: restyling the track's parent mid-swipe makes iOS Safari
+	 * re-snap the track, throwing the swipe back to the first slide.
+	 */
+	.car .nav.off {
 		opacity: 0;
 		pointer-events: none;
 	}

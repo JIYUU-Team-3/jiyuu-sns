@@ -36,6 +36,7 @@
 <style>
 	.auth {
 		min-height: 100vh;
+		padding-top: env(safe-area-inset-top);
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 	}

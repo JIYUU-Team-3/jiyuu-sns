@@ -210,7 +210,7 @@
 		.main {
 			width: 100%;
 			border: 0;
-			padding-bottom: 64px;
+			padding-bottom: calc(64px + env(safe-area-inset-bottom));
 		}
 		.tabbar {
 			display: flex;
