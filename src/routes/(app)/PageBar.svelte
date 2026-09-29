@@ -60,6 +60,8 @@
 		position: sticky;
 		top: 0;
 		z-index: 20;
+		/* Drawn under the status bar (viewport-fit=cover), so the page never shows through it. */
+		padding-top: env(safe-area-inset-top);
 		background: color-mix(in srgb, var(--bg) 88%, transparent);
 		backdrop-filter: saturate(180%) blur(14px);
 		-webkit-backdrop-filter: saturate(180%) blur(14px);

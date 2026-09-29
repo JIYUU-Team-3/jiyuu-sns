@@ -107,6 +107,8 @@
 		.modal:not(.sm) {
 			width: 100%;
 			min-height: 100dvh;
+			padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+			box-sizing: border-box;
 			border-radius: 0;
 			margin: 0;
 		}

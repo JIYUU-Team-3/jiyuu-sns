@@ -22,7 +22,7 @@
 		justify-content: center;
 		flex-wrap: wrap;
 		gap: 4px 16px;
-		padding: 12px 16px;
+		padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
 		font-size: 13px;
 		color: var(--text-3);
 	}

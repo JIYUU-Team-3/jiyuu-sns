@@ -98,7 +98,7 @@
 		grid-template-columns: minmax(0, 1fr);
 		justify-items: center;
 		align-items: start;
-		padding: 6vh 16px;
+		padding: calc(6vh + env(safe-area-inset-top)) 16px calc(6vh + env(safe-area-inset-bottom));
 		background: var(--bg-2);
 	}
 	.card {

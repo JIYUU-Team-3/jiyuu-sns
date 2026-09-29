@@ -41,7 +41,7 @@
 		margin: 0 auto;
 	}
 	.doc-head {
-		padding: 16px;
+		padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
 	}
 	.brand {
 		display: inline-flex;
