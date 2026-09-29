@@ -272,5 +272,6 @@
 	"push_unavailable": "このブラウザはプッシュサービスに接続できませんでした。通知やバックグラウンドサービスがブロックされていないか確認して、もう一度お試しください。",
 	"push_unavailable_brave": "Brave ではプッシュ通知がオフになっています。brave://settings/privacy を開き、「プッシュメッセージに Google サービスを使用」をオンにして Brave を再起動してから、もう一度お試しください。",
 	"search_for": "「{q}」を検索",
-	"search_suggestions": "検索候補"
+	"search_suggestions": "検索候補",
+	"search_view_all": "すべて表示"
 }

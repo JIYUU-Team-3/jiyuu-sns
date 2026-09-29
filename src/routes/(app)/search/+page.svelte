@@ -64,10 +64,24 @@
 				{/each}
 			{:else}
 				{@const posts_tab = tab}
+				<!-- Like X, Top leads with the few closest people before the posts. -->
+				{@const people =
+					tab === 'top' && !q.startsWith('#') ? (await search_people(q)).slice(0, 3) : []}
+				{#if people.length}
+					<section class="people" aria-labelledby="people-h">
+						<h2 id="people-h">{m.search_people()}</h2>
+						{#each people as user (user.id)}
+							<UserRow {user} />
+						{/each}
+						<button type="button" class="all" onclick={() => (tab = 'people')}
+							>{m.search_view_all()}</button
+						>
+					</section>
+				{/if}
 				<PostList
 					load={(cursor) =>
 						search_posts(cursor ? { q, tab: posts_tab, cursor } : { q, tab: posts_tab })}
-					empty={none}
+					empty={people.length ? undefined : none}
 				/>
 			{/if}
 		</div>
@@ -77,5 +91,25 @@
 <style>
 	.box {
 		padding: 8px 16px;
+	}
+	.people {
+		border-bottom: 1px solid var(--line);
+	}
+	.people h2 {
+		font-size: 20px;
+		font-weight: 800;
+		padding: 12px 16px 4px;
+		margin: 0;
+	}
+	.all {
+		display: block;
+		width: 100%;
+		padding: 14px 16px;
+		text-align: left;
+		color: var(--accent-text);
+		transition: background-color 0.15s;
+	}
+	.all:hover {
+		background: var(--bg-2);
 	}
 </style>

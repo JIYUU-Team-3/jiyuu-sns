@@ -272,5 +272,6 @@
 	"push_unavailable": "This browser couldn’t reach its push service. Check that it isn’t blocking notifications or background services, then try again.",
 	"push_unavailable_brave": "Brave has push turned off. Open brave://settings/privacy, turn on “Use Google services for push messaging”, restart Brave, then try again.",
 	"search_for": "Search for “{q}”",
-	"search_suggestions": "Search suggestions"
+	"search_suggestions": "Search suggestions",
+	"search_view_all": "View all"
 }

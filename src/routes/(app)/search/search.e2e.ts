@@ -42,6 +42,15 @@ test('hashtags link to search, and search finds posts, people and tags @writes',
 	await suggestion.click()
 	await expect(page).toHaveURL(new RegExp(`/u/${handle}$`))
 
+	// Top leads with the closest people, like X, even with a typo in the query.
+	const typo = handle.slice(0, 4) + handle[5] + handle[4] + handle.slice(6)
+	await page.goto(`/search?q=${typo}`)
+	await page.waitForLoadState('networkidle')
+	const people = page.locator('section.people')
+	await expect(people.getByText(`@${handle}`)).toBeVisible()
+	await people.getByRole('button', { name: 'View all' }).click()
+	await expect(page).toHaveURL(/tab=people/)
+
 	// A search with no matches says so.
 	await page.goto(`/search?q=nothing-matches-${id}`)
 	await expect(page.getByText(`No results for “nothing-matches-${id}”`)).toBeVisible()

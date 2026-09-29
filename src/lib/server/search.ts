@@ -4,6 +4,7 @@ import type { PostPage } from '#lib/posts/types'
 import type { TagView, UserView } from '#lib/search/types'
 import type { getDb } from './db'
 import { follow, post, postTag, profile, user } from './db/schema'
+import { typo_budget, typo_match } from './fuzzy'
 import { after, like_count, page, PAGE_SIZE, reply_count, select_posts, to_page } from './posts'
 
 type Db = ReturnType<typeof getDb>
@@ -121,7 +122,45 @@ export async function search_people(
 		)
 		.orderBy(closeness(needle), sql`length(${profile.handle})`, desc(follower_count))
 		.limit(limit)
-	return rows.map((row) => to_user(row, viewer))
+	const people = rows.map((row) => to_user(row, viewer))
+	if (people.length >= limit || !typo_budget([...needle].length)) return people
+	return [...people, ...(await near_misses(db, viewer, needle, people, limit - people.length))]
+}
+
+/**
+ * How many accounts typo matching looks through, most followed first. Plenty for this app;
+ * a much bigger one would want a real search index instead.
+ */
+const TYPO_CANDIDATES = 2000
+
+/** Accounts a typo or two away from the query, fewest typos and then most followed first. */
+async function near_misses(
+	db: Db,
+	viewer: string | undefined,
+	needle: string,
+	found: UserView[],
+	limit: number,
+) {
+	const seen = new Set(found.map((user) => user.id))
+	const candidates = await db
+		.select({ id: profile.userId, handle: profile.handle, name: profile.displayName })
+		.from(profile)
+		.orderBy(desc(follower_count))
+		.limit(TYPO_CANDIDATES)
+	const ranked = candidates
+		.flatMap((candidate) => {
+			if (seen.has(candidate.id)) return []
+			const typos = typo_match(needle, candidate.handle, candidate.name)
+			return typos === undefined ? [] : [{ id: candidate.id, typos }]
+		})
+		// Stable, so equally close accounts stay most followed first.
+		.sort((a, b) => a.typos - b.typos)
+		.slice(0, limit)
+		.map((match) => match.id)
+	if (!ranked.length) return []
+	const rows = await select_users(db, viewer).where(inArray(profile.userId, ranked))
+	const by_id = new Map(rows.map((row) => [row.id, to_user(row, viewer)]))
+	return ranked.flatMap((id) => by_id.get(id) ?? [])
 }
 
 /** Tags starting with the query, most used first. */
