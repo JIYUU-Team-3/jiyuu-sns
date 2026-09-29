@@ -16,6 +16,7 @@
 	import Wordmark from '../(public)/Wordmark.svelte'
 	import AccountMenu from './AccountMenu.svelte'
 	import ComposerHost from './ComposerHost.svelte'
+	import RailDiscover from './RailDiscover.svelte'
 	import type { LayoutProps } from './$types'
 
 	let { data, children }: LayoutProps = $props()
@@ -100,6 +101,13 @@
 	<main class="main">{@render children()}</main>
 
 	<aside class="rail">
+		<!-- Explore and Search already show all of this in the main column. -->
+		{#if !on_explore}
+			<svelte:boundary>
+				<RailDiscover />
+				{#snippet failed()}{/snippet}
+			</svelte:boundary>
+		{/if}
 		<SiteFooter />
 	</aside>
 </div>
