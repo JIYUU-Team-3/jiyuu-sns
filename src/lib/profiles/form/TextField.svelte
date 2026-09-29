@@ -11,6 +11,8 @@
 		invalid = false,
 		describedby,
 		autocomplete = 'off',
+		autofocus = false,
+		rows = 2,
 	}: {
 		name: string
 		label: string
@@ -25,6 +27,9 @@
 		/** Id of the hint under the field, read out with it. */
 		describedby?: string
 		autocomplete?: HTMLInputElement['autocomplete']
+		/** Where focus starts when the field opens in a modal. */
+		autofocus?: boolean
+		rows?: number
 	} = $props()
 </script>
 
@@ -36,8 +41,9 @@
 	{#if multiline}
 		<textarea
 			{name}
-			rows="2"
+			{rows}
 			maxlength={max}
+			data-autofocus={autofocus || undefined}
 			{placeholder}
 			aria-describedby={describedby}
 			bind:value></textarea>
@@ -49,6 +55,7 @@
 				maxlength={max}
 				{placeholder}
 				{autocomplete}
+				data-autofocus={autofocus || undefined}
 				spellcheck="false"
 				aria-invalid={invalid}
 				aria-describedby={describedby}

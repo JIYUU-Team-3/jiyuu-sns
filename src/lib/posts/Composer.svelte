@@ -4,22 +4,33 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
-	import Icon, { type IconName } from '#lib/ui/Icon.svelte'
+	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
 	import CharCounter from './CharCounter.svelte'
+	import Attachments from './composer/Attachments.svelte'
+	import { Draft } from './composer/draft.svelte'
+	import Editor from './composer/Editor.svelte'
+	import MediaTray from './composer/MediaTray.svelte'
+	import Tools from './composer/Tools.svelte'
 	import { format_age } from './format'
 	import { post_href } from './links'
 	import { create_post, edit_post } from './posts.remote'
 	import PostText from './PostText.svelte'
-	import { post_length, post_problem, split_at_limit } from './rules'
-	import { current_time, edited_posts, type ComposerTask } from './state.svelte'
+	import { post_length } from './rules'
+	import {
+		current_time,
+		edited_posts,
+		post_content,
+		timeline,
+		type ComposerTask,
+	} from './state.svelte'
 	import type { Author } from './types'
 
 	let {
 		task,
 		me,
 		variant,
-		text = $bindable(''),
+		draft = new Draft(),
 		onclose,
 		ondone,
 	}: {
@@ -27,80 +38,65 @@
 		me: Author
 		/** `modal`: the full composer; `inline`: top of Home; `reply`: under a focused post. */
 		variant: 'modal' | 'inline' | 'reply'
-		/** The draft, bound so the modal can ask before discarding it. */
-		text?: string
+		/** Passed in by the modal so it can ask before discarding it. */
+		draft?: Draft
 		onclose?: () => void
 		/** After a successful post or save. */
 		ondone?: () => void
 	} = $props()
 
-	// An edit starts from the post's current text; this runs once, when the composer opens.
-	// svelte-ignore state_referenced_locally
-	if (task.kind === 'edit' && !text) text = edited_posts.get(task.post.id) ?? task.post.body
-
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
+	// The reply box under a post stays a quick text reply.
+	const attachments = $derived(!editing && variant !== 'reply')
 
-	let textarea: HTMLTextAreaElement
-	let form_element: HTMLFormElement
+	let editor: Editor
 	let busy = $state(false)
-	// Without JavaScript nothing re-enables the button, so it stays usable until hydration and
-	// the server rejects anything invalid.
 	let hydrated = $state(false)
 
-	const trimmed = $derived(text.trim())
-	const length = $derived(post_length(text))
-	const unchanged = $derived(
-		task.kind === 'edit' && trimmed === (edited_posts.get(task.post.id) ?? task.post.body),
+	const length = $derived(post_length(draft.text))
+	/** What the post shows now, for an edit: saving that again would change nothing. */
+	const before = $derived(task.kind === 'edit' ? post_content(task.post) : undefined)
+	const ready = $derived(
+		!busy && (before ? draft.edit_ready && !draft.matches(before) : draft.ready),
 	)
-	const ready = $derived(!busy && !post_problem(trimmed) && !unchanged)
-	const parts = $derived(split_at_limit(text))
 
 	const submit_label = $derived(
 		editing ? m.composer_save() : reply_to ? m.composer_reply() : m.composer_post(),
 	)
 	const placeholder = $derived(reply_to ? m.composer_reply_placeholder() : m.composer_placeholder())
 
-	/*
-	 * One remote form instance per composer, so Home's inline box and the modal don't share state.
-	 * Field names come from `create.fields` (Kit tags them with the form's id); the value stays
-	 * bound to `text` because the counter and the overflow mirror need it on every keystroke.
-	 */
-	const create = $derived(
-		create_post.for(reply_to ? `reply:${reply_to.id}:${variant}` : `new:${variant}`),
-	)
+	async function publish() {
+		const post = await create_post({ ...draft.payload(), reply_to: reply_to?.id })
+		draft.clear()
+		if (!reply_to) timeline.published(post)
+		toast.show(reply_to ? m.toast_replied() : m.toast_posted(), {
+			label: m.toast_view(),
+			href: post_href(post.id),
+		})
+	}
 
-	const publish = $derived(
-		create.enhance(async ({ submit }) => {
-			busy = true
-			try {
-				if (!(await submit())) {
-					toast.show(m.toast_error())
-					return
-				}
-				const id = create.result?.id
-				text = ''
-				toast.show(
-					reply_to ? m.toast_replied() : m.toast_posted(),
-					id ? { label: m.toast_view(), href: post_href(id) } : undefined,
-				)
-				ondone?.()
-			} catch {
-				toast.show(m.toast_error())
-			} finally {
-				busy = false
-			}
-		}),
-	)
+	/** Save new text and, if they changed, the photos left, their order and descriptions. */
+	async function save() {
+		if (task.kind !== 'edit' || !before) return
+		const media = draft.media_payload()
+		await edit_post({
+			id: task.post.id,
+			body: draft.trimmed,
+			media: draft.media_matches(before.media)
+				? undefined
+				: media.map(({ url, alt }) => ({ url, alt })),
+		})
+		edited_posts.set(task.post.id, { body: draft.trimmed, media })
+		toast.show(m.toast_updated())
+	}
 
-	async function save(event: SubmitEvent) {
-		event.preventDefault()
-		if (!ready || task.kind !== 'edit') return
+	async function submit(event?: SubmitEvent) {
+		event?.preventDefault()
+		if (!ready) return
 		busy = true
 		try {
-			await edit_post({ id: task.post.id, body: trimmed })
-			edited_posts.set(task.post.id, trimmed)
-			toast.show(m.toast_updated())
+			await (editing ? save() : publish())
 			ondone?.()
 		} catch {
 			toast.show(m.toast_error())
@@ -112,77 +108,36 @@
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
 			event.preventDefault()
-			if (ready) form_element.requestSubmit()
+			void submit()
 		}
 	}
 
-	/** Grow with the text; the textarea never scrolls on its own. */
-	$effect(() => {
-		void text
-		textarea.style.height = 'auto'
-		textarea.style.height = `${textarea.scrollHeight}px`
-	})
-
-	onMount(() => {
-		hydrated = true
-		// The modal focuses the textarea (data-autofocus); an edit starts with the caret at the end.
-		if (variant === 'modal') textarea.setSelectionRange(text.length, text.length)
-	})
-
-	const TOOLS: [IconName, () => string][] = [
-		['image', m.composer_add_photos],
-		['gif', m.composer_add_gif],
-		['poll', m.composer_add_poll],
-		['smile', m.composer_add_emoji],
-		['pin', m.composer_add_location],
-	]
+	onMount(() => (hydrated = true))
 </script>
 
-{#snippet editor()}
-	<div class="editor">
-		<!-- A mirror under the transparent textarea paints the text past the limit, like X. -->
-		<div class="mirror" aria-hidden="true">{parts[0]}<mark>{parts[1]}</mark></div>
-		<textarea
-			name={create.fields.body.as('text').name}
-			rows="1"
-			{placeholder}
-			aria-label={m.composer_label()}
-			bind:value={text}
-			bind:this={textarea}
-			data-autofocus={variant === 'modal' ? '' : undefined}
-			{onkeydown}></textarea>
-	</div>
-{/snippet}
-
-{#snippet tools()}
-	<div class="tools">
-		{#each TOOLS as [icon, label] (icon)}
-			<!-- Media, polls and places come with later features; they stay visible, as designed. -->
-			<button
-				type="button"
-				class="icon-btn"
-				aria-disabled="true"
-				aria-label="{label()} ({m.composer_coming_soon()})"
-				title={m.composer_coming_soon()}
-				onclick={() => toast.show(m.toast_coming_soon())}
-			>
-				<Icon name={icon} />
-			</button>
-		{/each}
-	</div>
+{#snippet editor_field()}
+	<Editor
+		bind:this={editor}
+		bind:value={draft.text}
+		{placeholder}
+		size={variant === 'modal' ? 'lg' : variant === 'inline' ? 'md' : 'sm'}
+		autofocus={variant === 'modal'}
+		{onkeydown}
+	/>
+	{#if attachments}
+		<Attachments {draft} oninsert={(text) => editor.insert(text)} />
+	{:else if editing}
+		<!-- An edit can drop or reorder the post's photos, but not add any. -->
+		<MediaTray {draft} />
+	{/if}
 {/snippet}
 
 {#snippet submit_button()}
-	<button class="btn btn-primary sm" disabled={hydrated && !ready}>{submit_label}</button>
+	<!-- Until hydration nothing can publish, so the button waits too. -->
+	<button class="btn btn-primary sm" disabled={!hydrated || !ready}>{submit_label}</button>
 {/snippet}
 
-<form
-	class="composer {variant}"
-	bind:this={form_element}
-	{...editing ? { method: 'post', onsubmit: save } : publish}
->
-	{#if reply_to}<input {...create.fields.reply_to.as('hidden', reply_to.id)} />{/if}
-
+<form class="composer {variant}" method="post" onsubmit={submit}>
 	{#if variant === 'modal'}
 		<div class="head">
 			<button type="button" class="icon-btn" aria-label={m.composer_close()} onclick={onclose}>
@@ -225,14 +180,14 @@
 			{/if}
 			<div class="row">
 				<div class="gutter"><Avatar name={me.name} seed={me.id} image={me.image} /></div>
-				<div class="field">{@render editor()}</div>
+				<div class="field">{@render editor_field()}</div>
 			</div>
 			{#if editing}
 				<div class="editing-note"><Icon name="pencil" size="xs" />{m.composer_editing_note()}</div>
 			{/if}
 		</div>
 		<div class="toolbar">
-			{@render tools()}
+			{#if attachments}<Tools {draft} />{/if}
 			<span class="grow"></span>
 			<CharCounter {length} />
 		</div>
@@ -246,18 +201,18 @@
 			<Avatar name={me.name} seed={me.id} image={me.image} />
 		{/if}
 		<div class="col">
-			{@render editor()}
+			{@render editor_field()}
 			{#if variant === 'inline'}
 				<div class="row-end">
-					{@render tools()}
+					<Tools {draft} />
 					<span class="grow"></span>
-					{#if text}<CharCounter {length} /><span class="vsep"></span>{/if}
+					{#if draft.text}<CharCounter {length} /><span class="vsep"></span>{/if}
 					{@render submit_button()}
 				</div>
 			{/if}
 		</div>
 		{#if variant === 'reply'}
-			{#if text}<CharCounter {length} />{/if}
+			{#if draft.text}<CharCounter {length} />{/if}
 			{@render submit_button()}
 		{/if}
 	{/if}
@@ -266,68 +221,6 @@
 <style>
 	.grow {
 		flex: 1;
-	}
-
-	/* ---------- Editor ---------- */
-	.editor {
-		position: relative;
-		font-size: 20px;
-		line-height: 1.35;
-	}
-	.reply .editor {
-		font-size: 17px;
-	}
-	.mirror,
-	textarea {
-		font: inherit;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-		padding: 0;
-		margin: 0;
-		border: 0;
-	}
-	.mirror {
-		position: absolute;
-		inset: 0;
-		color: transparent;
-		pointer-events: none;
-	}
-	mark {
-		color: transparent;
-		background: var(--danger-soft);
-		border-radius: 2px;
-	}
-	textarea {
-		position: relative;
-		display: block;
-		width: 100%;
-		min-height: 1.35em;
-		background: none;
-		color: var(--text);
-		outline: 0;
-		resize: none;
-		overflow: hidden;
-	}
-	.modal textarea {
-		min-height: 72px;
-	}
-	textarea::placeholder {
-		color: var(--text-3);
-	}
-	/* The whole composer is the field; the global focus ring would box the textarea alone. */
-	textarea:focus-visible {
-		outline: none;
-	}
-
-	.tools {
-		display: flex;
-		margin-left: -8px;
-	}
-	.tools .icon-btn {
-		color: var(--accent-text);
-	}
-	.tools .icon-btn:hover {
-		background: var(--accent-soft);
 	}
 
 	/* ---------- Modal ---------- */
@@ -426,7 +319,7 @@
 		padding: 12px 16px;
 		border-bottom: 1px solid var(--line);
 	}
-	.inline .editor {
+	.inline :global(.editor) {
 		padding: 6px 0;
 	}
 	.col {

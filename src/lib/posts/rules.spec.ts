@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { counter_state, POST_MAX, post_length, post_problem, split_at_limit } from './rules'
+import {
+	counter_state,
+	draft_problem,
+	MEDIA_MAX,
+	POST_MAX,
+	post_length,
+	post_problem,
+	split_at_limit,
+} from './rules'
 
 describe('post_length', () => {
 	it('counts what a reader sees as one character once', () => {
@@ -45,5 +53,28 @@ describe('split_at_limit', () => {
 		const [kept, overflow] = split_at_limit(text)
 		expect(overflow).toBe('xyz')
 		expect(post_length(kept)).toBe(POST_MAX)
+	})
+})
+
+describe('draft_problem', () => {
+	it('lets photos stand in for text', () => {
+		expect(draft_problem({ body: '', media: [] })).toBe('empty')
+		expect(draft_problem({ body: '', media: [{}] })).toBeUndefined()
+	})
+
+	it('caps photos at six', () => {
+		expect(draft_problem({ body: 'x', media: Array(MEDIA_MAX + 1).fill({}) })).toBe(
+			'too_much_media',
+		)
+	})
+
+	it('needs a question and two filled choices for a poll, and no photos', () => {
+		const poll = { options: ['a', ' ', 'b'] }
+		expect(draft_problem({ body: 'q?', media: [], poll })).toBeUndefined()
+		expect(draft_problem({ body: '', media: [], poll })).toBe('poll_question')
+		expect(draft_problem({ body: 'q?', media: [], poll: { options: ['a', ''] } })).toBe(
+			'poll_options',
+		)
+		expect(draft_problem({ body: 'q?', media: [{}], poll })).toBe('poll_media')
 	})
 })

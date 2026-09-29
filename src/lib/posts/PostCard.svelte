@@ -8,9 +8,12 @@
 	import { post_href } from './links'
 	import PostActions from './PostActions.svelte'
 	import PostMenu from './PostMenu.svelte'
-	import PostText from './PostText.svelte'
+	import PostContent from './PostContent.svelte'
 	import { current_time, edited_posts } from './state.svelte'
 	import type { PostView } from './types'
+
+	/** The feed avatar's size, in pixels. */
+	const AVATAR = 40
 
 	let {
 		post,
@@ -25,9 +28,24 @@
 		ondeleted?: () => void
 	} = $props()
 
-	const body = $derived(edited_posts.get(post.id) ?? post.body)
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const href = $derived(post_href(post.id))
+
+	let gutter: HTMLDivElement
+	/** The avatar's scale while a carousel beside it is swiped; undefined at full size. */
+	let tuck = $state<number>()
+
+	/**
+	 * With little or no text, a carousel starts beside the avatar. Once it's swiped, shrink the
+	 * avatar into the room above the photos so they pass under it, as in the mockup.
+	 */
+	function onswipe(swiped: boolean, top: number) {
+		if (!swiped) tuck = undefined
+		else if (tuck === undefined) {
+			const room = top - gutter.getBoundingClientRect().top - 6
+			if (room < AVATAR) tuck = Math.max(room, AVATAR / 2) / AVATAR
+		}
+	}
 
 	/**
 	 * The whole row opens the post, as on X, except when the click lands on something that does
@@ -46,14 +64,21 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <article class="post" class:has-next={thread_below} onclick={open}>
 	<div class="row">
-		<div class="gutter">
-			{#if post.author.handle}
-				<a href={profile_href(post.author.handle)} class="av-link" tabindex="-1" aria-hidden="true">
+		<div class="gutter" bind:this={gutter}>
+			<div class="av" style:scale={tuck}>
+				{#if post.author.handle}
+					<a
+						href={profile_href(post.author.handle)}
+						class="av-link"
+						tabindex="-1"
+						aria-hidden="true"
+					>
+						<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
+					</a>
+				{:else}
 					<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
-				</a>
-			{:else}
-				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} />
-			{/if}
+				{/if}
+			</div>
 			{#if thread_below}<div class="thread-line"></div>{/if}
 		</div>
 		<div class="body">
@@ -82,7 +107,7 @@
 					{/each}
 				</div>
 			{/if}
-			<div class="text"><PostText {body} /></div>
+			<PostContent {post} {onswipe} />
 			<PostActions {post} />
 		</div>
 	</div>
@@ -110,6 +135,16 @@
 		flex-direction: column;
 		align-items: center;
 		flex: none;
+	}
+	.av {
+		display: flex;
+		transform-origin: 50% 0;
+		transition: scale 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.av {
+			transition: none;
+		}
 	}
 	.thread-line {
 		width: 2px;
@@ -164,11 +199,6 @@
 	.replying {
 		color: var(--text-2);
 		margin: 1px 0 2px;
-	}
-	.text {
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-		margin: 2px 0 0;
 	}
 	.av-link {
 		display: flex;

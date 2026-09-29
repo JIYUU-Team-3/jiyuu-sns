@@ -19,6 +19,8 @@
 		<li>{m.a11y_done_theme()}</li>
 		<li>{m.a11y_done_lang()}</li>
 		<li>{m.a11y_done_responsive()}</li>
+		<li>{m.a11y_done_photos()}</li>
+		<li>{m.a11y_done_alt()}</li>
 	</ul>
 
 	<h2>{m.a11y_limits_heading()}</h2>
@@ -26,6 +28,8 @@
 		<li>{m.a11y_limit_audit()}</li>
 		<li>{m.a11y_limit_google()}</li>
 		<li>{m.a11y_limit_translation()}</li>
+		<li>{m.a11y_limit_gif_motion()}</li>
+		<li>{m.a11y_limit_crop_resize()}</li>
 	</ul>
 
 	<h2>{m.a11y_feedback_heading()}</h2>

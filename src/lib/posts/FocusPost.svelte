@@ -6,13 +6,12 @@
 	import { format_count, format_timestamp } from './format'
 	import PostActions from './PostActions.svelte'
 	import PostMenu from './PostMenu.svelte'
-	import PostText from './PostText.svelte'
+	import PostContent from './PostContent.svelte'
 	import { edited_posts, like_state } from './state.svelte'
 	import type { PostView } from './types'
 
 	let { post, ondeleted }: { post: PostView; ondeleted?: () => void } = $props()
 
-	const body = $derived(edited_posts.get(post.id) ?? post.body)
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const locale = $derived(getLocale())
 	const likes = $derived(like_state(post).likes)
@@ -43,7 +42,7 @@
 			{/each}
 		</div>
 	{/if}
-	<div class="text"><PostText {body} /></div>
+	<PostContent {post} focus />
 	<div class="fmeta">
 		<time datetime={new Date(post.created_at).toISOString()}
 			>{format_timestamp(post.created_at, locale)}</time
@@ -96,13 +95,6 @@
 	.replying {
 		color: var(--text-2);
 		margin-top: 12px;
-	}
-	.text {
-		font-size: 17px;
-		line-height: 1.45;
-		margin-top: 12px;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
 	}
 	.fmeta {
 		color: var(--text-2);

@@ -14,6 +14,7 @@
 
 	<h2>{m.terms_content_heading()}</h2>
 	<p>{m.terms_content()}</p>
+	<p><RichText parts={m.terms_content_sources.parts()} hrefs={EXTERNAL_HREFS} /></p>
 
 	<h2>{m.terms_rules_heading()}</h2>
 	<p>{m.terms_rules_intro()}</p>

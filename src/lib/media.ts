@@ -1,9 +1,13 @@
 /** What an upload is for; each kind has its own size cap and R2 folder. */
 export type ImageKind = 'avatar' | 'banner'
 
-export const IMAGE_MAX_BYTES: Record<ImageKind, number> = {
+/** Profile images plus photos attached to posts. */
+export type UploadKind = ImageKind | 'post'
+
+export const IMAGE_MAX_BYTES: Record<UploadKind, number> = {
 	avatar: 2 * 1024 * 1024,
 	banner: 5 * 1024 * 1024,
+	post: 5 * 1024 * 1024,
 }
 
 /** The file picker's `accept`. SVG is left out on purpose: it can run script from our origin. */
@@ -13,7 +17,7 @@ export type ImageProblem = 'type' | 'size'
 
 export type ImageType = { type: string; ext: string }
 
-export type ImageUpload = ImageType & { kind: ImageKind; bytes: ArrayBuffer }
+export type ImageUpload = ImageType & { kind: UploadKind; bytes: ArrayBuffer }
 
 const starts_with = (head: Uint8Array, bytes: number[], offset = 0) =>
 	bytes.every((byte, i) => head[offset + i] === byte)
@@ -39,7 +43,7 @@ export function picked_file(value: FormDataEntryValue | null): File | undefined 
 /** Why `file` can't be used as a `kind` image, or undefined when it's fine. */
 export async function image_problem(
 	file: File,
-	kind: ImageKind,
+	kind: UploadKind,
 ): Promise<ImageProblem | undefined> {
 	if (file.size > IMAGE_MAX_BYTES[kind]) return 'size'
 	const head = new Uint8Array(await file.slice(0, 12).arrayBuffer())
@@ -47,7 +51,7 @@ export async function image_problem(
 }
 
 /** Read a checked upload; call `image_problem` first. */
-export async function read_image(file: File, kind: ImageKind): Promise<ImageUpload> {
+export async function read_image(file: File, kind: UploadKind): Promise<ImageUpload> {
 	const bytes = await file.arrayBuffer()
 	const type = sniff_image(new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength)))
 	if (!type) throw new Error('read_image called on an unchecked file')

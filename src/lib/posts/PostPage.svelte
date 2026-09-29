@@ -11,6 +11,7 @@
 		first,
 		last,
 		show_replying,
+		hide,
 		empty,
 		onmore,
 	}: {
@@ -18,12 +19,15 @@
 		first: boolean
 		last: boolean
 		show_replying: boolean
+		hide?: ReadonlySet<string>
 		empty?: Snippet
 		onmore: (cursor: string) => void
 	} = $props()
 
 	const page = $derived(await query)
-	const posts = $derived(page.posts.filter((post: PostView) => !deleted_posts.has(post.id)))
+	const posts = $derived(
+		page.posts.filter((post: PostView) => !deleted_posts.has(post.id) && !hide?.has(post.id)),
+	)
 </script>
 
 {#each posts as post (post.id)}

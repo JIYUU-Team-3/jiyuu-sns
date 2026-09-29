@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
-import type { FeedTab, PostPage, PostView } from '#lib/posts/types'
+import { post_problem, type PollDays } from '#lib/posts/rules'
+import type { FeedTab, Media, PollView, PostPage, PostView } from '#lib/posts/types'
 import type { getDb } from './db'
-import { follow, post, postLike, profile, user } from './db/schema'
+import { follow, poll, pollOption, post, postLike, postMedia, profile, user } from './db/schema'
 
 type Db = ReturnType<typeof getDb>
 
@@ -14,9 +15,27 @@ const parent_profile = alias(profile, 'parent_profile')
 const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
 const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
 
+// Attachments come back as JSON arrays from correlated subqueries, so a page stays one statement.
+const media_json = sql<string>`(select json_group_array(json_object(
+	'position', m.position, 'kind', m.kind, 'url', m.url, 'width', m.width, 'height', m.height,
+	'alt', m.alt
+)) from post_media m where m.post_id = ${post.id})`
+const poll_json = sql<string>`(select json_group_array(json_object(
+	'position', o.position, 'label', o.label,
+	'votes', (select count(*) from poll_vote v where v.post_id = o.post_id and v.position = o.position)
+)) from poll_option o where o.post_id = ${post.id})`
+
+const poll_voted = (viewer: string | undefined) =>
+	viewer
+		? sql<
+				number | null
+			>`(select v.position from poll_vote v where v.post_id = ${post.id} and v.user_id = ${viewer})`
+		: sql<number | null>`null`
+
 /**
- * Every post query goes through here: one statement returns the author, the parent's handle and
- * the counts, so a page of posts costs one D1 round trip no matter how long it is.
+ * Every post query goes through here: one statement returns the author, the parent's handle,
+ * the attachments and the counts, so a page of posts costs one D1 round trip no matter how long
+ * it is.
  */
 function select_posts(db: Db, viewer: string | undefined) {
 	return db
@@ -26,6 +45,11 @@ function select_posts(db: Db, viewer: string | undefined) {
 			created_at: post.createdAt,
 			edited_at: post.editedAt,
 			reply_to_id: post.replyToId,
+			location: post.location,
+			media: media_json,
+			poll_ends_at: poll.endsAt,
+			poll_options: poll_json,
+			poll_voted: poll_voted(viewer),
 			author_id: user.id,
 			author_name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 			author_handle: profile.handle,
@@ -42,10 +66,35 @@ function select_posts(db: Db, viewer: string | undefined) {
 		.leftJoin(profile, eq(profile.userId, post.authorId))
 		.leftJoin(parent, eq(parent.id, post.replyToId))
 		.leftJoin(parent_profile, eq(parent_profile.userId, parent.authorId))
+		.leftJoin(poll, eq(poll.postId, post.id))
 		.$dynamic()
 }
 
 type Row = Awaited<ReturnType<ReturnType<typeof select_posts>['execute']>>[number]
+
+/** A JSON array from the query, in the order the author gave it, without the position. */
+function by_position<T>(json: string | null): T[] {
+	const items: (T & { position: number })[] = JSON.parse(json ?? '[]')
+	return items
+		.sort((a, b) => a.position - b.position)
+		.map(({ position, ...item }) => (void position, item as T))
+}
+
+/** SQL hands back a missing description as null; the client only knows set or unset. */
+function to_media(json: string | null): Media[] {
+	return by_position<Media & { alt: string | null }>(json).map(({ alt, ...item }) =>
+		alt ? { ...item, alt } : item,
+	)
+}
+
+function to_poll(row: Row): PollView | undefined {
+	if (!row.poll_ends_at) return undefined
+	return {
+		options: by_position(row.poll_options),
+		ends_at: row.poll_ends_at.getTime(),
+		voted: row.poll_voted ?? undefined,
+	}
+}
 
 function to_view(row: Row, viewer: string | undefined): PostView {
 	return {
@@ -62,6 +111,9 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		reply_to: row.reply_to_id
 			? { id: row.reply_to_id, handle: row.parent_handle ?? undefined }
 			: undefined,
+		media: to_media(row.media),
+		poll: to_poll(row),
+		location: row.location ?? undefined,
 		replies: row.replies,
 		likes: row.likes,
 		liked: !!row.liked,
@@ -196,11 +248,48 @@ export async function find_post(db: Db, viewer: string | undefined, id: string) 
 	return row ? to_view(row, viewer) : undefined
 }
 
-/** Publish a post, or undefined when the post it replies to no longer exists. */
+/** A checked post as the composer sends it; photo URLs must already be the author's uploads. */
+export type NewPost = {
+	body: string
+	media: Media[]
+	poll?: { options: string[]; days: PollDays }
+	location?: string
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The inserts for a post's photos and poll, which ride in the same batch as the post. */
+function attachment_inserts(db: Db, post_id: string, input: NewPost) {
+	const inserts = []
+	if (input.media.length) {
+		inserts.push(
+			db
+				.insert(postMedia)
+				.values(input.media.map((media, position) => ({ postId: post_id, position, ...media }))),
+		)
+	}
+	if (input.poll) {
+		const ends_at = new Date(Date.now() + input.poll.days * DAY_MS)
+		inserts.push(db.insert(poll).values({ postId: post_id, endsAt: ends_at }))
+		inserts.push(
+			db
+				.insert(pollOption)
+				.values(
+					input.poll.options.map((label, position) => ({ postId: post_id, position, label })),
+				),
+		)
+	}
+	return inserts
+}
+
+/**
+ * Publish a post with its attachments in one batch, so a failure leaves nothing half-written.
+ * Undefined when the post it replies to no longer exists.
+ */
 export async function insert_post(
 	db: Db,
 	author_id: string,
-	body: string,
+	input: NewPost,
 	reply_to_id: string | undefined,
 ) {
 	if (reply_to_id) {
@@ -211,33 +300,96 @@ export async function insert_post(
 			.limit(1)
 		if (!target) return undefined
 	}
-	const [created] = await db
-		.insert(post)
-		.values({ authorId: author_id, body, replyToId: reply_to_id ?? null, isReply: !!reply_to_id })
-		.returning({ id: post.id })
-	return created?.id
+	const id = crypto.randomUUID()
+	await db.batch([
+		db.insert(post).values({
+			id,
+			authorId: author_id,
+			body: input.body,
+			location: input.location ?? null,
+			replyToId: reply_to_id ?? null,
+			isReply: !!reply_to_id,
+		}),
+		...attachment_inserts(db, id, input),
+	])
+	return id
 }
 
-/** Replace the text of the author's own post. False when it isn't theirs or doesn't exist. */
-export async function update_post(db: Db, author_id: string, id: string, body: string) {
-	const updated = await db
-		.update(post)
-		.set({ body, editedAt: new Date() })
+/** One photo or GIF an edit keeps: which one, by URL, and its description now. */
+export type KeptMedia = { url: string; alt?: string }
+
+/**
+ * The media an edit keeps, in the new order, with the descriptions it sets: `wanted` lists URLs
+ * the post already has, so an edit can drop, reorder, or describe photos but never add one.
+ * Undefined when `wanted` isn't that.
+ */
+export function kept_media<T extends { url: string }>(current: T[], wanted: KeptMedia[]) {
+	if (new Set(wanted.map((item) => item.url)).size !== wanted.length) return undefined
+	const kept = wanted.map(({ url, alt }) => {
+		const item = current.find((other) => other.url === url)
+		return item && { ...item, alt: alt ?? null }
+	})
+	return kept.every((item) => item !== undefined) ? kept : undefined
+}
+
+export type EditResult = 'not_found' | 'invalid' | { removed_photos: string[] }
+
+/**
+ * Replace the text of the author's own post and, when `media` is given, keep only those photos
+ * and GIFs, in that order, with those descriptions. Returns the photo URLs it dropped, so their
+ * files can go.
+ */
+export async function update_post(
+	db: Db,
+	author_id: string,
+	id: string,
+	body: string,
+	media?: KeptMedia[],
+): Promise<EditResult> {
+	const [owned] = await db
+		.select({ id: post.id })
+		.from(post)
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
-		.returning({ id: post.id })
-	return updated.length > 0
+		.limit(1)
+	if (!owned) return 'not_found'
+
+	const current = await db.select().from(postMedia).where(eq(postMedia.postId, id))
+	const kept = media ? kept_media(current, media) : current
+	if (!kept || post_problem(body, kept.length > 0)) return 'invalid'
+
+	const edit = db.update(post).set({ body, editedAt: new Date() }).where(eq(post.id, id))
+	if (!media) {
+		await edit
+		return { removed_photos: [] }
+	}
+	await db.batch([
+		edit,
+		db.delete(postMedia).where(eq(postMedia.postId, id)),
+		...(kept.length
+			? [db.insert(postMedia).values(kept.map((item, position) => ({ ...item, position })))]
+			: []),
+	])
+	const kept_urls = new Set(kept.map((item) => item.url))
+	const removed = current.filter((item) => item.kind === 'image' && !kept_urls.has(item.url))
+	return { removed_photos: removed.map((item) => item.url) }
 }
 
 /**
  * Delete the author's own post. Returns what it replied to, so that post's reply count can be
- * refreshed, or undefined when the post isn't theirs or doesn't exist.
+ * refreshed, and its photo URLs, so their files can be removed; undefined when the post isn't
+ * theirs or doesn't exist.
  */
 export async function remove_post(db: Db, author_id: string, id: string) {
+	const photos = await db
+		.select({ url: postMedia.url })
+		.from(postMedia)
+		.where(and(eq(postMedia.postId, id), eq(postMedia.kind, 'image')))
 	const [removed] = await db
 		.delete(post)
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
 		.returning({ reply_to_id: post.replyToId })
-	return removed ? { reply_to_id: removed.reply_to_id ?? undefined } : undefined
+	if (!removed) return undefined
+	return { reply_to_id: removed.reply_to_id ?? undefined, photos: photos.map((p) => p.url) }
 }
 
 /**
@@ -252,4 +404,15 @@ export async function set_like(db: Db, user_id: string, post_id: string, on: boo
 	} else {
 		await db.delete(postLike).where(and(eq(postLike.userId, user_id), eq(postLike.postId, post_id)))
 	}
+}
+
+/**
+ * Vote once in an open poll. A repeat vote, a closed poll or a missing choice quietly does
+ * nothing; the refreshed post shows what actually counted.
+ */
+export async function vote(db: Db, user_id: string, post_id: string, position: number) {
+	await db.run(sql`insert or ignore into poll_vote (post_id, user_id, position)
+		select o.post_id, ${user_id}, o.position from poll_option o
+		join poll p on p.post_id = o.post_id
+		where o.post_id = ${post_id} and o.position = ${position} and p.ends_at > ${Date.now()}`)
 }
