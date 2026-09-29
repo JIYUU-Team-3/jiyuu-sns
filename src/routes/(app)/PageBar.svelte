@@ -9,12 +9,18 @@
 
 	let {
 		title,
+		subtitle,
 		back = false,
+		action,
 		children,
 	}: {
 		title: string
+		/** A smaller line under a back-arrow title, such as a profile's post count. */
+		subtitle?: string
 		/** A back arrow before the title, shown on every screen size (post pages). */
 		back?: boolean
+		/** A control at the end of a back-arrow bar, such as Save. */
+		action?: Snippet
 		/** Extra rows under the title, such as the feed tabs. */
 		children?: Snippet
 	} = $props()
@@ -31,7 +37,11 @@
 			<button type="button" class="icon-btn" aria-label={m.app_back()} onclick={go_back}>
 				<Icon name="back" />
 			</button>
-			<h1>{title}</h1>
+			<div class="titles">
+				<h1>{title}</h1>
+				{#if subtitle}<p class="sub">{subtitle}</p>{/if}
+			</div>
+			{#if action}<div class="action">{@render action()}</div>{/if}
 		</div>
 	{:else}
 		<!-- Phones get the account avatar and the mark; wider screens get the page title. -->
@@ -68,6 +78,23 @@
 		margin: 0;
 		letter-spacing: -0.01em;
 		line-height: 1.2;
+	}
+	.titles {
+		min-width: 0;
+	}
+	.titles h1 {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.action {
+		margin-left: auto;
+	}
+	.sub {
+		margin: 0;
+		color: var(--text-2);
+		font-size: 13px;
+		line-height: 16px;
 	}
 	.mobile-top {
 		display: none;

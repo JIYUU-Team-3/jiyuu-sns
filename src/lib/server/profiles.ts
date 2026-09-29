@@ -10,6 +10,10 @@ export async function find_profile(db: Db, user_id: string) {
 	return row
 }
 
+/**
+ * A public profile by handle, with its counts and the viewer's follow state, in one D1 round
+ * trip. The join date is the account's, so it doesn't move if onboarding is finished later.
+ */
 export async function find_profile_by_handle(
 	db: Db,
 	viewer: string | undefined,
@@ -24,6 +28,7 @@ export async function find_profile_by_handle(
 			image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
 			banner: profile.bannerUrl,
 			joined: sql<number>`${user.createdAt}`,
+			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0)`,
 			followers: sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`,
 			following: sql<number>`(select count(*) from follow f where f.follower_id = ${profile.userId})`,
 			followed: viewer
@@ -77,6 +82,7 @@ export async function save_profile(
 ): Promise<'saved' | 'taken'> {
 	if (await handle_taken(db, user_id, values.handle)) return 'taken'
 
+	// Leaving `avatar` or `banner` out keeps the saved image, so editing text never clears it.
 	const row = {
 		handle: values.handle,
 		displayName: values.name,

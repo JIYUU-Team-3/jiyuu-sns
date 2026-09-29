@@ -128,6 +128,10 @@
 	"profile_posts_empty_mine_body": "Your posts will show up here.",
 	"profile_posts_empty_mine_action": "Write your first post",
 	"profile_edit": "Edit profile",
+	"profile_tab_posts": "Posts",
+	"profile_tab_replies": "Replies",
+	"profile_empty_replies_title": "No replies yet",
+	"profile_empty_replies_body": "Replies will show up here.",
 	"profile_edit_save": "Save",
 	"profile_edit_photo_hint": "Upload a new photo, up to 2 MB.",
 	"crop_avatar_title": "Crop photo",
@@ -226,5 +230,7 @@
 	"a11y_limit_google": "Sign-in happens on Google's pages, which we don't control.",
 	"a11y_limit_translation": "Native speakers are still reviewing the Japanese and Khmer text.",
 	"a11y_feedback_heading": "Tell us",
-	"a11y_feedback": "If something is hard to use, open an issue on {#issues}GitHub{/issues} or email {#email}jiyuu.org@gmail.com{/email}. Tell us the page, what you tried, and the device or assistive technology you use."
+	"a11y_feedback": "If something is hard to use, open an issue on {#issues}GitHub{/issues} or email {#email}jiyuu.org@gmail.com{/email}. Tell us the page, what you tried, and the device or assistive technology you use.",
+	"profile_post": "{count} post",
+	"profile_posts": "{count} posts"
 }

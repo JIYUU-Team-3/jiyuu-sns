@@ -128,6 +128,10 @@
 	"profile_posts_empty_mine_body": "あなたのポストはここに表示されます。",
 	"profile_posts_empty_mine_action": "最初のポストを書く",
 	"profile_edit": "プロフィールを編集",
+	"profile_tab_posts": "ポスト",
+	"profile_tab_replies": "返信",
+	"profile_empty_replies_title": "返信はまだありません",
+	"profile_empty_replies_body": "返信するとここに表示されます。",
 	"profile_edit_save": "保存",
 	"profile_edit_photo_hint": "2MBまでの新しい画像をアップロードできます。",
 	"crop_avatar_title": "写真を切り抜く",
@@ -226,5 +230,7 @@
 	"a11y_limit_google": "ログインはGoogleのページで行われるため、私たちには管理できません。",
 	"a11y_limit_translation": "日本語とクメール語の文章は、ネイティブスピーカーによる確認がまだ終わっていません。",
 	"a11y_feedback_heading": "お知らせください",
-	"a11y_feedback": "使いにくいところがあれば、{#issues}GitHub{/issues}でIssueを作成するか、{#email}jiyuu.org@gmail.com{/email}までメールでお知らせください。ページ、試したこと、使っている端末や支援技術を教えていただけると助かります。"
+	"a11y_feedback": "使いにくいところがあれば、{#issues}GitHub{/issues}でIssueを作成するか、{#email}jiyuu.org@gmail.com{/email}までメールでお知らせください。ページ、試したこと、使っている端末や支援技術を教えていただけると助かります。",
+	"profile_post": "{count}件のポスト",
+	"profile_posts": "{count}件のポスト"
 }

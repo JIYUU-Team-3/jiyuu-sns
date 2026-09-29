@@ -128,6 +128,10 @@
 	"profile_posts_empty_mine_body": "ការប្រកាសរបស់អ្នកនឹងបង្ហាញនៅទីនេះ។",
 	"profile_posts_empty_mine_action": "សរសេរការប្រកាសដំបូងរបស់អ្នក",
 	"profile_edit": "កែប្រវត្តិរូប",
+	"profile_tab_posts": "ការបង្ហោះ",
+	"profile_tab_replies": "ការឆ្លើយតប",
+	"profile_empty_replies_title": "មិនទាន់មានការឆ្លើយតប",
+	"profile_empty_replies_body": "ការឆ្លើយតបនឹងបង្ហាញនៅទីនេះ។",
 	"profile_edit_save": "រក្សាទុក",
 	"profile_edit_photo_hint": "ផ្ទុករូបថតថ្មីឡើង រហូតដល់ 2 MB។",
 	"crop_avatar_title": "កាត់រូបថត",
@@ -226,5 +230,7 @@
 	"a11y_limit_google": "ការចូលគណនីកើតឡើងនៅលើទំព័ររបស់ Google ដែលយើងមិនអាចគ្រប់គ្រងបាន។",
 	"a11y_limit_translation": "អ្នកនិយាយភាសាកំណើតកំពុងពិនិត្យអត្ថបទភាសាជប៉ុន និងខ្មែរនៅឡើយ។",
 	"a11y_feedback_heading": "ប្រាប់យើង",
-	"a11y_feedback": "ប្រសិនបើមានអ្វីពិបាកប្រើ សូមបើក Issue នៅលើ {#issues}GitHub{/issues} ឬផ្ញើអ៊ីមែលមក {#email}jiyuu.org@gmail.com{/email}។ សូមប្រាប់យើងពីទំព័រ អ្វីដែលអ្នកបានសាកល្បង និងឧបករណ៍ ឬបច្ចេកវិទ្យាជំនួយដែលអ្នកប្រើ។"
+	"a11y_feedback": "ប្រសិនបើមានអ្វីពិបាកប្រើ សូមបើក Issue នៅលើ {#issues}GitHub{/issues} ឬផ្ញើអ៊ីមែលមក {#email}jiyuu.org@gmail.com{/email}។ សូមប្រាប់យើងពីទំព័រ អ្វីដែលអ្នកបានសាកល្បង និងឧបករណ៍ ឬបច្ចេកវិទ្យាជំនួយដែលអ្នកប្រើ។",
+	"profile_post": "ការបង្ហោះ {count}",
+	"profile_posts": "ការបង្ហោះ {count}"
 }
