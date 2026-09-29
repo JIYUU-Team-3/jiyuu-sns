@@ -26,11 +26,21 @@ test('hashtags link to search, and search finds posts, people and tags @writes',
 	await expect(page.getByRole('link', { name: new RegExp(`#${tag}`) })).toBeVisible()
 
 	// People search by handle, typed into the search box.
-	const box = page.getByRole('searchbox', { name: 'Search' })
+	const box = page.getByRole('combobox', { name: 'Search' })
 	await box.fill(`@${handle}`)
 	await box.press('Enter')
 	await page.getByRole('tab', { name: 'People' }).click()
 	await expect(page.getByRole('link', { name: handle }).first()).toBeVisible()
+
+	// Typing suggests the closest people; picking one opens their profile.
+	await page.goto('/explore')
+	await page.waitForLoadState('networkidle')
+	const explore_box = page.getByRole('combobox', { name: 'Search' })
+	await explore_box.pressSequentially(handle.slice(0, -2))
+	const suggestion = page.getByRole('option', { name: new RegExp(`@${handle}`) })
+	await expect(suggestion).toBeVisible()
+	await suggestion.click()
+	await expect(page).toHaveURL(new RegExp(`/u/${handle}$`))
 
 	// A search with no matches says so.
 	await page.goto(`/search?q=nothing-matches-${id}`)

@@ -11,8 +11,11 @@ type Db = ReturnType<typeof getDb>
 /** Trending counts the last week of posts. */
 const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
-/** `%` and `_` in the query are matched literally, not as LIKE wildcards. */
-const escape_like = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)
+/**
+ * `%` and `_` in the query are matched literally, not as LIKE wildcards. Every LIKE here says
+ * `escape '!'`, which (unlike a backslash) needs no escaping in the SQL template strings.
+ */
+const escape_like = (text: string) => text.replace(/[!%_]/g, (char) => `!${char}`)
 
 const contains = (text: string) => `%${escape_like(text)}%`
 const starts_with = (text: string) => `${escape_like(text)}%`
@@ -26,7 +29,7 @@ function post_filter(db: Db, q: string) {
 			db.select({ id: postTag.postId }).from(postTag).where(eq(postTag.tag, tag)),
 		)
 	}
-	return sql`${post.body} like ${contains(q)} escape '\\'`
+	return sql`${post.body} like ${contains(q)} escape '!'`
 }
 
 /** Latest: newest first. Top: most liked and replied to first, paged by offset. */
@@ -78,34 +81,70 @@ const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
 	mine: row.id === viewer,
 })
 
-/** People whose handle starts with the query or whose name contains it; exact handles first. */
-export async function search_people(db: Db, viewer: string | undefined, q: string) {
+/**
+ * How close an account is to what was typed, lower is closer: the exact handle, then the exact
+ * name, then handles and names that start with it, a word in the name that starts with it, and
+ * last anything that merely contains it.
+ */
+function closeness(needle: string) {
+	const lower = needle.toLowerCase()
+	const name = sql`lower(${profile.displayName})`
+	return sql<number>`case
+		when ${profile.handle} = ${lower} then 0
+		when ${name} = ${lower} then 1
+		when ${profile.handle} like ${starts_with(lower)} escape '!' then 2
+		when ${name} like ${starts_with(lower)} escape '!' then 3
+		when ${name} like ${`% ${escape_like(lower)}%`} escape '!' then 4
+		when ${profile.handle} like ${contains(lower)} escape '!' then 5
+		else 6
+	end`
+}
+
+/**
+ * People whose handle or name contains the query, closest first. Among equally close ones,
+ * shorter handles (nearer to what was typed) and then more followed accounts come first.
+ */
+export async function search_people(
+	db: Db,
+	viewer: string | undefined,
+	q: string,
+	limit = PAGE_SIZE,
+) {
 	const needle = q.replace(/^@/, '').trim()
 	if (!needle) return []
 	const rows = await select_users(db, viewer)
 		.where(
 			or(
-				sql`${profile.handle} like ${starts_with(needle.toLowerCase())} escape '\\'`,
-				sql`${profile.displayName} like ${contains(needle)} escape '\\'`,
+				sql`${profile.handle} like ${contains(needle.toLowerCase())} escape '!'`,
+				sql`${profile.displayName} like ${contains(needle)} escape '!'`,
 			),
 		)
-		.orderBy(desc(sql`${profile.handle} = ${needle.toLowerCase()}`), desc(follower_count))
-		.limit(PAGE_SIZE)
+		.orderBy(closeness(needle), sql`length(${profile.handle})`, desc(follower_count))
+		.limit(limit)
 	return rows.map((row) => to_user(row, viewer))
 }
 
 /** Tags starting with the query, most used first. */
-export async function search_tags(db: Db, q: string): Promise<TagView[]> {
+export async function search_tags(db: Db, q: string, limit = PAGE_SIZE): Promise<TagView[]> {
 	const needle = normalize_tag(q.replace(/^#/, '').trim())
 	if (!needle) return []
 	const posts = sql<number>`count(*)`
 	return db
 		.select({ tag: postTag.tag, posts })
 		.from(postTag)
-		.where(sql`${postTag.tag} like ${starts_with(needle)} escape '\\'`)
+		.where(sql`${postTag.tag} like ${starts_with(needle)} escape '!'`)
 		.groupBy(postTag.tag)
 		.orderBy(desc(posts), postTag.tag)
-		.limit(PAGE_SIZE)
+		.limit(limit)
+}
+
+/**
+ * What the search box offers while someone types: tags for a `#` query, otherwise the closest
+ * people.
+ */
+export async function suggestions(db: Db, viewer: string | undefined, q: string) {
+	if (q.startsWith('#')) return { people: [], tags: await search_tags(db, q, 5) }
+	return { people: await search_people(db, viewer, q, 6), tags: [] }
 }
 
 /** The most used tags of the last week. */

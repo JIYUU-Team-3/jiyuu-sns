@@ -270,5 +270,7 @@
 	"push_blocked": "Notifications are blocked for this site. Allow them in your browser’s site settings to turn this on.",
 	"push_ios_hint": "On iPhone and iPad, add Jiyuu to your Home Screen first (Share → Add to Home Screen), then open it from there.",
 	"push_unavailable": "This browser couldn’t reach its push service. Check that it isn’t blocking notifications or background services, then try again.",
-	"push_unavailable_brave": "Brave has push turned off. Open brave://settings/privacy, turn on “Use Google services for push messaging”, restart Brave, then try again."
+	"push_unavailable_brave": "Brave has push turned off. Open brave://settings/privacy, turn on “Use Google services for push messaging”, restart Brave, then try again.",
+	"search_for": "Search for “{q}”",
+	"search_suggestions": "Search suggestions"
 }

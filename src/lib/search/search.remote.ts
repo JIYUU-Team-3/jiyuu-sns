@@ -22,6 +22,11 @@ export const search_people = query(Query, (q) =>
 
 export const search_tags = query(Query, (q) => search.search_tags(getRequestEvent().locals.db, q))
 
+/** What the search box lists while someone types. */
+export const search_suggestions = query(Query, (q) =>
+	search.suggestions(getRequestEvent().locals.db, viewer(), q),
+)
+
 export const get_trending = query(
 	v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20)),
 	(limit) => search.trending_tags(getRequestEvent().locals.db, limit),

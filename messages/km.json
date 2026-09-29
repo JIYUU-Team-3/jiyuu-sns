@@ -270,5 +270,7 @@
 	"push_blocked": "ការជូនដំណឹងត្រូវបានរារាំងសម្រាប់គេហទំព័រនេះ។ សូមអនុញ្ញាតនៅក្នុងការកំណត់គេហទំព័ររបស់កម្មវិធីរុករក ដើម្បីបើក។",
 	"push_ios_hint": "នៅលើ iPhone និង iPad សូមបន្ថែម Jiyuu ទៅអេក្រង់ដើមជាមុនសិន (ចែករំលែក → បន្ថែមទៅអេក្រង់ដើម) បន្ទាប់មកបើកវាពីទីនោះ។",
 	"push_unavailable": "កម្មវិធីរុករកនេះមិនអាចភ្ជាប់ទៅសេវាជំរុញរបស់វាបានទេ។ សូមពិនិត្យថាវាមិនរារាំងការជូនដំណឹង ឬសេវាផ្ទៃខាងក្រោយ រួចព្យាយាមម្តងទៀត។",
-	"push_unavailable_brave": "Brave បានបិទការជំរុញ។ សូមបើក brave://settings/privacy បើក “Use Google services for push messaging” ចាប់ផ្ដើម Brave ឡើងវិញ រួចព្យាយាមម្តងទៀត។"
+	"push_unavailable_brave": "Brave បានបិទការជំរុញ។ សូមបើក brave://settings/privacy បើក “Use Google services for push messaging” ចាប់ផ្ដើម Brave ឡើងវិញ រួចព្យាយាមម្តងទៀត។",
+	"search_for": "ស្វែងរក “{q}”",
+	"search_suggestions": "ការណែនាំស្វែងរក"
 }
