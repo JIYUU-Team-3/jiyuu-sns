@@ -68,6 +68,18 @@ describe('draft_problem', () => {
 		)
 	})
 
+	it('refuses the same photo, GIF or video twice', () => {
+		const gif = { url: 'https://media.example/a.gif' }
+		expect(draft_problem({ body: '', media: [gif, { ...gif }] })).toBe('duplicate_media')
+		expect(
+			draft_problem({ body: '', media: [gif, { url: 'https://media.example/b.gif' }] }),
+		).toBeUndefined()
+	})
+
+	it('ignores uploads that have no URL yet', () => {
+		expect(draft_problem({ body: '', media: [{}, {}] })).toBeUndefined()
+	})
+
 	it('needs a question and two filled choices for a poll, and no photos', () => {
 		const poll = { options: ['a', ' ', 'b'] }
 		expect(draft_problem({ body: 'q?', media: [], poll })).toBeUndefined()

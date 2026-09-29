@@ -11,7 +11,7 @@
 
 	/** The photo open in the cropper. */
 	let cropping = $state<DraftMedia>()
-	/** The photo or GIF open in the description editor. */
+	/** The photo, GIF or video open in the description editor. */
 	let describing = $state<DraftMedia>()
 
 	const sortable = new Sortable(
@@ -41,7 +41,15 @@
 				onpointercancel={() => sortable.end()}
 				onkeydown={(event) => sortable.key(event, i)}
 			>
-				<img src={item.preview} alt="" draggable="false" />
+				{#if item.kind === 'video'}
+					<!-- The first frame as a still; it plays once posted. -->
+					{#if item.preview}
+						<video src={item.preview} muted playsinline preload="metadata"></video>
+					{/if}
+					<span class="badge"><Icon name="play" size="xs" /></span>
+				{:else}
+					<img src={item.preview} alt="" draggable="false" />
+				{/if}
 				{#if item.kind === 'gif'}<span class="badge">GIF</span>{/if}
 				{#if item.state === 'uploading'}
 					<span class="status" role="status" aria-label={m.composer_uploading()}
@@ -91,6 +99,7 @@
 	{@const item = describing}
 	<AltEditor
 		src={item.preview}
+		video={item.kind === 'video'}
 		alt={item.alt}
 		onapply={(alt) => {
 			draft.describe(item.key, alt)
@@ -148,17 +157,21 @@
 		scale: 1.05;
 		box-shadow: var(--shadow-pop);
 	}
-	img {
+	img,
+	video {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		pointer-events: none;
 	}
-	.failed img {
+	.failed img,
+	.failed video {
 		opacity: 0.4;
 	}
 	.badge {
 		position: absolute;
+		display: flex;
+		align-items: center;
 		left: 8px;
 		bottom: 8px;
 		background: rgba(0, 0, 0, 0.72);

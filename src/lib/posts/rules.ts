@@ -4,8 +4,11 @@ export const POST_MAX = 280
 /** Remaining characters at which the counter shows a number and turns amber. */
 export const POST_WARN_AT = 20
 
-/** Photos and GIFs on one post. */
+/** Photos, GIFs and videos on one post. */
 export const MEDIA_MAX = 6
+
+/** Longest video, in seconds (2:20). */
+export const VIDEO_MAX_SECONDS = 140
 
 /** Longest description (alt text) on one photo or GIF. */
 export const ALT_MAX = 1000
@@ -40,12 +43,24 @@ export function post_problem(body: string, has_attachments = false): PostProblem
 /** What a post carries besides its text, as the composer sends it. */
 export type DraftShape = {
 	body: string
-	media: unknown[]
+	/** `url` is missing while an upload is in flight. */
+	media: { url?: string }[]
 	poll?: { options: string[] }
 }
 
 export type DraftProblem =
-	PostProblem | 'too_much_media' | 'poll_media' | 'poll_question' | 'poll_options'
+	| PostProblem
+	| 'too_much_media'
+	| 'duplicate_media'
+	| 'poll_media'
+	| 'poll_question'
+	| 'poll_options'
+
+/** Whether two items share a URL: a post's media are told apart by URL when it's edited. */
+export function has_duplicates(media: { url?: string }[]) {
+	const urls = media.flatMap((item) => (item.url ? [item.url] : []))
+	return new Set(urls).size !== urls.length
+}
 
 /** Filled-in poll choices, trimmed; blank optional ones are dropped. */
 export const poll_options = (options: string[]) => options.map((o) => o.trim()).filter(Boolean)
@@ -56,6 +71,7 @@ export const poll_options = (options: string[]) => options.map((o) => o.trim()).
  */
 export function draft_problem(draft: DraftShape): DraftProblem | undefined {
 	if (draft.media.length > MEDIA_MAX) return 'too_much_media'
+	if (has_duplicates(draft.media)) return 'duplicate_media'
 	if (draft.poll) {
 		if (draft.media.length) return 'poll_media'
 		if (!draft.body) return 'poll_question'

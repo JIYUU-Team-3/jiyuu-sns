@@ -53,7 +53,7 @@
 	 */
 	function open(event: MouseEvent) {
 		const target = event.target as Element
-		if (target.closest('a, button, [role="menu"], dialog')) return
+		if (target.closest('a, button, video, [role="menu"], dialog')) return
 		if (getSelection()?.toString()) return
 		if (event.metaKey || event.ctrlKey) window.open(href, '_blank', 'noopener')
 		else goto(href)

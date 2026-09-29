@@ -1,5 +1,6 @@
 import {
 	draft_problem,
+	has_duplicates,
 	MEDIA_MAX,
 	POLL_MAX_OPTIONS,
 	POLL_MIN_OPTIONS,
@@ -7,17 +8,27 @@ import {
 	type PollDays,
 } from '../rules'
 import type { PostContent } from '../state.svelte'
-import type { Gif, Media, MediaKind } from '../types'
+import { is_upload, type Gif, type Media, type MediaKind } from '../types'
 import type { CropBox } from './crop-box'
-import { discard_upload, measure, upload_photo, upload_problem, type UploadProblem } from './upload'
+import {
+	discard_upload,
+	measure,
+	probe_video,
+	upload_kind,
+	upload_media,
+	upload_problem,
+	video_problem,
+	type UploadProblem,
+	type VideoProbe,
+} from './upload'
 
 export type DraftMedia = {
 	/** Stable across uploads and crops, for keyed lists. */
 	key: string
 	kind: MediaKind
-	/** What the tray shows: a local object URL for new photos, the stored URL otherwise. */
+	/** What the tray shows: a local object URL for new uploads, the stored URL otherwise. */
 	preview: string
-	/** The stored URL, once a photo finishes uploading. */
+	/** The stored URL, once a photo or video finishes uploading. */
 	url?: string
 	width: number
 	height: number
@@ -46,7 +57,10 @@ export type PickResult = { skipped: UploadProblem[]; over_limit: boolean }
 export const croppable = (item: DraftMedia) =>
 	item.kind === 'image' && !!item.original && item.original.type !== 'image/gif'
 
-/** One post being written: text plus photos and GIFs, a poll, a place. */
+/** A picked file that passed the checks, with its size and kind. */
+type Accepted = { file: File; kind: 'image' | 'video'; size?: VideoProbe }
+
+/** One post being written: text plus photos, GIFs and videos, a poll, a place. */
 export class Draft {
 	text = $state('')
 	media = $state<DraftMedia[]>([])
@@ -72,10 +86,11 @@ export class Draft {
 	static editing(content: PostContent) {
 		const draft = new Draft()
 		draft.text = content.body
-		draft.media = content.media.map((item) => ({
+		draft.media = content.media.map((item, i) => ({
 			...item,
 			alt: item.alt ?? '',
-			key: item.url,
+			// Posts from before duplicates were refused may hold one GIF twice.
+			key: `${i}:${item.url}`,
 			preview: item.url,
 			state: 'ready',
 			existing: true,
@@ -97,10 +112,15 @@ export class Draft {
 		)
 	}
 
-	/** Whether an edit can be saved: text is optional only while photos remain. */
-	readonly edit_ready = $derived(!post_problem(this.trimmed, this.media.length > 0))
+	/**
+	 * Whether an edit can be saved: text is optional only while media remain, and a post from
+	 * before duplicates were refused must drop its second copy of a GIF.
+	 */
+	readonly edit_ready = $derived(
+		!post_problem(this.trimmed, this.media.length > 0) && !has_duplicates(this.media),
+	)
 
-	/** The photos and GIFs as `create_post` and `edit_post` take them, once `ready`. */
+	/** The photos, GIFs and videos as `create_post` and `edit_post` take them, once `ready`. */
 	media_payload(): Media[] {
 		return this.media.map(({ kind, url, width, height, alt }) => ({
 			kind,
@@ -125,9 +145,10 @@ export class Draft {
 		this.panel = this.panel === panel ? undefined : panel
 	}
 
+	/** Add a GIF, unless there's no room or it's already on the post. */
 	add_gif(gif: Gif) {
-		if (this.media_room <= 0) return
 		const { url, width, height } = gif.full
+		if (this.media_room <= 0 || this.media.some((item) => item.url === url)) return
 		this.media.push({
 			key: gif.id + crypto.randomUUID(),
 			kind: 'gif',
@@ -142,29 +163,31 @@ export class Draft {
 	}
 
 	/** Start uploading what fits; the rest is reported, not silently dropped. */
-	add_files(files: File[]): PickResult {
+	async add_files(files: File[]): Promise<PickResult> {
 		const skipped: UploadProblem[] = []
-		const fitting = files.filter((file) => {
-			const problem = upload_problem(file)
-			if (problem) skipped.push(problem)
-			return !problem
+		const checked = await Promise.all(files.map(accept))
+		const fitting = checked.filter((result): result is Accepted => {
+			if ('problem' in result) skipped.push(result.problem)
+			return !('problem' in result)
 		})
 		const room = Math.max(0, this.media_room)
-		for (const file of fitting.slice(0, room)) {
-			const key = crypto.randomUUID()
-			this.media.push({
-				key,
-				kind: 'image',
-				preview: '',
-				width: 1,
-				height: 1,
-				alt: '',
-				state: 'uploading',
-				original: file,
-			})
-			void this.#upload(key, file)
-		}
+		for (const accepted of fitting.slice(0, room)) this.#add_upload(accepted)
 		return { skipped, over_limit: fitting.length > room }
+	}
+
+	#add_upload({ file, kind, size }: Accepted) {
+		const key = crypto.randomUUID()
+		this.media.push({
+			key,
+			kind,
+			preview: '',
+			width: size?.width ?? 1,
+			height: size?.height ?? 1,
+			alt: '',
+			state: 'uploading',
+			original: file,
+		})
+		void this.#upload(key, file)
 	}
 
 	/** Swap a photo for its cropped version, remembering the crop to start from next time. */
@@ -176,14 +199,18 @@ export class Draft {
 		void this.#upload(key, cropped)
 	}
 
-	/** Upload `file` as the item's photo; a newer upload for the same item wins. */
+	/** Upload `file` as the item's photo or video; a newer upload for the same item wins. */
 	async #upload(key: string, file: File) {
 		const upload = crypto.randomUUID()
 		const item = this.#find(key)
 		if (!item) return
 		Object.assign(item, { preview: URL.createObjectURL(file), state: 'uploading', upload })
 		try {
-			const [size, url] = await Promise.all([measure(file), upload_photo(file)])
+			// A video was measured when it was picked; a photo changes size when it's cropped.
+			const [size, url] = await Promise.all([
+				item.kind === 'image' ? measure(file) : undefined,
+				upload_media(file),
+			])
 			const current = this.#find(key)
 			if (current?.upload !== upload) return discard_upload(url)
 			Object.assign(current, size, { url, state: 'ready' })
@@ -217,9 +244,9 @@ export class Draft {
 		this.#release(item)
 	}
 
-	/** Let go of a new photo's preview and upload. A published post's photos are left alone. */
+	/** Let go of a new upload's preview and file. A published post's are left alone. */
 	#release(item: DraftMedia) {
-		if (item.kind !== 'image' || item.existing) return
+		if (!is_upload(item.kind) || item.existing) return
 		URL.revokeObjectURL(item.preview)
 		if (item.url) discard_upload(item.url)
 	}
@@ -241,7 +268,7 @@ export class Draft {
 	/** Empty the draft after publishing: its uploads now belong to the post. */
 	clear() {
 		for (const item of this.media) {
-			if (item.kind === 'image' && !item.existing) URL.revokeObjectURL(item.preview)
+			if (is_upload(item.kind) && !item.existing) URL.revokeObjectURL(item.preview)
 		}
 		this.text = ''
 		this.media = []
@@ -255,4 +282,15 @@ export class Draft {
 		for (const item of this.media) this.#release(item)
 		this.clear()
 	}
+}
+
+/** Check one picked file; a video is probed for its size and length first. */
+async function accept(file: File): Promise<Accepted | { problem: UploadProblem }> {
+	const problem = upload_problem(file)
+	if (problem) return { problem }
+	const kind = upload_kind(file)!
+	if (kind === 'image') return { file, kind }
+	const size = await probe_video(file).catch(() => undefined)
+	const unusable = size ? video_problem(size) : 'type'
+	return unusable ? { problem: unusable } : { file, kind, size }
 }

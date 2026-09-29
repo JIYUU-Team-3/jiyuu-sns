@@ -1,7 +1,14 @@
-import { and, asc, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { post_problem, type PollDays } from '#lib/posts/rules'
-import type { FeedTab, Media, PollView, PostPage, PostView } from '#lib/posts/types'
+import {
+	is_upload,
+	type FeedTab,
+	type Media,
+	type PollView,
+	type PostPage,
+	type PostView,
+} from '#lib/posts/types'
 import type { getDb } from './db'
 import { follow, poll, pollOption, post, postLike, postMedia, profile, user } from './db/schema'
 
@@ -315,7 +322,7 @@ export async function insert_post(
 	return id
 }
 
-/** One photo or GIF an edit keeps: which one, by URL, and its description now. */
+/** One photo, GIF or video an edit keeps: which one, by URL, and its description now. */
 export type KeptMedia = { url: string; alt?: string }
 
 /**
@@ -332,12 +339,12 @@ export function kept_media<T extends { url: string }>(current: T[], wanted: Kept
 	return kept.every((item) => item !== undefined) ? kept : undefined
 }
 
-export type EditResult = 'not_found' | 'invalid' | { removed_photos: string[] }
+export type EditResult = 'not_found' | 'invalid' | { removed_uploads: string[] }
 
 /**
- * Replace the text of the author's own post and, when `media` is given, keep only those photos
- * and GIFs, in that order, with those descriptions. Returns the photo URLs it dropped, so their
- * files can go.
+ * Replace the text of the author's own post and, when `media` is given, keep only those photos,
+ * GIFs and videos, in that order, with those descriptions. Returns the upload URLs it dropped, so
+ * their files can go.
  */
 export async function update_post(
 	db: Db,
@@ -360,7 +367,7 @@ export async function update_post(
 	const edit = db.update(post).set({ body, editedAt: new Date() }).where(eq(post.id, id))
 	if (!media) {
 		await edit
-		return { removed_photos: [] }
+		return { removed_uploads: [] }
 	}
 	await db.batch([
 		edit,
@@ -370,26 +377,40 @@ export async function update_post(
 			: []),
 	])
 	const kept_urls = new Set(kept.map((item) => item.url))
-	const removed = current.filter((item) => item.kind === 'image' && !kept_urls.has(item.url))
-	return { removed_photos: removed.map((item) => item.url) }
+	const removed = current.filter((item) => is_upload(item.kind) && !kept_urls.has(item.url))
+	return { removed_uploads: removed.map((item) => item.url) }
 }
 
 /**
  * Delete the author's own post. Returns what it replied to, so that post's reply count can be
- * refreshed, and its photo URLs, so their files can be removed; undefined when the post isn't
+ * refreshed, and its photo and video URLs, so their files can be removed; undefined when the post isn't
  * theirs or doesn't exist.
  */
 export async function remove_post(db: Db, author_id: string, id: string) {
-	const photos = await db
+	const uploads = await db
 		.select({ url: postMedia.url })
 		.from(postMedia)
-		.where(and(eq(postMedia.postId, id), eq(postMedia.kind, 'image')))
+		.where(and(eq(postMedia.postId, id), ne(postMedia.kind, 'gif')))
 	const [removed] = await db
 		.delete(post)
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
 		.returning({ reply_to_id: post.replyToId })
 	if (!removed) return undefined
-	return { reply_to_id: removed.reply_to_id ?? undefined, photos: photos.map((p) => p.url) }
+	return { reply_to_id: removed.reply_to_id ?? undefined, uploads: uploads.map((u) => u.url) }
+}
+
+/**
+ * Which of `urls` no post uses any more, so their files can go. One upload can sit on several
+ * posts, so dropping it from one must not delete it from under the others.
+ */
+export async function unused_uploads(db: Db, urls: string[]) {
+	if (!urls.length) return []
+	const used = await db
+		.selectDistinct({ url: postMedia.url })
+		.from(postMedia)
+		.where(inArray(postMedia.url, urls))
+	const used_urls = new Set(used.map((row) => row.url))
+	return urls.filter((url) => !used_urls.has(url))
 }
 
 /**

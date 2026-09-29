@@ -62,6 +62,47 @@ function orientation_segment(orientation: number) {
 /** APP1 (EXIF, XMP), APP12 (camera info), APP13 (Photoshop/IPTC) and comments go. */
 const JPEG_DROPPED = new Set([0xe1, 0xec, 0xed, 0xfe])
 
+const SOS = 0xda
+const EOI = 0xd9
+
+/** Markers with no length after them: TEM and the restart markers. */
+const standalone = (marker: number) => marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)
+
+/** APP2 also carries the MPF index of extra pictures after the image, which are dropped. */
+const is_mpf = (segment: Uint8Array) => segment[1] === 0xe2 && ascii(segment, 4, 4) === 'MPF\0'
+
+/**
+ * Where a scan's entropy-coded data ends: the next marker that isn't stuffing (FF 00), a restart
+ * (FF D0–D7) or fill (FF FF). The end of the file when there's none.
+ */
+function scan_end(bytes: Uint8Array, at: number) {
+	for (; at + 1 < bytes.length; at++) {
+		if (bytes[at] !== 0xff) continue
+		const next = bytes[at + 1]
+		if (next !== 0x00 && next !== 0xff && !(next >= 0xd0 && next <= 0xd7)) return at
+	}
+	return bytes.length
+}
+
+function segment_end(bytes: Uint8Array, at: number) {
+	if (at + 4 > bytes.length) fail('truncated')
+	const length = (bytes[at + 2] << 8) | bytes[at + 3]
+	const end = at + 2 + length
+	if (length < 2 || end > bytes.length) fail('bad segment length')
+	return end
+}
+
+/** Puts the orientation near the start, where readers look for EXIF: after JFIF if it's there. */
+function add_orientation(kept: Uint8Array[], orientation: number) {
+	if (orientation === 1) return
+	const after_jfif = kept[1]?.[1] === 0xe0 ? 2 : 1
+	kept.splice(after_jfif, 0, orientation_segment(orientation))
+}
+
+/**
+ * Walks every segment up to the end of the image, including the ones between the scans of a
+ * progressive JPEG, and drops anything after it (motion photo videos, extra pictures, trailers).
+ */
 export function strip_jpeg(bytes: Uint8Array): Uint8Array {
 	if (bytes[0] !== 0xff || bytes[1] !== 0xd8) fail('not a JPEG')
 	const kept: Uint8Array[] = [bytes.subarray(0, 2)]
@@ -74,26 +115,27 @@ export function strip_jpeg(bytes: Uint8Array): Uint8Array {
 			at++ // fill byte
 			continue
 		}
-		if (at + 4 > bytes.length) fail('truncated')
-		const length = (bytes[at + 2] << 8) | bytes[at + 3]
-		const end = at + 2 + length
-		if (length < 2 || end > bytes.length) fail('bad segment length')
-		const segment = bytes.subarray(at, end)
-		if (marker === 0xe1) orientation = Math.max(orientation, exif_orientation(segment.subarray(4)))
-		if (!JPEG_DROPPED.has(marker)) kept.push(segment)
-		at = end
-		// Start of scan: the rest is image data, copied as is.
-		if (marker === 0xda) {
-			kept.push(bytes.subarray(at))
+		if (marker === EOI) {
+			kept.push(bytes.subarray(at, at + 2))
 			break
 		}
+		if (standalone(marker)) {
+			kept.push(bytes.subarray(at, at + 2))
+			at += 2
+			continue
+		}
+		const end = segment_end(bytes, at)
+		const segment = bytes.subarray(at, end)
+		if (marker === 0xe1) orientation = Math.max(orientation, exif_orientation(segment.subarray(4)))
+		if (!JPEG_DROPPED.has(marker) && !is_mpf(segment)) kept.push(segment)
+		at = end
+		if (marker === SOS) {
+			const data_end = scan_end(bytes, at)
+			kept.push(bytes.subarray(at, data_end))
+			at = data_end
+		}
 	}
-	// The orientation goes near the start, where readers look for EXIF: after a JFIF APP0 if
-	// there is one, since that has to come first.
-	if (orientation !== 1) {
-		const after_jfif = kept[1]?.[1] === 0xe0 ? 2 : 1
-		kept.splice(after_jfif, 0, orientation_segment(orientation))
-	}
+	add_orientation(kept, orientation)
 	return concat(kept)
 }
 
@@ -124,27 +166,57 @@ export function strip_png(bytes: Uint8Array): Uint8Array {
 const VP8X_EXIF = 0x08
 const VP8X_XMP = 0x04
 
-export function strip_webp(bytes: Uint8Array): Uint8Array {
+/** The chunks an image is drawn from; any other (EXIF, XMP, unknown ones) goes. */
+const WEBP_KEPT = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ANIM', 'ANMF', 'ICCP'])
+/** The chunks inside an animation frame, after its 16-byte header. */
+const FRAME_KEPT = new Set(['ALPH', 'VP8 ', 'VP8L'])
+
+function riff_chunk(type: string, body: Uint8Array) {
+	const chunk = new Uint8Array(8 + body.length + (body.length % 2))
+	chunk.set([...type].map((c) => c.charCodeAt(0)))
+	new DataView(chunk.buffer).setUint32(4, body.length, true)
+	chunk.set(body, 8)
+	return chunk
+}
+
+/** The chunks between `from` and `to` whose type is in `kept`, cleaned. */
+function webp_chunks(bytes: Uint8Array, from: number, to: number, kept: Set<string>) {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-	if (ascii(bytes, 0, 4) !== 'RIFF' || ascii(bytes, 8, 4) !== 'WEBP') fail('not a WebP')
-	const kept: Uint8Array[] = []
-	let at = 12
-	while (at + 8 <= bytes.length) {
+	const out: Uint8Array[] = []
+	let at = from
+	while (at + 8 <= to) {
 		const type = ascii(bytes, at, 4)
 		const size = view.getUint32(at + 4, true)
 		// Chunks are padded to an even length.
 		const end = at + 8 + size + (size % 2)
-		if (end > bytes.length) fail('bad chunk length')
-		if (type === 'VP8X') {
-			const chunk = bytes.slice(at, end)
-			chunk[8] &= ~(VP8X_EXIF | VP8X_XMP)
-			kept.push(chunk)
-		} else if (type !== 'EXIF' && type !== 'XMP ') {
-			kept.push(bytes.subarray(at, end))
-		}
+		if (end > to) fail('bad chunk length')
+		if (kept.has(type)) out.push(clean_chunk(bytes, at, end, type))
 		at = end
 	}
-	const body = concat(kept)
+	return out
+}
+
+function clean_chunk(bytes: Uint8Array, at: number, end: number, type: string) {
+	if (type === 'VP8X') {
+		const chunk = bytes.slice(at, end)
+		chunk[8] &= ~(VP8X_EXIF | VP8X_XMP)
+		return chunk
+	}
+	if (type === 'ANMF') {
+		if (at + 24 > end) fail('short frame')
+		const frames = webp_chunks(bytes, at + 24, end, FRAME_KEPT)
+		return riff_chunk('ANMF', concat([bytes.subarray(at + 8, at + 24), ...frames]))
+	}
+	return bytes.subarray(at, end)
+}
+
+/** Keeps only what draws the image, up to the end the RIFF header gives; nothing after it. */
+export function strip_webp(bytes: Uint8Array): Uint8Array {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+	if (ascii(bytes, 0, 4) !== 'RIFF' || ascii(bytes, 8, 4) !== 'WEBP') fail('not a WebP')
+	const riff_end = 8 + view.getUint32(4, true)
+	if (riff_end > bytes.length) fail('truncated')
+	const body = concat(webp_chunks(bytes, 12, riff_end, WEBP_KEPT))
 	const header = new Uint8Array(12)
 	header.set(bytes.subarray(0, 12))
 	new DataView(header.buffer).setUint32(4, body.length + 4, true)

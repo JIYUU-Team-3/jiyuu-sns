@@ -13,6 +13,17 @@ export const IMAGE_MAX_BYTES: Record<UploadKind, number> = {
 /** The file picker's `accept`. SVG is left out on purpose: it can run script from our origin. */
 export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 
+/** Videos on posts: MP4 and QuickTime, stored as uploaded since nothing transcodes them. */
+export const VIDEO_ACCEPT = 'video/mp4,video/quicktime'
+
+/** What a post attachment upload is: a photo or a video. */
+export type PostUploadKind = 'image' | 'video'
+
+export const POST_UPLOAD_MAX_BYTES: Record<PostUploadKind, number> = {
+	image: IMAGE_MAX_BYTES.post,
+	video: 50 * 1024 * 1024,
+}
+
 export type ImageProblem = 'type' | 'size'
 
 export type ImageType = { type: string; ext: string }
@@ -32,6 +43,39 @@ export function sniff_image(head: Uint8Array): ImageType | undefined {
 	if (starts_with(head, ascii('GIF8'))) return { type: 'image/gif', ext: 'gif' }
 	if (starts_with(head, ascii('RIFF')) && starts_with(head, ascii('WEBP'), 8))
 		return { type: 'image/webp', ext: 'webp' }
+	return undefined
+}
+
+/**
+ * MP4 and QuickTime brands. HEIC and AVIF photos use the same box format (`ftyp` at byte 4), so
+ * the brand is what tells a video apart.
+ */
+const VIDEO_BRANDS = new Set([
+	'isom',
+	'iso2',
+	'iso4',
+	'iso5',
+	'iso6',
+	'mp41',
+	'mp42',
+	'avc1',
+	'M4V ',
+	'M4VP',
+	'MSNV',
+	'qt  ',
+])
+
+/** Whether a file's first 12 bytes start an MP4 or QuickTime video, whatever its name says. */
+export function sniff_video(head: Uint8Array): boolean {
+	if (head.length < 12 || !starts_with(head, ascii('ftyp'), 4)) return false
+	return VIDEO_BRANDS.has(String.fromCharCode(...head.subarray(8, 12)))
+}
+
+/** A post upload's kind from its bytes, or undefined for anything else. */
+export async function sniff_post_upload(file: File): Promise<PostUploadKind | undefined> {
+	const head = new Uint8Array(await file.slice(0, 12).arrayBuffer())
+	if (sniff_image(head)) return 'image'
+	if (sniff_video(head)) return 'video'
 	return undefined
 }
 

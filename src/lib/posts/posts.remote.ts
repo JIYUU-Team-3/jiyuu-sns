@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
-import { delete_media, is_own_post_upload } from '#lib/server/media'
+import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
 import { author_arg, feed_arg, replies_arg } from './args'
 import {
@@ -34,7 +34,7 @@ const Alt = v.pipe(
 )
 
 const MediaInput = v.object({
-	kind: v.picklist(['image', 'gif']),
+	kind: v.picklist(['image', 'gif', 'video']),
 	url: Url,
 	width: Size,
 	height: Size,
@@ -72,9 +72,13 @@ function author() {
 	return { db: locals.db, user_id: locals.user.id }
 }
 
-/** Photos must be the author's own uploads and GIFs must come from the picker's CDN. */
-function allowed_media(media: Media, user_id: string) {
-	return media.kind === 'image' ? is_own_post_upload(media.url, user_id) : is_gif_url(media.url)
+/**
+ * Photos and videos must be the author's own uploads, of the kind they claim to be; GIFs must
+ * come from the picker's CDN.
+ */
+function allowed_media({ kind, url }: Media, user_id: string) {
+	if (kind === 'gif') return is_gif_url(url)
+	return is_own_post_upload(url, user_id) && is_video_url(url) === (kind === 'video')
 }
 
 export const get_feed = query(
@@ -124,7 +128,7 @@ export const create_post = command(NewPost, async ({ reply_to, poll, location, .
 })
 
 /**
- * Edit the text and, with `media`, drop, reorder, or describe the post's photos and GIFs (the
+ * Edit the text and, with `media`, drop, reorder, or describe the post's photos, GIFs and videos (the
  * URLs to keep, in order, each with its description). Text may go empty only while photos
  * remain; that's checked against the stored post.
  */
@@ -139,7 +143,7 @@ export const edit_post = command(
 		const result = await posts.update_post(db, user_id, id, body, media)
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')
-		await delete_media(env.MEDIA, result.removed_photos)
+		await delete_unused_uploads(db, result.removed_uploads)
 		await get_post(id).refresh()
 	},
 )
@@ -148,9 +152,14 @@ export const delete_post = command(Id, async (id) => {
 	const { db, user_id } = author()
 	const removed = await posts.remove_post(db, user_id, id)
 	if (!removed) error(404, 'Post not found.')
-	await delete_media(env.MEDIA, removed.photos)
+	await delete_unused_uploads(db, removed.uploads)
 	if (removed.reply_to_id) await get_post(removed.reply_to_id).refresh()
 })
+
+/** Delete the files behind `urls` that no other post still shows. */
+async function delete_unused_uploads(db: App.Locals['db'], urls: string[]) {
+	await delete_media(env.MEDIA, await posts.unused_uploads(db, urls))
+}
 
 export const set_like = command(v.object({ id: Id, on: v.boolean() }), async ({ id, on }) => {
 	const { db, user_id } = author()

@@ -1,6 +1,17 @@
-<script lang="ts">
+<script lang="ts" module>
 	import { m } from '#lib/paraglide/messages.js'
 	import type { Media } from './types'
+
+	/** Where an item sits in its post, as a screen reader hears it: "Video 2 of 3". */
+	export function position_label(item: Media, n: number, total: number) {
+		return item.kind === 'video'
+			? m.post_video_position({ n, total })
+			: m.post_photo_label({ n, total })
+	}
+</script>
+
+<script lang="ts">
+	import PostVideo from './PostVideo.svelte'
 
 	let {
 		item,
@@ -8,21 +19,25 @@
 		eager = false,
 	}: {
 		item: Media
-		/** What a photo without a description is announced as. */
+		/** What a photo or video without a description is announced as. */
 		label: string
 		eager?: boolean
 	} = $props()
 </script>
 
 <div class="m">
-	<img
-		src={item.url}
-		alt={item.alt || (item.kind === 'gif' ? m.post_gif_label() : label)}
-		width={item.width}
-		height={item.height}
-		loading={eager ? 'eager' : 'lazy'}
-		decoding="async"
-	/>
+	{#if item.kind === 'video'}
+		<PostVideo {item} {label} />
+	{:else}
+		<img
+			src={item.url}
+			alt={item.alt || (item.kind === 'gif' ? m.post_gif_label() : label)}
+			width={item.width}
+			height={item.height}
+			loading={eager ? 'eager' : 'lazy'}
+			decoding="async"
+		/>
+	{/if}
 	{#if item.kind === 'gif'}<span class="gif-badge" aria-hidden="true">GIF</span>{/if}
 </div>
 

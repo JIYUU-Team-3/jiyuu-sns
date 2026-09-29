@@ -2,7 +2,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { carousel_size, SLIDE_GAP } from './carousel-size'
-	import MediaItem from './MediaItem.svelte'
+	import MediaItem, { position_label } from './MediaItem.svelte'
 	import type { Media } from './types'
 
 	let {
@@ -71,8 +71,9 @@
 		bind:this={track}
 		onscroll={update_edges}
 	>
-		{#each media as item, i (item.url)}
-			{@const position = m.post_photo_label({ n: i + 1, total: media.length })}
+		<!-- Keyed by position too: posts from before duplicates were refused may hold one GIF twice. -->
+		{#each media as item, i (`${i}:${item.url}`)}
+			{@const position = position_label(item, i + 1, media.length)}
 			<!-- A description replaces "Photo 2 of 3" as the alt, so the slide says where it is. -->
 			<div
 				class="slide"

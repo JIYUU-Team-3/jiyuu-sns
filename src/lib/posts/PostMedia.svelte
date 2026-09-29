@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { m } from '#lib/paraglide/messages.js'
 	import Carousel from './Carousel.svelte'
-	import MediaItem from './MediaItem.svelte'
+	import MediaItem, { position_label } from './MediaItem.svelte'
 	import type { Media } from './types'
 
 	let {
@@ -21,7 +20,7 @@
 	<Carousel {media} {focus} {onswipe} />
 {:else if first}
 	<div class="single" style:--r={first.width / first.height}>
-		<MediaItem item={first} label={m.post_photo_label({ n: 1, total: 1 })} eager />
+		<MediaItem item={first} label={position_label(first, 1, 1)} eager />
 	</div>
 {/if}
 

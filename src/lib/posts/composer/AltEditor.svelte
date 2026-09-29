@@ -7,12 +7,14 @@
 
 	let {
 		src,
+		video = false,
 		alt,
 		onapply,
 		oncancel,
 	}: {
-		/** The photo or GIF being described. */
+		/** The photo, GIF or video being described. */
 		src: string
+		video?: boolean
 		alt: string
 		onapply: (alt: string) => void
 		oncancel: () => void
@@ -49,7 +51,11 @@
 			>
 		</div>
 		<div class="stage">
-			<img {src} alt="" />
+			{#if video}
+				<video {src} muted playsinline controls preload="metadata"></video>
+			{:else}
+				<img {src} alt="" />
+			{/if}
 		</div>
 		<div class="body">
 			<TextField
@@ -89,7 +95,9 @@
 		padding: 16px;
 		background: var(--bg-3);
 	}
-	img {
+	img,
+	video {
+		max-width: 100%;
 		max-height: 40vh;
 		border-radius: 8px;
 	}

@@ -7,11 +7,14 @@ export type Author = {
 	image?: string
 }
 
-export type MediaKind = 'image' | 'gif'
+export type MediaKind = 'image' | 'gif' | 'video'
+
+/** Photos and videos are our uploads in R2; GIFs come from the picker's CDN. */
+export const is_upload = (kind: MediaKind) => kind !== 'gif'
 
 /**
- * A photo (uploaded to R2) or a GIF (from the picker's CDN), with its size for layout and the
- * author's description (alt text), if they wrote one.
+ * A photo or video (uploaded to R2) or a GIF (from the picker's CDN), with its size for layout
+ * and the author's description (alt text), if they wrote one.
  */
 export type Media = { kind: MediaKind; url: string; width: number; height: number; alt?: string }
 

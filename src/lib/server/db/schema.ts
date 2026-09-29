@@ -59,7 +59,7 @@ export const post = sqliteTable(
 	],
 )
 
-/** Photos and GIFs on a post, in the order the author picked them. */
+/** Photos, GIFs and videos on a post, in the order the author picked them. */
 export const postMedia = sqliteTable(
 	'post_media',
 	{
@@ -67,8 +67,8 @@ export const postMedia = sqliteTable(
 			.notNull()
 			.references(() => post.id, { onDelete: 'cascade' }),
 		position: integer('position').notNull(),
-		/** `image` is an upload in R2; `gif` is a GIF from the picker's CDN. */
-		kind: text('kind', { enum: ['image', 'gif'] }).notNull(),
+		/** `image` and `video` are uploads in R2; `gif` is a GIF from the picker's CDN. */
+		kind: text('kind', { enum: ['image', 'gif', 'video'] }).notNull(),
 		url: text('url').notNull(),
 		width: integer('width').notNull(),
 		height: integer('height').notNull(),

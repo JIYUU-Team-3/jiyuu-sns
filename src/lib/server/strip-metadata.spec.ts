@@ -84,6 +84,61 @@ describe('strip_jpeg', () => {
 	})
 })
 
+describe('strip_jpeg with more than one scan', () => {
+	// Stuffing, a restart and a fill byte before the next marker.
+	const SCAN = [0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56, 0xff]
+	const progressive = bytes(
+		[0xff, 0xd8],
+		[...segment(0xda, bytes([0, 1, 2]))],
+		SCAN,
+		[...segment(0xfe, bytes('taken at home'))],
+		[...segment(0xe1, EXIF)],
+		[...segment(0xc4, bytes([9, 9]))],
+		[...segment(0xda, bytes([3, 4, 5]))],
+		SCAN,
+		[0xff, 0xd9],
+		'GPS 11.55N 104.92E trailer',
+	)
+	const out = strip_jpeg(progressive)
+
+	it('drops metadata between scans and anything after the end of the image', () => {
+		expect(text(out)).not.toContain('taken at home')
+		expect(text(out)).not.toContain('GPS')
+		expect(text(out)).not.toContain('Canon')
+		expect([...out.subarray(-2)]).toEqual([0xff, 0xd9])
+	})
+
+	it('keeps the scans, with their stuffing and restarts, and the tables between them', () => {
+		const expected = bytes(
+			[0xff, 0xd8],
+			[...segment(0xda, bytes([0, 1, 2]))],
+			SCAN,
+			[...segment(0xc4, bytes([9, 9]))],
+			[...segment(0xda, bytes([3, 4, 5]))],
+			SCAN,
+			[0xff, 0xd9],
+		)
+		// The orientation from the EXIF between the scans is kept, right after SOI.
+		const orientation = out.subarray(2, 2 + 4 + ((out[4] << 8) | out[5]) - 2)
+		expect(exif_orientation(orientation.subarray(4))).toBe(6)
+		expect([...out.subarray(0, 2), ...out.subarray(2 + orientation.length)]).toEqual([...expected])
+	})
+
+	it('drops the MPF index but keeps the colour profile', () => {
+		const mpf = strip_jpeg(
+			bytes(
+				[0xff, 0xd8],
+				[...segment(0xe2, bytes('MPF\0', [1, 2, 3]))],
+				[...segment(0xe2, bytes('ICC_PROFILE\0', [1, 1]))],
+				[...segment(0xda, bytes([0]))],
+				[0xff, 0xd9],
+			),
+		)
+		expect(text(mpf)).not.toContain('MPF')
+		expect(text(mpf)).toContain('ICC_PROFILE')
+	})
+})
+
 /** A PNG chunk; the CRC isn't checked here, so it's left zero. */
 const chunk = (type: string, data: number[] | string = []) => {
 	const body = typeof data === 'string' ? [...bytes(data)] : data
@@ -129,6 +184,31 @@ describe('strip_webp', () => {
 		expect(text(out)).not.toContain('GPS')
 		expect(text(out)).not.toContain('Jane')
 		expect(out[20] & 0x0c).toBe(0)
+		expect(new DataView(out.buffer).getUint32(4, true)).toBe(out.length - 8)
+	})
+	it('drops unknown chunks, also inside animation frames, and anything after the RIFF end', () => {
+		const frame = bytes(
+			Array(16).fill(0),
+			[...riff_chunk('VP8L', [1, 2])],
+			[...riff_chunk('ABCD', [...bytes('GPS in frame')])],
+		)
+		const body = bytes(
+			'WEBP',
+			[...riff_chunk('VP8X', [0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0])],
+			[...riff_chunk('ANIM', [0, 0, 0, 0, 0, 0])],
+			[...riff_chunk('ANMF', [...frame])],
+			[...riff_chunk('ABCD', [...bytes('GPS unknown')])],
+		)
+		const webp = bytes(
+			'RIFF',
+			le32(body.length),
+			[...body],
+			[...riff_chunk('ABCD', [...bytes('GPS after')])],
+		)
+		const out = strip_webp(webp)
+		expect(text(out)).not.toContain('GPS')
+		expect(text(out)).toContain('ANMF')
+		expect(text(out)).toContain('VP8L')
 		expect(new DataView(out.buffer).getUint32(4, true)).toBe(out.length - 8)
 	})
 })
