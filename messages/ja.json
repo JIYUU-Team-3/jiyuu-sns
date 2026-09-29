@@ -257,5 +257,16 @@
 	"explore_trending": "トレンド",
 	"explore_trending_empty": "今週のトレンドはまだありません。ポストに #ハッシュタグ をつけてみましょう。",
 	"explore_who_to_follow": "おすすめユーザー",
-	"explore_who_to_follow_empty": "すでに全員をフォローしています。"
+	"explore_who_to_follow_empty": "すでに全員をフォローしています。",
+	"push_like": "{name} さんがあなたのポストにいいねしました",
+	"push_follow": "{name} さんにフォローされました",
+	"push_reply": "{name} さんがあなたのポストに返信しました",
+	"push_mention": "{name} さんがあなたをメンションしました",
+	"push_title": "プッシュ通知",
+	"push_off_body": "Jiyuu を閉じていても、いいね、返信、メンション、新しいフォロワーをお知らせします。",
+	"push_on_body": "このブラウザでオンになっています。",
+	"push_turn_on": "オンにする",
+	"push_turn_off": "オフにする",
+	"push_blocked": "このサイトの通知はブロックされています。オンにするには、ブラウザのサイト設定で許可してください。",
+	"push_ios_hint": "iPhone・iPad では、まず Jiyuu をホーム画面に追加し（共有 → ホーム画面に追加）、そこから開いてください。"
 }

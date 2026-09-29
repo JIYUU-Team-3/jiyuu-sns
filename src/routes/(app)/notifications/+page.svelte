@@ -6,6 +6,7 @@
 		get_notifications,
 		mark_notifications_read,
 	} from '#lib/notifications/notifications.remote'
+	import PushToggle from '#lib/notifications/PushToggle.svelte'
 	import type { NotificationTab } from '#lib/notifications/types'
 	import { m } from '#lib/paraglide/messages.js'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
@@ -30,6 +31,8 @@
 <PageBar title={m.app_notifications()}>
 	<Tabs tabs={TABS} bind:value={tab} />
 </PageBar>
+
+<PushToggle />
 
 {#key tab}
 	<div role="tabpanel">

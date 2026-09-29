@@ -34,7 +34,10 @@ Declared in [`src/env.ts`](src/env.ts) and read through `$app/env/private`; `.en
 | `ORIGIN`                                                                 | Better Auth base URL                  |
 | `BETTER_AUTH_SECRET`                                                     | Better Auth token signing (32+ chars) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                               | Google OAuth                          |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                 | Push notifications (optional)         |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN` | `drizzle-kit` (remote D1 over HTTP)   |
+
+Push notifications stay off while the VAPID keys are empty. Generate a pair with `pnpm push:keys` and paste it into `.env`. Use a separate pair per environment, and don't rotate production's: new keys silently unsubscribe every browser.
 
 `wrangler types` bakes the keys from `.env` into `worker-configuration.d.ts`, so a `.env` must exist (placeholder values are fine) before `check` or `build`. That file is generated and git-ignored; every script that typechecks regenerates it.
 
@@ -98,6 +101,7 @@ To change the schema: edit `schema.ts`, run `pnpm db:generate`, check the SQL it
 | `pnpm test`            | Unit tests then e2e                                                      |
 | `pnpm gen`             | Regenerate `worker-configuration.d.ts`                                   |
 | `pnpm paraglide`       | Compile `src/lib/paraglide` without Vite (flags mirror `vite.config.ts`) |
+| `pnpm push:keys`       | Print a new VAPID key pair for push notifications                        |
 
 E2E specs are `*.e2e.ts` files under `src/`, next to the routes they cover. Set `PLAYWRIGHT_BASE_URL` to point Playwright at a deployed URL instead of starting a local server. Tag any e2e test that writes data with `@writes`; the post-deploy run skips those so it never touches production data.
 
@@ -129,4 +133,4 @@ Every job installs [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) 
 
 Deploys are never cancelled once they start.
 
-Required repository secrets (`production` environment): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN`. Runtime secrets (`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_*`, `ORIGIN`) have to be set on the Worker with `wrangler secret put`.
+Required repository secrets (`production` environment): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN`. Runtime secrets (`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_*`, `ORIGIN`, and `VAPID_*` for push) have to be set on the Worker with `wrangler secret put`.

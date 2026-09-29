@@ -33,11 +33,20 @@
 	const unread_label = $derived(unread >= 100 ? '99+' : String(unread))
 
 	// New notifications arrive while the tab is open; check once a minute when it's visible.
+	// With push on, the service worker also says the moment one arrives.
 	onMount(() => {
+		const refresh = () => get_unread_count().refresh()
 		const timer = setInterval(() => {
-			if (document.visibilityState === 'visible') get_unread_count().refresh()
+			if (document.visibilityState === 'visible') refresh()
 		}, 60_000)
-		return () => clearInterval(timer)
+		const onmessage = (event: MessageEvent) => {
+			if (event.data?.type === 'notification') refresh()
+		}
+		navigator.serviceWorker?.addEventListener('message', onmessage)
+		return () => {
+			clearInterval(timer)
+			navigator.serviceWorker?.removeEventListener('message', onmessage)
+		}
 	})
 	const on_own_profile = $derived(
 		(page.route.id === '/(app)/u/[handle]' && page.params.handle === data.me.handle) ||

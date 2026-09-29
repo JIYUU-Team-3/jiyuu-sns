@@ -1,3 +1,4 @@
+import { waitUntil } from 'cloudflare:workers'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type {
 	NotificationPage,
@@ -8,6 +9,7 @@ import type {
 import type { getDb } from './db'
 import { notification, profile, user } from './db/schema'
 import { find_posts } from './posts'
+import { push_notifications } from './push'
 
 type Db = ReturnType<typeof getDb>
 
@@ -20,17 +22,20 @@ type NewNotification = {
 	post_id?: string
 }
 
-/** Record notifications, skipping any about your own action. */
+/** Record notifications, skipping any about your own action, and push them to their browsers. */
 export async function notify(db: Db, rows: NewNotification[]) {
-	const values = rows
-		.filter((row) => row.user_id !== row.actor_id)
-		.map((row) => ({
+	const events = rows.filter((row) => row.user_id !== row.actor_id)
+	if (!events.length) return
+	await db.insert(notification).values(
+		events.map((row) => ({
 			userId: row.user_id,
 			actorId: row.actor_id,
 			type: row.type,
 			postId: row.post_id ?? null,
-		}))
-	if (values.length) await db.insert(notification).values(values)
+		})),
+	)
+	// Pushes go out after the response, so a slow push service never delays a like or a post.
+	waitUntil(push_notifications(db, events).catch((error) => console.error('Push failed', error)))
 }
 
 /**

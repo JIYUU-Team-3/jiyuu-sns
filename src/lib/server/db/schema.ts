@@ -132,4 +132,23 @@ export const notification = sqliteTable(
 	(table) => [index('notification_user_created_idx').on(table.userId, table.createdAt)],
 )
 
+/** One browser that turned on push notifications. An account can have several. */
+export const pushSubscription = sqliteTable(
+	'push_subscription',
+	{
+		// The push service URL is unique per browser, so re-subscribing replaces the row.
+		endpoint: text('endpoint').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** The browser's public key and auth secret, base64url, for encrypting messages to it. */
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		/** The language the notifications are written in: the one in use when it was turned on. */
+		locale: text('locale').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [index('push_subscription_user_idx').on(table.userId)],
+)
+
 export * from './auth.schema'

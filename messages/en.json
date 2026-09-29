@@ -257,5 +257,16 @@
 	"explore_trending": "Trending",
 	"explore_trending_empty": "No trending tags this week. Add a #hashtag to a post to start one.",
 	"explore_who_to_follow": "Who to follow",
-	"explore_who_to_follow_empty": "You already follow everyone here."
+	"explore_who_to_follow_empty": "You already follow everyone here.",
+	"push_like": "{name} liked your post",
+	"push_follow": "{name} followed you",
+	"push_reply": "{name} replied to your post",
+	"push_mention": "{name} mentioned you",
+	"push_title": "Push notifications",
+	"push_off_body": "Get notified about likes, replies, mentions and new followers even when Jiyuu is closed.",
+	"push_on_body": "On for this browser.",
+	"push_turn_on": "Turn on",
+	"push_turn_off": "Turn off",
+	"push_blocked": "Notifications are blocked for this site. Allow them in your browser’s site settings to turn this on.",
+	"push_ios_hint": "On iPhone and iPad, add Jiyuu to your Home Screen first (Share → Add to Home Screen), then open it from there."
 }
