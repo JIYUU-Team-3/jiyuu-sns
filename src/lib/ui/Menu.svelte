@@ -17,8 +17,7 @@
 		children,
 	}: {
 		label: string
-		/** `cover` opens over the trigger's top-right corner (post ⋯); `above` opens upward. */
-		placement?: 'cover' | 'above'
+		placement?: 'cover' | 'cover-start' | 'above'
 		class?: string
 		/** The button that opens the menu; spread the props onto it. */
 		trigger: Snippet<[TriggerProps]>
@@ -113,6 +112,11 @@
 		top: 0;
 		right: 0;
 		transform-origin: top right;
+	}
+	.cover-start {
+		top: 0;
+		left: 0;
+		transform-origin: top left;
 	}
 	.above {
 		bottom: calc(100% + 8px);

@@ -10,7 +10,7 @@
 	let { me, compact = false }: { me: Author & { handle: string }; compact?: boolean } = $props()
 </script>
 
-<Menu label={m.app_account_menu()} placement={compact ? 'cover' : 'above'}>
+<Menu label={m.app_account_menu()} placement={compact ? 'cover-start' : 'above'}>
 	{#snippet trigger(props)}
 		{#if compact}
 			<button type="button" class="av-btn" aria-label={m.app_account_menu()} {...props}>
