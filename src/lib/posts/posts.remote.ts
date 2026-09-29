@@ -3,9 +3,11 @@ import * as v from 'valibot'
 import { command, form, getRequestEvent, query } from '$app/server'
 import * as posts from '#lib/server/posts'
 import { post_problem } from './rules'
-import { feed_arg, replies_arg } from './args'
+import { author_arg, feed_arg, replies_arg } from './args'
 
 const Id = v.pipe(v.string(), v.uuid())
+// Better Auth ids aren't UUIDs, so only the length is bounded.
+const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
 const Body = v.pipe(
 	v.string(),
@@ -41,8 +43,9 @@ export const get_replies = query(v.object({ id: Id, cursor: Cursor }), ({ id, cu
 )
 
 export const get_author_posts = query(
-	v.object({ id: v.pipe(v.string(), v.maxLength(64)), cursor: Cursor }),
-	({ id, cursor }) => posts.author_page(getRequestEvent().locals.db, viewer(), id, cursor),
+	v.object({ id: UserId, tab: v.picklist(['posts', 'replies']), cursor: Cursor }),
+	({ id, tab, cursor }) =>
+		posts.author_page(getRequestEvent().locals.db, viewer(), id, tab === 'replies', cursor),
 )
 
 export const create_post = form(
@@ -56,6 +59,7 @@ export const create_post = form(
 		await Promise.all([
 			get_feed(feed_arg('for_you')).refresh(),
 			get_feed(feed_arg('following')).refresh(),
+			get_author_posts(author_arg(user_id, reply_to ? 'replies' : 'posts')).refresh(),
 			...(reply_to
 				? [get_replies(replies_arg(reply_to)).refresh(), get_post(reply_to).refresh()]
 				: []),

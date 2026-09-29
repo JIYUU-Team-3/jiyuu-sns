@@ -1,15 +1,16 @@
-import { fail, redirect } from '@sveltejs/kit'
+import { redirect } from '@sveltejs/kit'
+import { env } from 'cloudflare:workers'
 import { localizeHref } from '#lib/paraglide/runtime'
-import { save_profile } from '#lib/server/profiles'
+import { suggest_handle } from '#lib/profiles/form/profile'
+import { submit_profile } from '#lib/server/profile-form'
 import { home_href } from '../links'
-import { profile_errors, read_profile, suggest_handle, type ProfileErrors } from './profile'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = ({ locals }) => {
 	if (!locals.user) return redirect(302, localizeHref('/login'))
-	const { name, email, image } = locals.user
+	const { id, name, email, image } = locals.user
 	return {
-		account: { name, email, image: image ?? undefined },
+		account: { id, name, email, image: image ?? undefined },
 		suggested_handle: suggest_handle(name, email),
 	}
 }
@@ -18,16 +19,13 @@ export const actions: Actions = {
 	default: async ({ locals, request }) => {
 		if (!locals.user) return redirect(302, localizeHref('/login'))
 
-		const draft = read_profile(await request.formData())
-		const errors = profile_errors(draft)
-		if (Object.keys(errors).length) return fail(400, { draft, errors })
-
-		const saved = await save_profile(locals.db, locals.user.id, draft)
-		if (saved === 'taken') {
-			const taken: ProfileErrors = { handle: 'taken' }
-			return fail(400, { draft, errors: taken })
-		}
-
+		const result = await submit_profile(
+			locals.db,
+			env.MEDIA,
+			locals.user.id,
+			await request.formData(),
+		)
+		if (!('saved' in result)) return result
 		return redirect(303, home_href())
 	},
 }

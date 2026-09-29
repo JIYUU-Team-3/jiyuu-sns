@@ -18,5 +18,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		handle: profile.handle,
 		image: profile.avatarUrl ?? locals.user.image ?? undefined,
 	}
-	return { me }
+	// The rest of the account's profile, for the edit page, so it needn't query it again.
+	const own = {
+		bio: profile.bio,
+		banner: profile.bannerUrl ?? undefined,
+		avatar_uploaded: !!profile.avatarUrl,
+		account_image: locals.user.image ?? undefined,
+	}
+	return { me, own }
 }

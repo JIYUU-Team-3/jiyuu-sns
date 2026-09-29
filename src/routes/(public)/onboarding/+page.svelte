@@ -2,13 +2,14 @@
 	import { onMount } from 'svelte'
 	import { enhance, type SubmitFunction } from '$app/forms'
 	import { m } from '#lib/paraglide/messages.js'
+	import BannerField from '#lib/profiles/form/BannerField.svelte'
+	import HandleField from '#lib/profiles/form/HandleField.svelte'
+	import ProfilePhoto from '#lib/profiles/form/ProfilePhoto.svelte'
+	import TextField from '#lib/profiles/form/TextField.svelte'
+	import { BIO_MAX, NAME_MAX, profile_errors } from '#lib/profiles/form/profile'
 	import type { PageProps } from './$types'
 	import Mark from '../Mark.svelte'
 	import GoogleIcon from '../login/GoogleIcon.svelte'
-	import HandleField from './HandleField.svelte'
-	import ProfilePhoto from './ProfilePhoto.svelte'
-	import TextField from './TextField.svelte'
-	import { BIO_MAX, NAME_MAX, profile_errors } from './profile'
 
 	let { data, form }: PageProps = $props()
 
@@ -38,7 +39,7 @@
 <svelte:head><title>{m.site_page_title({ page: m.onboarding_title() })}</title></svelte:head>
 
 <main class="onb">
-	<form class="card" method="post" use:enhance={submit}>
+	<form class="card" method="post" enctype="multipart/form-data" use:enhance={submit}>
 		<div class="top"><Mark size="36px" /></div>
 		<h1>{m.onboarding_title()}</h1>
 		<p class="sub">{m.onboarding_subtitle()}</p>
@@ -54,7 +55,13 @@
 			</span>
 		</div>
 
-		<ProfilePhoto {name} seed={data.account.email} image={data.account.image} />
+		<BannerField error={form?.errors.banner} />
+		<ProfilePhoto
+			{name}
+			seed={data.account.id}
+			image={data.account.image}
+			error={form?.errors.avatar}
+		/>
 
 		<TextField
 			name="name"
@@ -65,7 +72,10 @@
 			autocomplete="name"
 			bind:value={name}
 		/>
-		<HandleField bind:value={handle} />
+		<HandleField
+			bind:value={handle}
+			taken={form?.errors.handle === 'taken' ? form.draft.handle : undefined}
+		/>
 		<TextField
 			name="bio"
 			label={m.onboarding_bio()}

@@ -8,6 +8,7 @@
 	import PostList from '#lib/posts/PostList.svelte'
 	import { get_post, get_replies } from '#lib/posts/posts.remote'
 	import { deleted_posts } from '#lib/posts/state.svelte'
+	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import { home_href } from '../../../(public)/links'
 	import PageBar from '../../PageBar.svelte'
 	import type { PageProps } from './$types'
@@ -31,10 +32,7 @@
 {/if}
 
 {#if deleted_posts.has(post.id)}
-	<div class="empty">
-		<h2>{m.post_not_found_title()}</h2>
-		<p>{m.post_not_found_body()}</p>
-	</div>
+	<EmptyState title={m.post_not_found_title()} body={m.post_not_found_body()} />
 {:else}
 	<FocusPost {post} ondeleted={() => goto(home_href(), { replaceState: true })} />
 	<Composer task={{ kind: 'reply', post }} me={data.me} variant="reply" />
@@ -42,22 +40,3 @@
 		<PostList load={(cursor) => get_replies(replies_arg(post.id, cursor))} show_replying={false} />
 	{/key}
 {/if}
-
-<style>
-	.empty {
-		padding: 48px 32px;
-		max-width: 420px;
-		margin: 0 auto;
-	}
-	.empty h2 {
-		font-size: 28px;
-		line-height: 1.15;
-		font-weight: 800;
-		margin: 0 0 8px;
-		letter-spacing: -0.02em;
-	}
-	.empty p {
-		color: var(--text-2);
-		margin: 0;
-	}
-</style>

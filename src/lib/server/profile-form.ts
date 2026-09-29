@@ -1,0 +1,38 @@
+import { fail } from '@sveltejs/kit'
+import { picked_file } from '#lib/media'
+import {
+	image_errors,
+	profile_errors,
+	read_profile,
+	type ProfileErrors,
+} from '#lib/profiles/form/profile'
+import type { getDb } from './db'
+import { save_profile_with_images } from './profile-images'
+
+type Db = ReturnType<typeof getDb>
+
+/**
+ * Check and save a submitted profile form, from onboarding or the edit page. Returns the saved
+ * draft as `{ saved }`, or a `fail` carrying the draft and its field errors for the form to show.
+ */
+export async function submit_profile(db: Db, bucket: R2Bucket, user_id: string, data: FormData) {
+	const draft = read_profile(data)
+	const images = {
+		avatar: picked_file(data.get('avatar')),
+		banner: picked_file(data.get('banner')),
+	}
+	// Files stay out of `fail` data: they can't be serialized, and the inputs keep them anyway.
+	const errors = { ...profile_errors(draft), ...(await image_errors(images)) }
+	if (Object.keys(errors).length) return fail(400, { draft, errors })
+
+	const removals = {
+		avatar: data.get('avatar_remove') === '1',
+		banner: data.get('banner_remove') === '1',
+	}
+	const saved = await save_profile_with_images(db, bucket, user_id, draft, images, removals)
+	if (saved === 'taken') {
+		const taken: ProfileErrors = { handle: 'taken' }
+		return fail(400, { draft, errors: taken })
+	}
+	return { saved: draft }
+}

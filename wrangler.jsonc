@@ -31,6 +31,15 @@
 			"id": "9fccb61c440845498d309ba3bd7098b8",
 		},
 	],
+	// Uploaded avatars and banners, served by `src/routes/media/[...key]`. Local dev
+	// emulates the bucket; deploys need it created once with
+	// `wrangler r2 bucket create jiyuu-media`.
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "jiyuu-media",
+		},
+	],
 	"workers_dev": true,
 	"preview_urls": true,
 	"observability": {

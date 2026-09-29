@@ -1,50 +1,79 @@
 <script lang="ts">
+	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
 	import { author_arg } from '#lib/posts/args'
+	import { format_count } from '#lib/posts/format'
 	import PostList from '#lib/posts/PostList.svelte'
+	import { composer } from '#lib/posts/state.svelte'
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
+	import type { ProfileTab } from '#lib/profiles/types'
+	import EmptyState from '#lib/ui/EmptyState.svelte'
+	import Tabs from '#lib/ui/Tabs.svelte'
 	import PageBar from '../../PageBar.svelte'
 	import type { PageProps } from './$types'
 
 	let { params }: PageProps = $props()
 
 	const profile = $derived(await get_profile(params.handle))
+	const count = $derived(format_count(profile.posts, getLocale()))
+
+	let tab = $state<ProfileTab>('posts')
+
+	const TABS: [ProfileTab, () => string][] = [
+		['posts', m.profile_tab_posts],
+		['replies', m.profile_tab_replies],
+	]
 </script>
 
 <svelte:head><title>{m.site_page_title({ page: profile.name })}</title></svelte:head>
 
-<PageBar title={profile.name} back />
+<PageBar
+	title={profile.name}
+	subtitle={profile.posts === 1 ? m.profile_post({ count }) : m.profile_posts({ count })}
+	back
+/>
 
 <ProfileHeader {profile} />
 
-{#key profile.id}
-	<PostList load={(cursor) => get_author_posts(author_arg(profile.id, cursor))}>
-		{#snippet empty()}
-			<div class="empty">
-				<h2>{m.profile_posts_empty_title()}</h2>
-				<p>{m.profile_posts_empty_body()}</p>
-			</div>
-		{/snippet}
-	</PostList>
+<div class="tabbar"><Tabs tabs={TABS} bind:value={tab} /></div>
+
+{#key `${profile.id}:${tab}`}
+	<div role="tabpanel">
+		<PostList
+			load={(cursor) => get_author_posts(author_arg(profile.id, tab, cursor))}
+			show_replying={tab === 'replies'}
+		>
+			{#snippet empty()}
+				{#if tab === 'replies'}
+					<EmptyState
+						title={m.profile_empty_replies_title()}
+						body={m.profile_empty_replies_body()}
+					/>
+				{:else if profile.mine}
+					<EmptyState
+						title={m.profile_posts_empty_mine_title()}
+						body={m.profile_posts_empty_mine_body()}
+					>
+						<button
+							type="button"
+							class="btn btn-primary"
+							onclick={() => composer.open({ kind: 'new' })}
+							>{m.profile_posts_empty_mine_action()}</button
+						>
+					</EmptyState>
+				{:else}
+					<EmptyState title={m.profile_posts_empty_title()} body={m.profile_posts_empty_body()} />
+				{/if}
+			{/snippet}
+		</PostList>
+	</div>
 {/key}
 
 <style>
-	.empty {
-		padding: 48px 32px;
-		max-width: 420px;
-		margin: 0 auto;
-	}
-	.empty h2 {
-		font-size: 28px;
-		line-height: 1.15;
-		font-weight: 800;
-		margin: 0 0 8px;
-		letter-spacing: -0.02em;
-	}
-	.empty p {
-		color: var(--text-2);
-		margin: 0;
+	.tabbar {
+		margin-top: 8px;
+		border-bottom: 1px solid var(--line);
 	}
 </style>

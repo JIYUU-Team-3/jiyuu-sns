@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js'
 	import type { Author } from '#lib/posts/types'
+	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Menu from '#lib/ui/Menu.svelte'
@@ -23,11 +24,16 @@
 			</button>
 		{/if}
 	{/snippet}
-	<form method="post" action="{home_href()}?/signOut">
-		<button class="menu-item" role="menuitem">
-			<Icon name="logout" />{m.app_log_out({ handle: me.handle })}
-		</button>
-	</form>
+	{#snippet children(close)}
+		<a class="menu-item" role="menuitem" href={profile_href(me.handle)} onclick={close}>
+			<Icon name="user" />{m.app_profile()}
+		</a>
+		<form method="post" action="{home_href()}?/signOut">
+			<button class="menu-item" role="menuitem">
+				<Icon name="logout" />{m.app_log_out({ handle: me.handle })}
+			</button>
+		</form>
+	{/snippet}
 </Menu>
 
 <style>

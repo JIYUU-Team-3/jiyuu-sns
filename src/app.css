@@ -284,6 +284,50 @@ img {
 	background: none;
 }
 
+/* The profile banner and avatar morphing to and from the edit page (src/lib/profiles/morph.ts). */
+::view-transition-group(profile-banner),
+::view-transition-group(profile-avatar) {
+	animation-duration: 0.4s;
+	animation-timing-function: var(--ease-out);
+}
+/*
+ * On the profile the avatar sits in a gap cut out of the banner, but the banner flies without
+ * its hole. So the gap flies as a ring in the page colour, shrinking away on the way to the edit
+ * page, which has none, and growing back on the way to the profile, where the real hole resumes.
+ */
+::view-transition-image-pair(profile-avatar) {
+	border-radius: 50%;
+	outline: 0 solid var(--bg);
+	animation: 0.4s var(--ease-out) both avatar-gap-grow;
+}
+/* Its own keyframes, not `reverse`: the snapshots inside inherit the direction, which would
+   flip their crossfade too. */
+:root[data-morph='to-edit']::view-transition-image-pair(profile-avatar) {
+	animation-name: avatar-gap-shrink;
+}
+@keyframes avatar-gap-grow {
+	from {
+		outline-width: 0;
+	}
+	to {
+		outline-width: 4px;
+	}
+}
+@keyframes avatar-gap-shrink {
+	from {
+		outline-width: 4px;
+	}
+	to {
+		outline-width: 0;
+	}
+}
+/* Only those two move; the rest of the page swaps at once instead of crossfading. This is the
+   app's only view transition, so the root can be switched off globally. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

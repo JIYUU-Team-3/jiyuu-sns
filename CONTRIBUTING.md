@@ -88,6 +88,8 @@ git commit
 
 In short: reset `drizzle/` to what's on `development`, keep your `schema.ts` change, and regenerate. If `schema.ts` itself conflicts, keep both sides' tables before regenerating.
 
+Avatar and banner uploads go to the `MEDIA` R2 bucket. `pnpm dev` emulates it under `.wrangler/state`, so there's nothing to set up locally. Deployed environments need the bucket to exist once: `wrangler r2 bucket create jiyuu-media`.
+
 If your local database gets into a weird state, delete `.wrangler/state` and run `pnpm db:migrate:local` again. That only wipes your local data.
 
 ## Translations (en / ja)

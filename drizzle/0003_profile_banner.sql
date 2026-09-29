@@ -1,0 +1,1 @@
+ALTER TABLE `profile` ADD `banner_url` text;
