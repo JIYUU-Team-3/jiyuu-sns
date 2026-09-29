@@ -27,7 +27,8 @@ export function morph_profile_edit() {
 				resolve()
 				await navigation.complete
 			})
-			transition.finished.finally(() => delete root.dataset.morph)
+			const clear = () => delete root.dataset.morph
+			void transition.finished.then(clear, clear)
 		})
 	})
 }
