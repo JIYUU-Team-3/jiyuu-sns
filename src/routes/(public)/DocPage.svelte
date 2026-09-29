@@ -2,7 +2,6 @@
 	import type { Snippet } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import { getLocale } from '#lib/paraglide/runtime'
-	import Mark from './Mark.svelte'
 	import SiteFooter from './SiteFooter.svelte'
 	import Wordmark from './Wordmark.svelte'
 	import { format_long_date } from '#lib/format-date'
@@ -23,7 +22,7 @@
 <svelte:head><title>{m.site_page_title({ page: title })}</title></svelte:head>
 
 <header class="doc-head">
-	<a class="brand" href={localized('/login')}><Mark size="32px" /><Wordmark /></a>
+	<a class="brand" href={localized('/login')}><Wordmark size="26px" /></a>
 </header>
 <main class="doc">
 	<h1>{title}</h1>
@@ -46,7 +45,7 @@
 	.brand {
 		display: inline-flex;
 		align-items: center;
-		gap: 10px;
+		min-height: 32px;
 	}
 	.doc {
 		padding: 24px 16px 48px;

@@ -7,7 +7,6 @@
 	import Icon from '#lib/ui/Icon.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
 	import { home_href } from '../(public)/links'
-	import Mark from '../(public)/Mark.svelte'
 	import SiteFooter from '../(public)/SiteFooter.svelte'
 	import Wordmark from '../(public)/Wordmark.svelte'
 	import AccountMenu from './AccountMenu.svelte'
@@ -38,7 +37,7 @@
 
 <div class="shell">
 	<nav class="side" aria-label={m.app_home()}>
-		<a class="brand" href={home_href()} aria-label="Jiyuu"><Mark /><Wordmark /></a>
+		<a class="brand" href={home_href()} aria-label="Jiyuu"><Wordmark /></a>
 		<div class="nav">
 			<!-- Explore, Notifications, Messages and Bookmarks join as their features land. -->
 			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
@@ -115,8 +114,11 @@
 	.brand {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		min-height: 50px;
 		padding: 6px 12px 18px;
+	}
+	.brand :global(.wordmark) {
+		font-size: 28px;
 	}
 	.nav {
 		display: flex;
@@ -177,12 +179,15 @@
 			padding: 12px;
 			align-items: center;
 		}
-		.brand :global(.wordmark),
 		.lbl {
 			display: none;
 		}
 		.brand {
 			padding: 6px 0 16px;
+		}
+		/* The collapsed rail is 64px wide inside its padding. */
+		.brand :global(.wordmark) {
+			font-size: 19px;
 		}
 		.nav-item {
 			padding: 12px;
