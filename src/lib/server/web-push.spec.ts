@@ -161,6 +161,7 @@ describe('is_push_endpoint', () => {
 	it('accepts the browsers’ push services over https', () => {
 		expect(is_push_endpoint('https://fcm.googleapis.com/fcm/send/abc')).toBe(true)
 		expect(is_push_endpoint('https://jmt17.google.com/fcm/send/abc')).toBe(true)
+		expect(is_push_endpoint('https://fcm.googleapis.com/wp/abc')).toBe(true)
 		expect(is_push_endpoint('https://updates.push.services.mozilla.com/wpush/v2/abc')).toBe(true)
 		expect(is_push_endpoint('https://web.push.apple.com/abc')).toBe(true)
 		expect(is_push_endpoint('https://wns2-db5p.notify.windows.com/w/?token=abc')).toBe(true)
@@ -172,5 +173,23 @@ describe('is_push_endpoint', () => {
 		expect(is_push_endpoint('https://fcm.googleapis.com.evil.example/')).toBe(false)
 		expect(is_push_endpoint('https://notgoogle.com/fcm/send/abc')).toBe(false)
 		expect(is_push_endpoint('not a url')).toBe(false)
+	})
+
+	it('refuses other Google services and non-FCM paths on FCM hosts', () => {
+		for (const host of [
+			'mail.google.com',
+			'accounts.google.com',
+			'sites.google.com',
+			'script.google.com',
+			'google.com',
+			'storage.googleapis.com',
+			'jmt.google.com',
+			'jmt17.google.com.evil.example',
+		]) {
+			expect(is_push_endpoint(`https://${host}/fcm/send/abc`)).toBe(false)
+		}
+		expect(is_push_endpoint('https://fcm.googleapis.com/v1/projects/x/messages:send')).toBe(false)
+		expect(is_push_endpoint('https://jmt17.google.com/macros/s/abc/exec')).toBe(false)
+		expect(is_push_endpoint('https://fcm.googleapis.com:8443/fcm/send/abc')).toBe(false)
 	})
 })

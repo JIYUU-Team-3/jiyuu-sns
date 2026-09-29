@@ -152,20 +152,21 @@ export async function vapid_authorization(endpoint: string, keys: VapidKeys, now
 }
 
 /** The push services browsers actually use; anything else is refused before it's stored. */
-const PUSH_HOSTS = [
-	// Chrome, Edge on Android, Brave and other Chromium browsers use FCM, which hands out both
-	// `fcm.googleapis.com` and hosts like `jmt17.google.com`.
-	'googleapis.com',
-	'google.com',
-	'updates.push.services.mozilla.com',
-	'push.apple.com',
-	'notify.windows.com',
-]
+const PUSH_HOSTS = ['updates.push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']
+
+/**
+ * Chrome, Brave and other Chromium browsers use FCM, which hands out `fcm.googleapis.com` and
+ * numbered hosts like `jmt17.google.com`. Only those exact hosts, and only FCM's own paths, so
+ * a subscription can't point the server at any other Google service.
+ */
+const FCM_HOST = /^(?:fcm\.googleapis\.com|jmt\d+\.google\.com)$/
+const FCM_PATH = /^\/(?:fcm\/send|wp)\//
 
 export function is_push_endpoint(endpoint: string) {
 	try {
 		const url = new URL(endpoint)
-		if (url.protocol !== 'https:') return false
+		if (url.protocol !== 'https:' || url.port) return false
+		if (FCM_HOST.test(url.hostname)) return FCM_PATH.test(url.pathname)
 		return PUSH_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`))
 	} catch {
 		return false
