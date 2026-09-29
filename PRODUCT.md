@@ -45,7 +45,7 @@ A faithful, minimal take on the X/Bluesky model, built by students on SvelteKit 
 - Name: **Jiyuu**.
 - Minimal and plain, inspired by X and Bluesky; explicitly no over-the-top or bold design.
 - Light and dark modes both required.
-- Logo: wordmark `jiYuu` (lowercase except the middle Y, which is uppercase and accent-colored); standalone mark is a white Y in an accent-colored circle.
+- Logo: wordmark `jiYuu` (lowercase except the middle Y, which is uppercase and accent-colored). The wordmark is the only logo; there is no standalone mark.
 - Standing preference: the X/Bluesky category standard played straight (canon), not a novel visual direction. Sit alongside X and Bluesky at their craft level.
 
 ## Evidence on Hand

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js'
 	import type { PageProps } from './$types'
-	import Mark from '../Mark.svelte'
 	import RichText from '../RichText.svelte'
 	import SiteFooter from '../SiteFooter.svelte'
 	import Wordmark from '../Wordmark.svelte'
@@ -14,9 +13,9 @@
 <svelte:head><title>{m.login_page_title()}</title></svelte:head>
 
 <div class="auth">
-	<div class="auth-art" aria-hidden="true"><Mark size="min(300px, 40vw)" /></div>
+	<div class="auth-art" aria-hidden="true"><Wordmark size="min(128px, 10vw)" /></div>
 	<main class="auth-main">
-		<div class="auth-top-mobile"><Mark size="40px" /></div>
+		<div class="auth-top-mobile"><Wordmark size="30px" /></div>
 		<h1>{m.login_title()}</h1>
 		<h2>
 			{#each m.login_join.parts() as part, i (i)}
@@ -93,9 +92,14 @@
 		.auth-art {
 			display: none;
 		}
+		/*
+		 * Shares the text's left edge and sits midway between the screen top and the title, which
+		 * stays 94px + 12vh down. The 30px-tall logo leaves 64px + 12vh, so 32px + 6vh on each side;
+		 * .auth-main's 40px top padding already covers part of the space above.
+		 */
 		.auth-top-mobile {
 			display: flex;
-			padding: 24px 24px 0;
+			margin: calc(6vh - 8px) 0 calc(6vh + 32px);
 		}
 		.auth-main {
 			padding: 40px 24px 96px;
@@ -103,7 +107,7 @@
 		}
 		.auth-main h1 {
 			font-size: 40px;
-			margin-top: 12vh;
+			margin-top: 0;
 		}
 		.auth-legal {
 			max-width: none;

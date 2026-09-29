@@ -3,7 +3,7 @@
 	import { page } from '$app/state'
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
-	import Mark from '../(public)/Mark.svelte'
+	import Wordmark from '../(public)/Wordmark.svelte'
 	import { home_href } from '../(public)/links'
 	import AccountMenu from './AccountMenu.svelte'
 
@@ -44,10 +44,10 @@
 			{#if action}<div class="action">{@render action()}</div>{/if}
 		</div>
 	{:else}
-		<!-- Phones get the account avatar and the mark; wider screens get the page title. -->
+		<!-- Phones get the account avatar and the wordmark; wider screens get the page title. -->
 		<div class="bar-row mobile-top">
 			<AccountMenu me={page.data.me} compact />
-			<div class="center"><Mark size="28px" /></div>
+			<div class="center"><Wordmark /></div>
 			<span class="spacer"></span>
 		</div>
 		<div class="bar-row desk-only"><h1>{title}</h1></div>
