@@ -102,14 +102,18 @@
 	}
 	input,
 	textarea {
-		width: 100%;
+		/* Controls clip at their padding box, so glyphs that overhang it (the tail of
+		   a leading "j") get cut. Pad the sides and bottom, then pull the box back out
+		   by the same amount so the text stays where it was. */
+		width: calc(100% + 8px);
+		margin: 0 -4px -2px;
 		border: 0;
 		outline: 0;
 		background: none;
 		color: inherit;
 		font: inherit;
 		font-size: 17px;
-		padding: 2px 0 0;
+		padding: 2px 4px 2px;
 		resize: none;
 	}
 	/* The whole field lights up on focus, so the layout's focus ring would draw a second box. */
