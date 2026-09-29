@@ -9,3 +9,4 @@ allowBuilds:
 # `pnpm audit` is clean and the pre-commit/CI gates stay meaningful.
 overrides:
   '@esbuild-kit/core-utils>esbuild': '^0.25.0'
+  'miniflare>undici': '^7.29.1'

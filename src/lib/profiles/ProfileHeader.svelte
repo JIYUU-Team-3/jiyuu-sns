@@ -55,7 +55,9 @@
 	{#if profile.bio}<p class="bio">{profile.bio}</p>{/if}
 	<p class="meta">
 		<Icon name="calendar" size="sm" />
-		{m.profile_joined({ date: format_month_year(profile.joined, locale) })}
+		<time datetime={new Date(profile.joined).toISOString()}
+			>{m.profile_joined({ date: format_month_year(profile.joined, locale) })}</time
+		>
 	</p>
 	<!-- Keyed so another profile's counts replace these rather than roll from them. -->
 	{#key profile.id}
