@@ -38,6 +38,7 @@ test('following someone brings their posts into the Following feed @writes', asy
 	await expect(page.locator('main').getByRole('button', { name: `Unfollow @${bob}` })).toBeVisible()
 
 	await page.goto('/')
+	await page.waitForLoadState('networkidle')
 	await following_tab.click()
 	await expect(page.locator('article.post', { hasText: text })).toBeVisible()
 
@@ -51,6 +52,7 @@ test('following someone brings their posts into the Following feed @writes', asy
 	await expect(page.locator('main').getByRole('button', { name: `Follow @${bob}` })).toBeVisible()
 
 	await page.goto('/')
+	await page.waitForLoadState('networkidle')
 	await following_tab.click()
 	await expect(page.getByText('Your timeline is quiet')).toBeVisible()
 })
