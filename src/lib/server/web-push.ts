@@ -28,7 +28,11 @@ type Bytes = Uint8Array<ArrayBuffer>
 export function to_base64url(bytes: Uint8Array) {
 	let binary = ''
 	for (const byte of bytes) binary += String.fromCharCode(byte)
-	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+	const base64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_')
+	// base64url drops the `=` padding (at most two).
+	let end = base64.length
+	while (base64[end - 1] === '=') end--
+	return base64.slice(0, end)
 }
 
 export function from_base64url(text: string): Bytes {

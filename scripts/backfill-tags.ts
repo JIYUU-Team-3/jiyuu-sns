@@ -103,4 +103,5 @@ for (;;) {
 	posts += rows.length
 	tags += values.length
 }
-console.log(`Checked ${posts} posts with a #; saved ${tags} tags.`)
+// Only the two counts are printed, formatted as numbers, never text read from the database.
+console.log('Checked %d posts with a #; saved %d tags.', posts, tags)

@@ -42,7 +42,9 @@ function mentions_in(text: string, offset: number): Token[] {
 	const tokens: Token[] = []
 	for (const match of text.matchAll(MENTION_PATTERN)) {
 		// A dot that ends the sentence isn't part of the handle.
-		const name = match[1].replace(/\.+$/, '')
+		let length = match[1].length
+		while (match[1][length - 1] === '.') length--
+		const name = match[1].slice(0, length)
 		const handle = name.toLowerCase()
 		if (!HANDLE_PATTERN.test(handle)) continue
 		tokens.push({

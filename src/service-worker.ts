@@ -12,8 +12,8 @@ const sw = self as unknown as ServiceWorkerGlobalScope
 
 type PushMessage = { title: string; body?: string; url: string; tag: string }
 
-sw.addEventListener('install', () => {
-	sw.skipWaiting()
+sw.addEventListener('install', (event) => {
+	event.waitUntil(sw.skipWaiting())
 })
 
 sw.addEventListener('activate', (event) => {
