@@ -90,18 +90,20 @@ for (;;) {
 	if (!rows.length) break
 	after = String(rows.at(-1)!.id)
 
-	const values = rows.flatMap((row) =>
-		extract_tags(String(row.body)).map(
-			(tag) => `(${literal(String(row.id))}, ${literal(tag)}, ${Number(row.created_at)})`,
-		),
-	)
+	const values: string[] = []
+	for (const row of rows) {
+		posts += 1
+		for (const tag of extract_tags(String(row.body))) {
+			values.push(`(${literal(String(row.id))}, ${literal(tag)}, ${Number(row.created_at)})`)
+			tags += 1
+		}
+	}
 	for (let i = 0; i < values.length; i += 100) {
 		await run(
 			`insert or ignore into post_tag (post_id, tag, created_at) values ${values.slice(i, i + 100).join(', ')}`,
 		)
 	}
-	posts += rows.length
-	tags += values.length
 }
-// Only the two counts are printed, formatted as numbers, never text read from the database.
+// Only the two counts are printed. They're counted up one at a time here, not taken from
+// anything the database returned, so no text from the database can reach the log.
 console.log('Checked %d posts with a #; saved %d tags.', posts, tags)
