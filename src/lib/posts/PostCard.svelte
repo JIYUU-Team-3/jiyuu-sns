@@ -31,7 +31,7 @@
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const href = $derived(post_href(post.id))
 	/** The handle this post replies to, when the card should say so. */
-	const replying = $derived(show_replying && post.reply_to?.handle)
+	const replying = $derived(show_replying && !post.reply_to?.self && post.reply_to?.handle)
 	/**
 	 * Nothing but the header above a carousel, whose bleed reaches under the avatar. On iOS it's
 	 * pushed clear instead of tucking the avatar, since restyling mid-swipe makes Safari re-snap
@@ -126,6 +126,9 @@
 			{/if}
 			<PostContent {post} {onswipe} />
 			<PostActions {post} />
+			{#if post.continued && !thread_below}
+				<a class="show-thread" {href}>{m.post_show_thread()}</a>
+			{/if}
 		</div>
 	</div>
 </article>
@@ -230,6 +233,14 @@
 		display: flex;
 	}
 	a.nm:hover {
+		text-decoration: underline;
+	}
+	.show-thread {
+		display: inline-block;
+		color: var(--accent-text);
+		padding: 2px 0 10px;
+	}
+	.show-thread:hover {
 		text-decoration: underline;
 	}
 </style>

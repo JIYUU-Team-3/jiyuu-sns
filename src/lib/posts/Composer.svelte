@@ -8,13 +8,14 @@
 	import { toast } from '#lib/ui/toasts.svelte'
 	import CharCounter from './CharCounter.svelte'
 	import Attachments from './composer/Attachments.svelte'
-	import { Draft } from './composer/draft.svelte'
+	import type { Draft } from './composer/draft.svelte'
 	import Editor from './composer/Editor.svelte'
 	import MediaTray from './composer/MediaTray.svelte'
+	import { Thread } from './composer/thread.svelte'
 	import Tools from './composer/Tools.svelte'
 	import { format_age } from './format'
 	import { post_href } from './links'
-	import { create_post, edit_post } from './posts.remote'
+	import { create_post, create_thread, edit_post } from './posts.remote'
 	import PostText from './PostText.svelte'
 	import { post_length } from './rules'
 	import {
@@ -30,7 +31,7 @@
 		task,
 		me,
 		variant,
-		draft = new Draft(),
+		thread = new Thread(),
 		onclose,
 		ondone,
 	}: {
@@ -39,38 +40,56 @@
 		/** `modal`: the full composer; `inline`: top of Home; `reply`: under a focused post. */
 		variant: 'modal' | 'inline' | 'reply'
 		/** Passed in by the modal so it can ask before discarding it. */
-		draft?: Draft
+		thread?: Thread
 		onclose?: () => void
 		/** After a successful post or save. */
 		ondone?: () => void
 	} = $props()
 
+	const draft = $derived(thread.posts[0])
+	const many = $derived(thread.posts.length > 1)
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
 	// The reply box under a post stays a quick text reply.
 	const attachments = $derived(!editing && variant !== 'reply')
 
-	let editor: Editor
+	const editors: Editor[] = []
 	let busy = $state(false)
 	let hydrated = $state(false)
 
-	const length = $derived(post_length(draft.text))
+	const length = $derived(post_length(thread.current.text))
 	/** What the post shows now, for an edit: saving that again would change nothing. */
 	const before = $derived(task.kind === 'edit' ? post_content(task.post) : undefined)
 	const ready = $derived(
-		!busy && (before ? draft.edit_ready && !draft.matches(before) : draft.ready),
+		!busy && (before ? draft.edit_ready && !draft.matches(before) : thread.ready),
 	)
 
 	const submit_label = $derived(
-		editing ? m.composer_save() : reply_to ? m.composer_reply() : m.composer_post(),
+		editing
+			? m.composer_save()
+			: reply_to
+				? many
+					? m.composer_reply_all()
+					: m.composer_reply()
+				: many
+					? m.composer_post_all()
+					: m.composer_post(),
 	)
 	const placeholder = $derived(reply_to ? m.composer_reply_placeholder() : m.composer_placeholder())
 
 	async function publish() {
-		const post = await create_post({ ...draft.payload(), reply_to: reply_to?.id })
-		draft.clear()
+		const thread_post = many
+		const post = thread_post
+			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id })
+			: await create_post({ ...draft.payload(), reply_to: reply_to?.id })
+		thread.clear()
 		if (!reply_to) timeline.published(post)
-		toast.show(reply_to ? m.toast_replied() : m.toast_posted(), {
+		const message = reply_to
+			? m.toast_replied()
+			: thread_post
+				? m.toast_thread_posted()
+				: m.toast_posted()
+		toast.show(message, {
 			label: m.toast_view(),
 			href: post_href(post.id),
 		})
@@ -115,18 +134,18 @@
 	onMount(() => (hydrated = true))
 </script>
 
-{#snippet editor_field()}
+{#snippet editor_field(post: Draft, i: number)}
 	<Editor
-		bind:this={editor}
-		bind:value={draft.text}
-		{placeholder}
-		size={variant === 'modal' ? 'lg' : variant === 'inline' ? 'md' : 'sm'}
-		autofocus={variant === 'modal'}
+		bind:this={editors[i]}
+		bind:value={post.text}
+		placeholder={i ? m.composer_thread_placeholder() : placeholder}
+		size={variant === 'modal' ? (i ? 'md' : 'lg') : variant === 'inline' ? 'md' : 'sm'}
+		autofocus={variant === 'modal' && i === thread.focus}
 		self={me.id}
 		{onkeydown}
 	/>
 	{#if attachments}
-		<Attachments {draft} oninsert={(text) => editor.insert(text)} />
+		<Attachments draft={post} oninsert={(text) => editors[i].insert(text)} />
 	{:else if editing}
 		<!-- An edit can drop or reorder the post's photos, but not add any. -->
 		<MediaTray {draft} />
@@ -179,18 +198,50 @@
 					</div>
 				</div>
 			{/if}
-			<div class="row">
-				<div class="gutter"><Avatar name={me.name} seed={me.id} image={me.image} /></div>
-				<div class="field">{@render editor_field()}</div>
-			</div>
+			{#each thread.posts as post, i (post)}
+				<div
+					class="row"
+					class:linked={i < thread.posts.length - 1}
+					onfocusin={() => (thread.focus = i)}
+				>
+					<div class="gutter">
+						<Avatar name={me.name} seed={me.id} image={me.image} />
+						{#if i < thread.posts.length - 1}<div class="thread-line"></div>{/if}
+					</div>
+					<div class="field">{@render editor_field(post, i)}</div>
+					{#if i > 0}
+						<button
+							type="button"
+							class="icon-btn remove"
+							aria-label={m.composer_remove_post()}
+							onclick={() => thread.remove(i)}
+						>
+							<Icon name="x" size="sm" />
+						</button>
+					{/if}
+				</div>
+			{/each}
 			{#if editing}
 				<div class="editing-note"><Icon name="pencil" size="xs" />{m.composer_editing_note()}</div>
 			{/if}
 		</div>
 		<div class="toolbar">
-			{#if attachments}<Tools {draft} />{/if}
+			{#if attachments}<Tools draft={thread.current} />{/if}
 			<span class="grow"></span>
 			<CharCounter {length} />
+			{#if !editing}
+				<span class="vsep"></span>
+				<button
+					type="button"
+					class="add-thread"
+					aria-label={m.composer_add_post()}
+					title={m.composer_add_post()}
+					disabled={!thread.can_add}
+					onclick={() => thread.add()}
+				>
+					<Icon name="plus" size="sm" />
+				</button>
+			{/if}
 		</div>
 	{:else}
 		{#if me.handle}
@@ -202,7 +253,7 @@
 			<Avatar name={me.name} seed={me.id} image={me.image} />
 		{/if}
 		<div class="col">
-			{@render editor_field()}
+			{@render editor_field(draft, 0)}
 			{#if variant === 'inline'}
 				<div class="row-end">
 					<Tools {draft} />
@@ -287,6 +338,29 @@
 		flex: 1;
 		min-width: 0;
 		padding-top: 6px;
+	}
+	.linked .field {
+		padding-bottom: 12px;
+	}
+	.remove {
+		align-self: flex-start;
+	}
+	.add-thread {
+		color: var(--accent-text);
+		border: 1px solid var(--line-2);
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		display: grid;
+		place-items: center;
+		transition: background-color 0.15s;
+	}
+	.add-thread:hover:not(:disabled) {
+		background: var(--accent-soft);
+	}
+	.add-thread:disabled {
+		opacity: 0.4;
+		cursor: default;
 	}
 	.editing-note {
 		display: flex;

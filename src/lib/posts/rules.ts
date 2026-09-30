@@ -21,6 +21,8 @@ export type PollDays = (typeof POLL_DAYS)[number]
 
 export const LOCATION_MAX = 120
 
+export const THREAD_MAX = 10
+
 const segmenter = new Intl.Segmenter()
 
 /**
