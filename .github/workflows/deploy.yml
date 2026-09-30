@@ -63,6 +63,16 @@ jobs:
           CLOUDFLARE_DATABASE_ID: ${{ secrets.CLOUDFLARE_DATABASE_ID }}
           CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
 
+      # Posts from before hashtags were stored get their tags saved, so tag search
+      # and trending include them. Only touches posts with a `#` and no saved tags,
+      # so after the first deploy it finds nothing to do.
+      - name: Save hashtags of older posts
+        run: pnpm db:backfill-tags --remote
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_DATABASE_ID: ${{ secrets.CLOUDFLARE_DATABASE_ID }}
+          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
+
       # `wrangler types` (run by `pnpm run build`) bakes the keys from `.env`
       # into worker-configuration.d.ts, so without one the regenerated file is
       # missing them and the build fails. Only the key names matter, never the
