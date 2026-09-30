@@ -1,7 +1,8 @@
 /**
  * Save the hashtags of posts written before tags were stored, so tag search and trending find
- * them too. Safe to run any number of times: it only looks at posts with a `#` and no saved
- * tags, and inserts nothing that's already there.
+ * them too. Safe to run any number of times: it reads every post with a `#` and inserts only
+ * the tags that aren't saved yet, so a run that stopped partway through a post is finished by
+ * the next one.
  *
  *   pnpm db:backfill-tags --local    the local D1 that `pnpm dev` uses
  *   pnpm db:backfill-tags --remote   production, over the D1 HTTP API, with the same
@@ -84,7 +85,6 @@ for (;;) {
 	const rows = await run(
 		`select id, body, created_at from post
 		where body like '%#%' and id > ${literal(after)}
-			and not exists (select 1 from post_tag t where t.post_id = post.id)
 		order by id limit 500`,
 	)
 	if (!rows.length) break
@@ -106,4 +106,8 @@ for (;;) {
 }
 // Only the two counts are printed. They're counted up one at a time here, not taken from
 // anything the database returned, so no text from the database can reach the log.
-console.log('Checked %d posts with a #; saved %d tags.', posts, tags)
+console.log(
+	'Checked %d posts with a # and %d tags; tags already saved were left as they were.',
+	posts,
+	tags,
+)
