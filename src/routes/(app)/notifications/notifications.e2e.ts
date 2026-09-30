@@ -31,8 +31,13 @@ test('mentions, likes and follows notify, and opening the list clears the badge 
 	await bob_page.goto(`/u/${alice}`)
 	// A click before hydration does nothing, so wait for the page to settle first.
 	await bob_page.waitForLoadState('networkidle')
-	await bob_page.getByRole('button', { name: `Follow @${alice}` }).click()
-	await expect(bob_page.getByRole('button', { name: `Unfollow @${alice}` })).toBeVisible()
+	await bob_page
+		.locator('main')
+		.getByRole('button', { name: `Follow @${alice}` })
+		.click()
+	await expect(
+		bob_page.locator('main').getByRole('button', { name: `Unfollow @${alice}` }),
+	).toBeVisible()
 	const card = bob_page.locator('article.post', { hasText: text })
 	await card.getByRole('button', { name: 'Like' }).click()
 	await expect(card.getByRole('button', { name: 'Liked, 1' })).toBeVisible()

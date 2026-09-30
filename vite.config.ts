@@ -8,8 +8,10 @@ import { variables } from './src/env.ts'
 // SvelteKit validates every private env var from src/env.ts during the build's
 // analyse step, but on Cloudflare the real values are Worker secrets that only
 // exist at runtime. Placeholders let a build without a .env (Workers Builds, CI)
-// succeed; the Worker still validates the real values when it starts.
-if (process.argv.includes('build')) {
+// succeed; the Worker still validates the real values when it starts. Unit tests
+// get the same placeholders, since a server module that imports $app/env would
+// otherwise fail to load in CI, where there is no .env.
+if (process.argv.includes('build') || process.env.VITEST) {
 	for (const name of Object.keys(variables)) process.env[name] ??= ''
 }
 
