@@ -34,7 +34,8 @@ export type PostView = {
 	edited: boolean
 	author: Author
 	/** The post this one replies to; `handle` is missing when that author has none yet. */
-	reply_to?: { id: string; handle?: string }
+	reply_to?: { id: string; handle?: string; self: boolean }
+	continued: boolean
 	media: Media[]
 	poll?: PollView
 	location?: string

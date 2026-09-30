@@ -2,6 +2,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import Composer from '#lib/posts/Composer.svelte'
 	import { Draft } from '#lib/posts/composer/draft.svelte'
+	import { Thread } from '#lib/posts/composer/thread.svelte'
 	import { composer, post_content, type ComposerTask } from '#lib/posts/state.svelte'
 	import type { Author } from '#lib/posts/types'
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte'
@@ -10,19 +11,19 @@
 	let { me }: { me: Author } = $props()
 
 	/** A fresh draft each time the modal opens; an edit starts from what the post shows. */
-	function new_draft(task: ComposerTask) {
-		return task.kind === 'edit' ? Draft.editing(post_content(task.post)) : new Draft()
+	function new_thread(task: ComposerTask) {
+		return new Thread(task.kind === 'edit' ? Draft.editing(post_content(task.post)) : new Draft())
 	}
 
-	const draft = $derived(composer.task && new_draft(composer.task))
+	const thread = $derived(composer.task && new_thread(composer.task))
 	let asking = $state(false)
 
 	/** Whether closing would throw away work. An unchanged edit is not a draft. */
 	function has_draft() {
 		const task = composer.task
-		if (!task || !draft) return false
-		if (task.kind === 'edit') return !draft.matches(post_content(task.post))
-		return draft.dirty
+		if (!task || !thread) return false
+		if (task.kind === 'edit') return !thread.posts[0].matches(post_content(task.post))
+		return thread.dirty
 	}
 
 	/** Close after publishing: the draft's uploads now belong to the post. */
@@ -33,7 +34,7 @@
 
 	/** Close without publishing, deleting any photos uploaded for this draft. */
 	function discard() {
-		draft?.discard()
+		thread?.discard()
 		close()
 	}
 
@@ -43,14 +44,14 @@
 	}
 </script>
 
-{#if composer.task && draft}
+{#if composer.task && thread}
 	{@const task = composer.task}
 	{#key task}
 		<Modal
 			label={task.kind === 'edit' ? m.post_edit() : m.app_new_post()}
 			onrequestclose={request_close}
 		>
-			<Composer {task} {me} {draft} variant="modal" onclose={request_close} ondone={close} />
+			<Composer {task} {me} {thread} variant="modal" onclose={request_close} ondone={close} />
 		</Modal>
 	{/key}
 {/if}
