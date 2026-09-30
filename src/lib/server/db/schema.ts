@@ -150,4 +150,64 @@ export const postLike = sqliteTable(
 	],
 )
 
+/** One row per distinct #tag in a post, rewritten whenever the post is edited. */
+export const postTag = sqliteTable(
+	'post_tag',
+	{
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		// Lowercase and NFKC-normalised, without the `#`.
+		tag: text('tag').notNull(),
+		// The post's own creation time, so trending can count a window without joining `post`.
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.postId, table.tag] }),
+		index('post_tag_tag_created_idx').on(table.tag, table.createdAt),
+	],
+)
+
+export const notification = sqliteTable(
+	'notification',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		/** Who sees it. */
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** Who did it. */
+		actorId: text('actor_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		type: text('type', { enum: ['follow', 'like', 'reply', 'mention'] }).notNull(),
+		// The liked post, or the reply or mention itself. Null for a follow.
+		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
+		readAt: integer('read_at', { mode: 'timestamp_ms' }),
+		createdAt: created_at(),
+	},
+	(table) => [index('notification_user_created_idx').on(table.userId, table.createdAt)],
+)
+
+/** One browser that turned on push notifications. An account can have several. */
+export const pushSubscription = sqliteTable(
+	'push_subscription',
+	{
+		// The push service URL is unique per browser, so re-subscribing replaces the row.
+		endpoint: text('endpoint').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** The browser's public key and auth secret, base64url, for encrypting messages to it. */
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		/** The language the notifications are written in: the one in use when it was turned on. */
+		locale: text('locale').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [index('push_subscription_user_idx').on(table.userId)],
+)
+
 export * from './auth.schema'

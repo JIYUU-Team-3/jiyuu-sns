@@ -141,6 +141,7 @@
 		placeholder={i ? m.composer_thread_placeholder() : placeholder}
 		size={variant === 'modal' ? (i ? 'md' : 'lg') : variant === 'inline' ? 'md' : 'sm'}
 		autofocus={variant === 'modal' && i === thread.focus}
+		self={me.id}
 		{onkeydown}
 	/>
 	{#if attachments}

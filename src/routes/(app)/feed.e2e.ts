@@ -29,18 +29,30 @@ test('following someone brings their posts into the Following feed @writes', asy
 	await expect(page.locator('article.post', { hasText: text })).toBeVisible()
 
 	await page.goto(`/u/${bob}`)
-	await page.getByRole('button', { name: `Follow @${bob}` }).click()
-	await expect(page.getByRole('button', { name: `Unfollow @${bob}` })).toBeVisible()
+	// A click before hydration does nothing.
+	await page.waitForLoadState('networkidle')
+	await page
+		.locator('main')
+		.getByRole('button', { name: `Follow @${bob}` })
+		.click()
+	await expect(page.locator('main').getByRole('button', { name: `Unfollow @${bob}` })).toBeVisible()
 
 	await page.goto('/')
+	await page.waitForLoadState('networkidle')
 	await following_tab.click()
 	await expect(page.locator('article.post', { hasText: text })).toBeVisible()
 
 	await page.goto(`/u/${bob}`)
-	await page.getByRole('button', { name: `Unfollow @${bob}` }).click()
-	await expect(page.getByRole('button', { name: `Follow @${bob}` })).toBeVisible()
+	// A click before hydration does nothing.
+	await page.waitForLoadState('networkidle')
+	await page
+		.locator('main')
+		.getByRole('button', { name: `Unfollow @${bob}` })
+		.click()
+	await expect(page.locator('main').getByRole('button', { name: `Follow @${bob}` })).toBeVisible()
 
 	await page.goto('/')
+	await page.waitForLoadState('networkidle')
 	await following_tab.click()
 	await expect(page.getByText('Your timeline is quiet')).toBeVisible()
 })

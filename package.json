@@ -8,7 +8,7 @@
 		"dev": "vite dev",
 		"build": "wrangler types && vite build",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
-		"preview:ci": "wrangler dev --port 4173 --ip 127.0.0.1",
+		"preview:ci": "wrangler dev --port 4173 --ip 127.0.0.1 --env-file .env --env-file .env.e2e",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "wrangler types && pnpm run paraglide && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "pnpm run paraglide && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -23,6 +23,8 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
+		"db:backfill-tags": "node scripts/backfill-tags.ts",
+		"push:keys": "node scripts/push-keys.ts",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"db:migrate:local": "wrangler d1 migrations apply sns-db --local",
 		"db:migrate:remote": "wrangler d1 migrations apply sns-db --remote"

@@ -43,6 +43,13 @@
       "when": 1790699900582,
       "tag": "0005_post_media_alt",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790749464564,
+      "tag": "0006_notifications_tags_push",
+      "breakpoints": true
     }
   ]
 }

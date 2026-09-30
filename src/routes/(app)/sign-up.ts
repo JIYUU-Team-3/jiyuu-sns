@@ -14,4 +14,6 @@ export async function sign_up(page: Page, handle: string) {
 	}).toPass()
 	await page.getByRole('button', { name: 'Continue' }).click()
 	await expect(page).toHaveURL(/\/$/)
+	// Home must hydrate before tests click its tabs; a click before that does nothing.
+	await page.waitForLoadState('networkidle')
 }

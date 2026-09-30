@@ -5,7 +5,8 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * - Unset (local dev and PR CI): a production build is served by
  *   `pnpm preview:ci`, which runs wrangler with `--local` so D1 is emulated
- *   and no Cloudflare credentials are needed.
+ *   and no Cloudflare credentials are needed. It loads `.env.e2e` after
+ *   `.env` so Better Auth's ORIGIN matches this server, not `pnpm dev`'s.
  * - Set (post-deploy verification): the tests hit that URL directly and no
  *   local server is started.
  */

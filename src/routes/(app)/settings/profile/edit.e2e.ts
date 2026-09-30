@@ -53,7 +53,7 @@ test('someone else’s profile has no edit link and keeps its handle @writes', a
 	await sign_up(page, `e2e_v_${id}`)
 
 	await page.goto(`/u/${other}`)
-	await expect(page.getByRole('button', { name: `Follow @${other}` })).toBeVisible()
+	await expect(page.locator('main').getByRole('button', { name: `Follow @${other}` })).toBeVisible()
 	await expect(page.getByRole('link', { name: 'Edit profile' })).toHaveCount(0)
 
 	// Their handle can't be taken over from the edit page.

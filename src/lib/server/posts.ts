@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
+import { extract_mentions, extract_tags } from '#lib/posts/text'
 import { post_problem, type PollDays } from '#lib/posts/rules'
 import {
 	is_upload,
@@ -10,7 +11,18 @@ import {
 	type PostView,
 } from '#lib/posts/types'
 import type { getDb } from './db'
-import { follow, poll, pollOption, post, postLike, postMedia, profile, user } from './db/schema'
+import {
+	follow,
+	poll,
+	pollOption,
+	post,
+	postLike,
+	postMedia,
+	postTag,
+	profile,
+	user,
+} from './db/schema'
+import { notify, retract } from './notifications'
 
 type Db = ReturnType<typeof getDb>
 
@@ -19,8 +31,8 @@ export const PAGE_SIZE = 20
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
 
-const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
-const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
+export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
+export const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
 const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId})`
 
 const THREAD_DEPTH = 100
@@ -47,7 +59,7 @@ const poll_voted = (viewer: string | undefined) =>
  * the attachments and the counts, so a page of posts costs one D1 round trip no matter how long
  * it is.
  */
-function select_posts(db: Db, viewer: string | undefined) {
+export function select_posts(db: Db, viewer: string | undefined) {
 	return db
 		.select({
 			id: post.id,
@@ -149,7 +161,7 @@ function decode_cursor(cursor: string) {
 }
 
 /** Posts strictly after the cursor in the given direction. */
-function after(cursor: string | undefined, direction: 'newer_first' | 'older_first') {
+export function after(cursor: string | undefined, direction: 'newer_first' | 'older_first') {
 	const at = cursor ? decode_cursor(cursor) : undefined
 	if (!at) return undefined
 	const before = direction === 'newer_first' ? lt : gt
@@ -159,13 +171,13 @@ function after(cursor: string | undefined, direction: 'newer_first' | 'older_fir
 	)
 }
 
-function to_page(rows: Row[], viewer: string | undefined, next: (last: PostView) => string) {
+export function to_page(rows: Row[], viewer: string | undefined, next: (last: PostView) => string) {
 	const posts = rows.slice(0, PAGE_SIZE).map((row) => to_view(row, viewer))
 	const last = posts.at(-1)
 	return { posts, next: rows.length > PAGE_SIZE && last ? next(last) : undefined }
 }
 
-async function page(
+export async function page(
 	db: Db,
 	viewer: string | undefined,
 	where: (SQL | undefined)[],
@@ -295,6 +307,68 @@ export async function find_post(db: Db, viewer: string | undefined, id: string) 
 	return row ? to_view(row, viewer) : undefined
 }
 
+/** Several posts by id, in no particular order; missing ones are left out. */
+export async function find_posts(db: Db, viewer: string | undefined, ids: string[]) {
+	if (!ids.length) return []
+	const rows = await select_posts(db, viewer).where(inArray(post.id, ids))
+	return rows.map((row) => to_view(row, viewer))
+}
+
+/** The insert for a post's hashtags, which rides in the same batch as the post or the edit. */
+function tag_inserts(db: Db, post_id: string, created_at: Date, body: string) {
+	const tags = extract_tags(body)
+	return tags.length
+		? [
+				db
+					.insert(postTag)
+					.values(tags.map((tag) => ({ postId: post_id, tag, createdAt: created_at }))),
+			]
+		: []
+}
+
+/** The accounts behind the handles a post mentions, leaving out the author and `skip`. */
+async function mentioned_users(db: Db, handles: string[], author_id: string, skip?: string) {
+	if (!handles.length) return []
+	const rows = await db
+		.select({ id: profile.userId })
+		.from(profile)
+		.where(inArray(profile.handle, handles))
+	return rows.map((row) => row.id).filter((id) => id !== author_id && id !== skip)
+}
+
+/**
+ * After an edit: notify people it newly mentions, and take the notification back from people it
+ * no longer mentions, so fixing a typo doesn't ping everyone again.
+ */
+async function update_mentions(
+	db: Db,
+	author_id: string,
+	post_id: string,
+	before: { body: string; reply_to_id: string | null },
+	body: string,
+) {
+	const already = new Set(extract_mentions(before.body))
+	const now = new Set(extract_mentions(body))
+	const dropped = [...already].filter((handle) => !now.has(handle))
+	for (const user_id of await mentioned_users(db, dropped, author_id)) {
+		await retract(db, { user_id, actor_id: author_id, type: 'mention', post_id })
+	}
+	const added = [...now].filter((handle) => !already.has(handle))
+	if (!added.length) return
+	const [parent] = before.reply_to_id
+		? await db
+				.select({ author_id: post.authorId })
+				.from(post)
+				.where(eq(post.id, before.reply_to_id))
+				.limit(1)
+		: []
+	const mentioned = await mentioned_users(db, added, author_id, parent?.author_id)
+	await notify(
+		db,
+		mentioned.map((user_id) => ({ user_id, actor_id: author_id, type: 'mention', post_id })),
+	)
+}
+
 /** A checked post as the composer sends it; photo URLs must already be the author's uploads. */
 export type NewPost = {
 	body: string
@@ -349,18 +423,22 @@ export async function insert_thread(
 	inputs: NewPost[],
 	reply_to_id: string | undefined,
 ) {
+	let parent_author: string | undefined
 	if (reply_to_id) {
 		const [target] = await db
-			.select({ id: post.id })
+			.select({ author_id: post.authorId })
 			.from(post)
 			.where(eq(post.id, reply_to_id))
 			.limit(1)
 		if (!target) return undefined
+		parent_author = target.author_id
 	}
 	const ids = inputs.map(() => crypto.randomUUID())
 	const now = Date.now()
 	const [first, ...rest] = inputs.flatMap((input, i) => {
 		const parent_id = i ? ids[i - 1] : reply_to_id
+		// Set here rather than by the database, so the post's tags carry the very same time.
+		const created_at = new Date(now + i)
 		return [
 			db.insert(post).values({
 				id: ids[i],
@@ -369,12 +447,31 @@ export async function insert_thread(
 				location: input.location ?? null,
 				replyToId: parent_id ?? null,
 				isReply: !!parent_id,
-				createdAt: new Date(now + i),
+				createdAt: created_at,
 			}),
 			...attachment_inserts(db, ids[i], input),
+			...tag_inserts(db, ids[i], created_at, input.body),
 		]
 	})
 	await db.batch([first, ...rest])
+
+	// Only the first post replies to someone else; the rest continue the author's own thread.
+	// Someone mentioned in a reply to their own post already hears about it as a reply.
+	const events: Parameters<typeof notify>[1] = parent_author
+		? [{ user_id: parent_author, actor_id: author_id, type: 'reply', post_id: ids[0] }]
+		: []
+	for (const [i, input] of inputs.entries()) {
+		const mentioned = await mentioned_users(
+			db,
+			extract_mentions(input.body),
+			author_id,
+			i ? undefined : parent_author,
+		)
+		for (const user_id of mentioned) {
+			events.push({ user_id, actor_id: author_id, type: 'mention', post_id: ids[i] })
+		}
+	}
+	await notify(db, events)
 	return ids
 }
 
@@ -400,7 +497,7 @@ export type EditResult = 'not_found' | 'invalid' | { removed_uploads: string[] }
 /**
  * Replace the text of the author's own post and, when `media` is given, keep only those photos,
  * GIFs and videos, in that order, with those descriptions. Returns the upload URLs it dropped, so
- * their files can go.
+ * their files can go. Its hashtags follow the new text, and mentions are updated.
  */
 export async function update_post(
 	db: Db,
@@ -410,7 +507,7 @@ export async function update_post(
 	media?: KeptMedia[],
 ): Promise<EditResult> {
 	const [owned] = await db
-		.select({ id: post.id })
+		.select({ body: post.body, created_at: post.createdAt, reply_to_id: post.replyToId })
 		.from(post)
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
 		.limit(1)
@@ -421,17 +518,25 @@ export async function update_post(
 	if (!kept || post_problem(body, kept.length > 0)) return 'invalid'
 
 	const edit = db.update(post).set({ body, editedAt: new Date() }).where(eq(post.id, id))
+	// The post's hashtags are rewritten with the text, in the same batch.
+	const retag = [
+		db.delete(postTag).where(eq(postTag.postId, id)),
+		...tag_inserts(db, id, owned.created_at, body),
+	]
 	if (!media) {
-		await edit
+		await db.batch([edit, ...retag])
+		await update_mentions(db, author_id, id, owned, body)
 		return { removed_uploads: [] }
 	}
 	await db.batch([
 		edit,
+		...retag,
 		db.delete(postMedia).where(eq(postMedia.postId, id)),
 		...(kept.length
 			? [db.insert(postMedia).values(kept.map((item, position) => ({ ...item, position })))]
 			: []),
 	])
+	await update_mentions(db, author_id, id, owned, body)
 	const kept_urls = new Set(kept.map((item) => item.url))
 	const removed = current.filter((item) => is_upload(item.kind) && !kept_urls.has(item.url))
 	return { removed_uploads: removed.map((item) => item.url) }
@@ -474,12 +579,22 @@ export async function unused_uploads(db: Db, urls: string[]) {
  * a post deleted a moment ago quietly does nothing instead of tripping the foreign key.
  */
 export async function set_like(db: Db, user_id: string, post_id: string, on: boolean) {
+	const [target] = await db
+		.select({ author_id: post.authorId })
+		.from(post)
+		.where(eq(post.id, post_id))
+		.limit(1)
+	if (!target) return
+	const note = { user_id: target.author_id, actor_id: user_id, type: 'like' as const, post_id }
 	if (on) {
-		await db.run(
-			sql`insert or ignore into post_like (user_id, post_id) select ${user_id}, id from post where id = ${post_id}`,
+		// Only a like that is actually new is announced; a repeated one inserts nothing.
+		const added = await db.all(
+			sql`insert or ignore into post_like (user_id, post_id) select ${user_id}, id from post where id = ${post_id} returning post_id`,
 		)
+		if (added.length) await notify(db, [note])
 	} else {
 		await db.delete(postLike).where(and(eq(postLike.userId, user_id), eq(postLike.postId, post_id)))
+		await retract(db, note)
 	}
 }
 
