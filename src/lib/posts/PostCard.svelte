@@ -9,7 +9,7 @@
 	import PostActions from './PostActions.svelte'
 	import PostMenu from './PostMenu.svelte'
 	import PostContent from './PostContent.svelte'
-	import { current_time, edited_posts } from './state.svelte'
+	import { current_time, edited_posts, post_content } from './state.svelte'
 	import type { PostView } from './types'
 
 	/** The feed avatar's size, in pixels. */
@@ -30,6 +30,22 @@
 
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const href = $derived(post_href(post.id))
+	/** The handle this post replies to, when the card should say so. */
+	const replying = $derived(show_replying && post.reply_to?.handle)
+	/**
+	 * Nothing but the header above a carousel, whose bleed reaches under the avatar. On iOS it's
+	 * pushed clear instead of tucking the avatar, since restyling mid-swipe makes Safari re-snap
+	 * the track back to the first slide.
+	 */
+	const bare = $derived.by(() => {
+		const content = post_content(post)
+		return !content.body && !replying && content.media.length > 1
+	})
+
+	/** Every iOS browser runs WebKit, the only engine that knows this property; iPadOS too. */
+	function on_ios() {
+		return CSS.supports('-webkit-touch-callout', 'none')
+	}
 
 	let gutter: HTMLDivElement
 	/** The avatar's scale while a carousel beside it is swiped; undefined at full size. */
@@ -40,6 +56,7 @@
 	 * avatar into the room above the photos so they pass under it, as in the mockup.
 	 */
 	function onswipe(swiped: boolean, top: number) {
+		if (bare && on_ios()) return
 		if (!swiped) tuck = undefined
 		else if (tuck === undefined) {
 			const room = top - gutter.getBoundingClientRect().top - 6
@@ -62,7 +79,7 @@
 
 <!-- The timestamp link is the keyboard path to the post; the row click is a pointer shortcut. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<article class="post" class:has-next={thread_below} onclick={open}>
+<article class="post" class:has-next={thread_below} class:bare onclick={open}>
 	<div class="row">
 		<div class="gutter" bind:this={gutter}>
 			<div class="av" style:scale={tuck}>
@@ -98,11 +115,11 @@
 				{#if edited}<span class="edited">· {m.post_edited()}</span>{/if}
 				<PostMenu {post} class="more-wrap" {ondeleted} />
 			</div>
-			{#if show_replying && post.reply_to?.handle}
+			{#if replying}
 				<div class="replying">
 					{#each m.composer_replying_to.parts() as part, i (i)}
 						{#if part.type === 'text'}{part.value}{:else if part.name === 'handle'}<span class="lnk"
-								>@{post.reply_to.handle}</span
+								>@{replying}</span
 							>{/if}
 					{/each}
 				</div>
@@ -192,6 +209,15 @@
 		color: var(--text-3);
 		font-size: 13px;
 		flex: none;
+	}
+	/*
+	 * iOS only, matching `on_ios`: avatar (40) − head (20) − carousel margin (12) + a 12px gap,
+	 * so the photos start below it.
+	 */
+	@supports (-webkit-touch-callout: none) {
+		.bare .head {
+			margin-bottom: 20px;
+		}
 	}
 	.head :global(.more-wrap) {
 		margin: -8px -8px -8px auto;

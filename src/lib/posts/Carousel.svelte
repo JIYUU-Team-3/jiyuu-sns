@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { carousel_size, SLIDE_GAP } from './carousel-size'
@@ -35,19 +34,11 @@
 	let track: HTMLDivElement
 	let at_start = $state(true)
 	let at_end = $state(false)
-	/** What `onswipe` last heard, so it only hears changes. Plain: nothing renders from it. */
-	let swiped = false
-
-	function report(now: boolean) {
-		if (now === swiped) return
-		swiped = now
-		onswipe?.(now, car.getBoundingClientRect().top)
-	}
 
 	function update_edges() {
 		at_start = track.scrollLeft < 4
 		at_end = track.scrollLeft + track.clientWidth > track.scrollWidth - 4
-		report(!at_start)
+		onswipe?.(!at_start, car.getBoundingClientRect().top)
 	}
 
 	/** Scroll by one slide; snapping lines the next one up with the text column. */
@@ -59,31 +50,14 @@
 		})
 	}
 
-	/** How long the track must sit still before a swipe counts as settled, in milliseconds. */
-	const SETTLE = 120
-	let settle: ReturnType<typeof setTimeout> | undefined
-
-	/**
-	 * Hold every update until the swipe settles: iOS Safari re-snaps a track whose page restyles
-	 * mid-swipe, throwing it back to the first slide. Leaving the start is the one exception, so
-	 * the avatar tucks as the swipe begins; that only rescales it, which needs no layout.
-	 */
-	function onscroll() {
-		if (track.scrollLeft >= 4) report(true)
-		clearTimeout(settle)
-		settle = setTimeout(update_edges, SETTLE)
-	}
-
-	// Untracked: `onswipe` reads the card's tuck, and a rerun mid-swipe would restyle the track.
-	$effect(() => {
-		untrack(update_edges)
-		return () => clearTimeout(settle)
-	})
+	$effect(update_edges)
 </script>
 
 <div
 	class="car"
 	class:focus
+	class:at-start={at_start}
+	class:at-end={at_end}
 	class:fits={size.fits}
 	style:--h="{size.height}px"
 	style:--gap="{SLIDE_GAP}px"
@@ -95,7 +69,7 @@
 		role="group"
 		aria-label={m.post_photos_label({ count: media.length })}
 		bind:this={track}
-		{onscroll}
+		onscroll={update_edges}
 	>
 		<!-- Keyed by position too: posts from before duplicates were refused may hold one GIF twice. -->
 		{#each media as item, i (`${i}:${item.url}`)}
@@ -111,22 +85,10 @@
 			</div>
 		{/each}
 	</div>
-	<button
-		type="button"
-		class="nav prev"
-		class:off={at_start}
-		aria-label={m.post_photo_prev()}
-		onclick={() => step(-1)}
-	>
+	<button type="button" class="nav prev" aria-label={m.post_photo_prev()} onclick={() => step(-1)}>
 		<Icon name="chev-left" size="sm" />
 	</button>
-	<button
-		type="button"
-		class="nav next"
-		class:off={at_end}
-		aria-label={m.post_photo_next()}
-		onclick={() => step(1)}
-	>
+	<button type="button" class="nav next" aria-label={m.post_photo_next()} onclick={() => step(1)}>
 		<Icon name="chev-right" size="sm" />
 	</button>
 </div>
@@ -194,11 +156,8 @@
 	.fits .nav {
 		display: none;
 	}
-	/*
-	 * On the buttons, not the carousel: restyling the track's parent mid-swipe makes iOS Safari
-	 * re-snap the track, throwing the swipe back to the first slide.
-	 */
-	.car .nav.off {
+	.car.at-start .prev,
+	.car.at-end .next {
 		opacity: 0;
 		pointer-events: none;
 	}
