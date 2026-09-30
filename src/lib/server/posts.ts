@@ -276,7 +276,7 @@ export async function insert_post(
 /**
  * Replace the text of the author's own post. False when it isn't theirs or doesn't exist.
  * Only people newly mentioned by the edit are notified, so fixing a typo doesn't ping everyone
- * again.
+ * again, and people it no longer mentions lose that notification.
  */
 export async function update_post(db: Db, author_id: string, id: string, body: string) {
 	const [before] = await db
@@ -294,7 +294,15 @@ export async function update_post(db: Db, author_id: string, id: string, body: s
 
 	await save_tags(db, id, before.created_at, body)
 	const already = new Set(extract_mentions(before.body))
-	const added = extract_mentions(body).filter((handle) => !already.has(handle))
+	const now = new Set(extract_mentions(body))
+	const added = [...now].filter((handle) => !already.has(handle))
+
+	// Someone the edit no longer mentions shouldn't keep a notification for it.
+	const dropped = [...already].filter((handle) => !now.has(handle))
+	for (const user_id of await mentioned_users(db, dropped, author_id)) {
+		await retract(db, { user_id, actor_id: author_id, type: 'mention', post_id: id })
+	}
+
 	const [parent] = before.reply_to_id
 		? await db
 				.select({ author_id: post.authorId })

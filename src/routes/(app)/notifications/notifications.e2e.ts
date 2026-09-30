@@ -68,5 +68,20 @@ test('mentions, likes and follows notify, and opening the list clears the badge 
 		await expect(page.getByText(`${bob} liked your post`)).toHaveCount(0, { timeout: 1_000 })
 	}).toPass()
 
+	// Editing the mention out takes Bob's mention notification back.
+	await page.goto(`/u/${alice}`)
+	await page.waitForLoadState('networkidle')
+	const own = page.locator('article.post', { hasText: text })
+	await own.getByRole('button', { name: 'More options' }).click()
+	await page.getByRole('menuitem', { name: 'Edit post' }).click()
+	const dialog = page.getByRole('dialog')
+	await dialog.getByLabel('Post text').fill(`Hi everyone, welcome ${id}`)
+	await dialog.getByRole('button', { name: 'Save' }).click()
+	await expect(page.getByText('Post updated')).toBeVisible()
+	await bob_page.goto('/notifications')
+	// It was Bob's only notification, so his list is empty again.
+	await expect(bob_page.getByText('Nothing to see here yet')).toBeVisible()
+	await expect(bob_page.getByText(`welcome ${id}`)).toHaveCount(0)
+
 	await bob_context.close()
 })
