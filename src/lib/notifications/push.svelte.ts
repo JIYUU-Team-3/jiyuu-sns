@@ -127,7 +127,7 @@ class Push {
 	async forget() {
 		const subscription = await current_subscription()
 		if (!subscription) return
-		await delete_push_subscription(subscription.endpoint).catch(() => {})
+		await delete_push_subscription(subscription.endpoint)
 		await subscription.unsubscribe()
 	}
 }
