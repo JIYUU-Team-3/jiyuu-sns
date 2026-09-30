@@ -1,18 +1,63 @@
 import { error } from '@sveltejs/kit'
+import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
-import { command, form, getRequestEvent, query } from '$app/server'
+import { command, getRequestEvent, query } from '$app/server'
+import { is_gif_url } from '#lib/server/gifs'
+import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
-import { post_problem } from './rules'
 import { author_arg, feed_arg, replies_arg } from './args'
+import {
+	ALT_MAX,
+	draft_problem,
+	LOCATION_MAX,
+	MEDIA_MAX,
+	POLL_DAYS,
+	POLL_MAX_OPTIONS,
+	poll_options,
+} from './rules'
+import type { Media } from './types'
 
 const Id = v.pipe(v.string(), v.uuid())
 // Better Auth ids aren't UUIDs, so only the length is bounded.
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
-const Body = v.pipe(
-	v.string(),
+// The real limit is checked in graphemes by `post_problem`; this only bounds the payload.
+const Text = v.pipe(v.string(), v.trim(), v.maxLength(4000))
+const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
+const Url = v.pipe(v.string(), v.maxLength(2048))
+// A blank description is no description.
+const Alt = v.pipe(
+	v.optional(v.string(), ''),
 	v.trim(),
-	v.check((body) => post_problem(body) === undefined, 'post_invalid'),
+	v.maxLength(ALT_MAX),
+	v.transform((alt) => alt || undefined),
+)
+
+const MediaInput = v.object({
+	kind: v.picklist(['image', 'gif', 'video']),
+	url: Url,
+	width: Size,
+	height: Size,
+	alt: Alt,
+})
+
+const NewPost = v.pipe(
+	v.object({
+		body: Text,
+		media: v.pipe(v.array(MediaInput), v.maxLength(MEDIA_MAX)),
+		poll: v.optional(
+			v.object({
+				options: v.pipe(
+					v.array(v.pipe(v.string(), v.maxLength(100))),
+					v.maxLength(POLL_MAX_OPTIONS),
+				),
+				days: v.picklist(POLL_DAYS),
+			}),
+		),
+		location: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(LOCATION_MAX))),
+		reply_to: v.optional(Id),
+	}),
+	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
 /** The viewer's id when signed in; reading posts doesn't need an account at this layer. */
@@ -25,6 +70,15 @@ function author() {
 	const { locals } = getRequestEvent()
 	if (!locals.user) error(401, 'Sign in to continue.')
 	return { db: locals.db, user_id: locals.user.id }
+}
+
+/**
+ * Photos and videos must be the author's own uploads, of the kind they claim to be; GIFs must
+ * come from the picker's CDN.
+ */
+function allowed_media({ kind, url }: Media, user_id: string) {
+	if (kind === 'gif') return is_gif_url(url)
+	return is_own_post_upload(url, user_id) && is_video_url(url) === (kind === 'video')
 }
 
 export const get_feed = query(
@@ -48,40 +102,78 @@ export const get_author_posts = query(
 		posts.author_page(getRequestEvent().locals.db, viewer(), id, tab === 'replies', cursor),
 )
 
-export const create_post = form(
-	v.object({ body: Body, reply_to: v.optional(v.union([v.literal(''), Id])) }),
-	async ({ body, reply_to }) => {
-		const { db, user_id } = author()
-		const id = await posts.insert_post(db, user_id, body, reply_to || undefined)
-		if (!id) error(404, 'The post you replied to was deleted.')
+export const create_post = command(NewPost, async ({ reply_to, poll, location, ...rest }) => {
+	const { db, user_id } = author()
+	if (!rest.media.every((media) => allowed_media(media, user_id))) error(400, 'Invalid media.')
+	const input = {
+		...rest,
+		location: location || undefined,
+		poll: poll && { ...poll, options: poll_options(poll.options) },
+	}
+	const id = await posts.insert_post(db, user_id, input, reply_to)
+	if (!id) error(404, 'The post you replied to was deleted.')
 
-		// Single-flight: the fresh first pages ride back with this response.
-		await Promise.all([
-			get_feed(feed_arg('for_you')).refresh(),
-			get_feed(feed_arg('following')).refresh(),
-			get_author_posts(author_arg(user_id, reply_to ? 'replies' : 'posts')).refresh(),
-			...(reply_to
-				? [get_replies(replies_arg(reply_to)).refresh(), get_post(reply_to).refresh()]
-				: []),
-		])
-		return { id }
+	// Single-flight: the fresh first pages ride back with this response.
+	await Promise.all([
+		get_feed(feed_arg('for_you')).refresh(),
+		get_feed(feed_arg('following')).refresh(),
+		get_author_posts(author_arg(user_id, reply_to ? 'replies' : 'posts')).refresh(),
+		...(reply_to
+			? [get_replies(replies_arg(reply_to)).refresh(), get_post(reply_to).refresh()]
+			: []),
+	])
+	const post = await posts.find_post(db, user_id, id)
+	if (!post) error(404, 'Post not found.')
+	return post
+})
+
+/**
+ * Edit the text and, with `media`, drop, reorder, or describe the post's photos, GIFs and videos (the
+ * URLs to keep, in order, each with its description). Text may go empty only while photos
+ * remain; that's checked against the stored post.
+ */
+export const edit_post = command(
+	v.object({
+		id: Id,
+		body: Text,
+		media: v.optional(v.pipe(v.array(v.object({ url: Url, alt: Alt })), v.maxLength(MEDIA_MAX))),
+	}),
+	async ({ id, body, media }) => {
+		const { db, user_id } = author()
+		const result = await posts.update_post(db, user_id, id, body, media)
+		if (result === 'not_found') error(404, 'Post not found.')
+		if (result === 'invalid') error(400, 'post_invalid')
+		await delete_unused_uploads(db, result.removed_uploads)
+		await get_post(id).refresh()
 	},
 )
-
-export const edit_post = command(v.object({ id: Id, body: Body }), async ({ id, body }) => {
-	const { db, user_id } = author()
-	if (!(await posts.update_post(db, user_id, id, body))) error(404, 'Post not found.')
-	await get_post(id).refresh()
-})
 
 export const delete_post = command(Id, async (id) => {
 	const { db, user_id } = author()
 	const removed = await posts.remove_post(db, user_id, id)
 	if (!removed) error(404, 'Post not found.')
+	await delete_unused_uploads(db, removed.uploads)
 	if (removed.reply_to_id) await get_post(removed.reply_to_id).refresh()
 })
+
+/** Delete the files behind `urls` that no other post still shows. */
+async function delete_unused_uploads(db: App.Locals['db'], urls: string[]) {
+	await delete_media(env.MEDIA, await posts.unused_uploads(db, urls))
+}
 
 export const set_like = command(v.object({ id: Id, on: v.boolean() }), async ({ id, on }) => {
 	const { db, user_id } = author()
 	await posts.set_like(db, user_id, id, on)
 })
+
+/** Vote in a poll; returns the poll as it now stands, the viewer's counted vote included. */
+export const vote_poll = command(
+	v.object({ id: Id, option: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
+	async ({ id, option }) => {
+		const { db, user_id } = author()
+		await posts.vote(db, user_id, id, option)
+		const found = await posts.find_post(db, user_id, id)
+		if (!found?.poll) error(404, 'Post not found.')
+		return found.poll
+	},
+)

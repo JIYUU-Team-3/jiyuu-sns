@@ -8,7 +8,7 @@
 	import TextField from '#lib/profiles/form/TextField.svelte'
 	import { BIO_MAX, NAME_MAX, profile_errors } from '#lib/profiles/form/profile'
 	import type { PageProps } from './$types'
-	import Mark from '../Mark.svelte'
+	import Wordmark from '../Wordmark.svelte'
 	import GoogleIcon from '../login/GoogleIcon.svelte'
 
 	let { data, form }: PageProps = $props()
@@ -40,7 +40,7 @@
 
 <main class="onb">
 	<form class="card" method="post" enctype="multipart/form-data" use:enhance={submit}>
-		<div class="top"><Mark size="36px" /></div>
+		<div class="top"><Wordmark size="30px" /></div>
 		<h1>{m.onboarding_title()}</h1>
 		<p class="sub">{m.onboarding_subtitle()}</p>
 
@@ -98,7 +98,7 @@
 		grid-template-columns: minmax(0, 1fr);
 		justify-items: center;
 		align-items: start;
-		padding: 6vh 16px;
+		padding: calc(6vh + env(safe-area-inset-top)) 16px calc(6vh + env(safe-area-inset-bottom));
 		background: var(--bg-2);
 	}
 	.card {

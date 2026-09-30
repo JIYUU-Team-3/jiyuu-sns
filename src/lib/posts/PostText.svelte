@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { profile_href } from '#lib/profiles/links'
-	import { tag_href } from '#lib/search/links'
+	import { tag_href } from './links'
 	import { text_segments } from './text'
 
 	let { body }: { body: string } = $props()

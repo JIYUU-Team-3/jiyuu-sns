@@ -2,14 +2,13 @@
 	import type { Snippet } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import { getLocale } from '#lib/paraglide/runtime'
-	import Mark from './Mark.svelte'
 	import SiteFooter from './SiteFooter.svelte'
 	import Wordmark from './Wordmark.svelte'
 	import { format_long_date } from '#lib/format-date'
 	import { localized } from './links'
 
 	/** When the policy pages were last revised. Bump it whenever their text changes. */
-	const LAST_UPDATED = Date.UTC(2026, 8, 26)
+	const LAST_UPDATED = Date.UTC(2026, 8, 29)
 
 	let {
 		title,
@@ -23,7 +22,7 @@
 <svelte:head><title>{m.site_page_title({ page: title })}</title></svelte:head>
 
 <header class="doc-head">
-	<a class="brand" href={localized('/login')}><Mark size="32px" /><Wordmark /></a>
+	<a class="brand" href={localized('/login')}><Wordmark size="26px" /></a>
 </header>
 <main class="doc">
 	<h1>{title}</h1>
@@ -41,12 +40,12 @@
 		margin: 0 auto;
 	}
 	.doc-head {
-		padding: 16px;
+		padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
 	}
 	.brand {
 		display: inline-flex;
 		align-items: center;
-		gap: 10px;
+		min-height: 32px;
 	}
 	.doc {
 		padding: 24px 16px 48px;

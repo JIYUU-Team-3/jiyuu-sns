@@ -11,6 +11,8 @@
 		invalid = false,
 		describedby,
 		autocomplete = 'off',
+		autofocus = false,
+		rows = 2,
 	}: {
 		name: string
 		label: string
@@ -25,6 +27,9 @@
 		/** Id of the hint under the field, read out with it. */
 		describedby?: string
 		autocomplete?: HTMLInputElement['autocomplete']
+		/** Where focus starts when the field opens in a modal. */
+		autofocus?: boolean
+		rows?: number
 	} = $props()
 </script>
 
@@ -36,8 +41,9 @@
 	{#if multiline}
 		<textarea
 			{name}
-			rows="2"
+			{rows}
 			maxlength={max}
+			data-autofocus={autofocus || undefined}
 			{placeholder}
 			aria-describedby={describedby}
 			bind:value></textarea>
@@ -49,6 +55,7 @@
 				maxlength={max}
 				{placeholder}
 				{autocomplete}
+				data-autofocus={autofocus || undefined}
 				spellcheck="false"
 				aria-invalid={invalid}
 				aria-describedby={describedby}
@@ -102,14 +109,18 @@
 	}
 	input,
 	textarea {
-		width: 100%;
+		/* Controls clip at their padding box, so glyphs that overhang it (the tail of
+		   a leading "j") get cut. Pad the sides and bottom, then pull the box back out
+		   by the same amount so the text stays where it was. */
+		width: calc(100% + 8px);
+		margin: 0 -4px -2px;
 		border: 0;
 		outline: 0;
 		background: none;
 		color: inherit;
 		font: inherit;
 		font-size: 17px;
-		padding: 2px 0 0;
+		padding: 2px 4px 2px;
 		resize: none;
 	}
 	/* The whole field lights up on focus, so the layout's focus ring would draw a second box. */

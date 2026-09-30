@@ -8,10 +8,12 @@ export type TextSegment = { text: string; href?: string; tag?: string; handle?: 
 const URL_PATTERN = /https?:\/\/[^\s<>"]*[^\s<>".,:;!?)\]'’”]/g
 
 /**
- * `#` then letters, marks (so Khmer and Japanese tags work) and digits. A `#` glued to a word,
- * a URL fragment or an `&#` entity isn't a tag.
+ * `#` (or the full-width `＃` Japanese keyboards type) then letters, marks (so Khmer and
+ * Japanese tags work) and digits. A `#` glued to a word, a URL fragment or an `&#` entity isn't
+ * a tag.
  */
-const TAG_PATTERN = /(?<![\p{L}\p{M}\p{N}_&/#@])#([\p{L}\p{M}\p{N}_]{1,50})(?![\p{L}\p{M}\p{N}_])/gu
+const TAG_PATTERN =
+	/(?<![\p{L}\p{M}\p{N}_&/#＃@])[#＃]([\p{L}\p{M}\p{N}_]{1,50})(?![\p{L}\p{M}\p{N}_])/gu
 
 /** `@` then handle characters; an `@` inside a word, like an email address, isn't a mention. */
 const MENTION_PATTERN = /(?<![\p{L}\p{M}\p{N}_.@])@([A-Za-z0-9_.]+)/gu

@@ -15,7 +15,7 @@ export type Typing = {
 // Same boundaries as the post parser in ./text, so a suggestion is offered exactly where the
 // finished word will become a link.
 const MENTION_BEFORE_CARET = /(?:^|[^\p{L}\p{M}\p{N}_.@])@([A-Za-z0-9_.]{1,20})$/u
-const TAG_BEFORE_CARET = /(?:^|[^\p{L}\p{M}\p{N}_&/#@])#([\p{L}\p{M}\p{N}_]{1,50})$/u
+const TAG_BEFORE_CARET = /(?:^|[^\p{L}\p{M}\p{N}_&/#＃@])[#＃]([\p{L}\p{M}\p{N}_]{1,50})$/u
 
 /** The mention or hashtag the caret is in, if any. */
 export function typing_at(text: string, caret: number): Typing | undefined {

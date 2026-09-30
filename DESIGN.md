@@ -244,7 +244,7 @@ The build rejects novelty chrome, gradients and bold brand theatre. That rejecti
 One sky-blue accent sits on neutral greys. Engagement pink and green appear only on hover or in the "on" state of their own actions.
 
 ### Primary
-- **Sky Brand Blue** (`accent`): the logo colour. It marks the wordmark's Y and the circle mark. It is also the blue for non-text strokes and indicators: the `:focus-visible` ring, focus borders on search and fields, the text caret, the active-tab underline, the character-count ring, the DM unread dot, the active onboarding step pill and the "my reaction" chip border. It holds about 3.0:1 against white, which is right at the non-text floor. That leaves no headroom, so never thin these strokes below 2px.
+- **Sky Brand Blue** (`accent`): the logo colour. It marks the wordmark's Y. It is also the blue for non-text strokes and indicators: the `:focus-visible` ring, focus borders on search and fields, the text caret, the active-tab underline, the character-count ring, the DM unread dot, the active onboarding step pill and the "my reaction" chip border. It holds about 3.0:1 against white, which is right at the non-text floor. That leaves no headroom, so never thin these strokes below 2px.
 - **Deep Link Blue** (`accent-text`, light): every piece of blue text or blue icon glyph. That covers links, "Show more", "Show this thread", the accent-coloured action hover, check marks, and the composer toolbar icons.
 - **Deep Fill Blue** (`accent-fill`, light), hovering to `accent-fill-hover`: every filled blue surface carrying white content. That covers the primary button, badge, "mine" DM bubble, toast, FAB, the active switch, "new posts" pill, and native radio and checkbox `accent-color`.
 - **Bright Link Blue** (`accent-text-dark`): blue text on the charcoal ground.
@@ -322,7 +322,7 @@ Flat by default. Surfaces separate by hairline borders and by the `bg`/`bg-2`/`b
 ## Shapes
 
 Corners are soft and nest inward. The outer container gets the largest radius, and anything inside it steps down.
-- **Circle** (50%): avatars, icon buttons, action hit targets, the FAB, the logo mark, the switch knob.
+- **Circle** (50%): avatars, icon buttons, action hit targets, the FAB, the switch knob.
 - **Pill** (999px): every text button, the search field, chips, the location chip, the reply-control button, the account chip, the "new posts" pill, the poll vote button.
 - **Card** (16px): media grids, link cards, rail panels, modals, the onboarding card.
 - **Medium** (12px): quote cards, popovers, pickers, the composer poll box, attachment thumbnails. Media inside a quote steps down to 10px.

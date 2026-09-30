@@ -18,6 +18,11 @@ export const EXTERNAL_HREFS = {
 	github_privacy:
 		'https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
 	cloudflare_privacy: 'https://www.cloudflare.com/privacypolicy/',
+	giphy_privacy: 'https://giphy.com/privacy',
+	giphy_terms: 'https://giphy.com/terms',
+	komoot_privacy: 'https://www.komoot.com/privacy',
+	osm: 'https://www.openstreetmap.org/copyright',
+	jsdelivr_privacy: 'https://www.jsdelivr.com/terms/privacy-policy',
 	wcag: 'https://www.w3.org/TR/WCAG22/',
 }
 

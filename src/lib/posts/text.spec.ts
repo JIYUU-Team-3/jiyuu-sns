@@ -72,6 +72,29 @@ describe('text_segments', () => {
 			{ text: ', yes' },
 		])
 	})
+
+	it('picks out tags with underscores and Khmer combining marks', () => {
+		expect(text_segments('hi #svelte and #web_dev!')).toEqual([
+			{ text: 'hi ' },
+			{ text: '#svelte', tag: 'svelte' },
+			{ text: ' and ' },
+			{ text: '#web_dev', tag: 'web_dev' },
+			{ text: '!' },
+		])
+		expect(text_segments('#ភាសាខ្មែរ')).toEqual([{ text: '#ភាសាខ្មែរ', tag: 'ភាសាខ្មែរ' }])
+	})
+
+	it('skips numbers, a # inside a word, and a doubled #', () => {
+		expect(text_segments('#1 a#b ##x')).toEqual([{ text: '#1 a#b ##x' }])
+	})
+
+	it('reads the full-width ＃ that Japanese keyboards type', () => {
+		expect(text_segments('今日は ＃ラーメン')).toEqual([
+			{ text: '今日は ' },
+			{ text: '＃ラーメン', tag: 'ラーメン' },
+		])
+		expect(text_segments('今日は＃ラーメン')).toEqual([{ text: '今日は＃ラーメン' }])
+	})
 })
 
 describe('extract_tags and extract_mentions', () => {

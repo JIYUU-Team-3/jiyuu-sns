@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { sign_up } from './sign-up'
 
 /**
  * Posting happy path: sign up, pick a handle, then create, edit and delete a post.
@@ -50,4 +51,46 @@ test('create, edit and delete a post @writes', async ({ page }) => {
 	await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
 	await expect(page).toHaveURL(/\/$/)
 	await expect(page.getByText(text)).toHaveCount(0)
+})
+
+// A 2×1 PNG, so the upload has real image bytes and a known shape.
+const PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGP4z8AAQv8BD/kD/YURmXYAAAAASUVORK5CYII=',
+	'base64',
+)
+
+test('post photos with a hashtag, then a poll @writes', async ({ page }) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	await sign_up(page, `e2e_${id}`)
+	const composer = page.locator('form.inline')
+	const post_button = composer.getByRole('button', { name: 'Post', exact: true })
+
+	// Two photos upload on pick; Post waits for both.
+	await composer.getByLabel('Post text').fill(`Photos ${id} #e2e_${id}`)
+	await composer.locator('input[type="file"]').setInputFiles([
+		{ name: 'a.png', mimeType: 'image/png', buffer: PNG },
+		{ name: 'b.png', mimeType: 'image/png', buffer: PNG },
+	])
+	await expect(composer.getByRole('button', { name: 'Remove' })).toHaveCount(2)
+	await expect(post_button).toBeEnabled()
+	await post_button.click()
+
+	// The new post is pinned on top of the reloaded timeline, as a carousel.
+	const card = page.locator('article.post', { hasText: `Photos ${id}` }).first()
+	await expect(card.getByRole('group', { name: '2 photos' })).toBeVisible()
+	await expect(card.getByRole('link', { name: `#e2e_${id}` })).toHaveAttribute(
+		'href',
+		`/search?q=%23e2e_${id}`,
+	)
+
+	// A poll needs a question and two choices; the author sees results straight away.
+	await composer.getByLabel('Post text').fill(`Poll ${id}?`)
+	await composer.getByRole('button', { name: 'Add poll' }).click()
+	await expect(post_button).toBeDisabled()
+	await composer.getByLabel('Choice 1', { exact: true }).fill('Tabs')
+	await composer.getByLabel('Choice 2', { exact: true }).fill('Spaces')
+	await post_button.click()
+	const poll = page.locator('article.post', { hasText: `Poll ${id}?` }).first()
+	await expect(poll).toContainText('Tabs')
+	await expect(poll).toContainText('0 votes')
 })

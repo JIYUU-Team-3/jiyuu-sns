@@ -1,5 +1,5 @@
 import { createSubscriber, SvelteMap, SvelteSet } from 'svelte/reactivity'
-import type { PostView } from './types'
+import type { Media, PollView, PostView } from './types'
 
 /*
  * Browser-only state shared by every list on the page. Nothing writes to it during SSR (writes
@@ -30,8 +30,40 @@ export const composer = {
  */
 export const deleted_posts = new SvelteSet<string>()
 
-/** New text for posts edited in this tab, shown until their lists refetch. */
-export const edited_posts = new SvelteMap<string, string>()
+export type PostContent = { body: string; media: Media[] }
+
+/** New text and photo order for posts edited in this tab, shown until their lists refetch. */
+export const edited_posts = new SvelteMap<string, PostContent>()
+
+/** A post's text and photos as the viewer last saw them, edits in this tab included. */
+export function post_content(post: PostView): PostContent {
+	return edited_posts.get(post.id) ?? { body: post.body, media: post.media }
+}
+
+let timeline_version = $state(0)
+let own_posts = $state<PostView[]>([])
+
+/**
+ * Home's timeline. Publishing reloads it from the first page and keeps the new post pinned on
+ * top, since For You ranks by engagement and would otherwise bury a post with none yet.
+ */
+export const timeline = {
+	/** Changes on every publish; Home keys its list on it to start over from the first page. */
+	get version() {
+		return timeline_version
+	},
+	/** Posts published in this tab, newest first. */
+	get fresh() {
+		return own_posts
+	},
+	published(post: PostView) {
+		own_posts = [post, ...own_posts]
+		timeline_version++
+	},
+}
+
+/** Poll results after the viewer voted in this tab, so every copy of the poll updates. */
+export const voted_polls = new SvelteMap<string, PollView>()
 
 const subscribe = createSubscriber((update) => {
 	const timer = setInterval(update, 30_000)

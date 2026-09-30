@@ -31,4 +31,9 @@ export const variables = defineEnvVars({
 			'A contact push services can reach about this app, e.g. `mailto:jiyuu.org@gmail.com`.',
 		schema: (value) => value || undefined,
 	},
+	GIPHY_API_KEY: {
+		description:
+			'GIPHY API key for the composer’s GIF picker. Optional: without it the picker says GIFs are unavailable. See [GIPHY developers](https://developers.giphy.com/).',
+		schema: (value) => value || undefined,
+	},
 })
