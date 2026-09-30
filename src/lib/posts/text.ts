@@ -54,11 +54,8 @@ function mentions_in(text: string, offset: number): Token[] {
 	return tokens
 }
 
-/**
- * Split post text into plain runs, links, hashtags and mentions. Links show without their
- * scheme, like X. A `#` or `@` inside a link stays part of the link.
- */
-export function text_segments(body: string): TextSegment[] {
+/** Every link, hashtag and mention in order, with where it sits in the text. */
+function tokens_in(body: string): Token[] {
 	const tokens: Token[] = []
 	let last = 0
 	const between = (start: number, end: number) => {
@@ -76,11 +73,17 @@ export function text_segments(body: string): TextSegment[] {
 		last = end
 	}
 	between(last, body.length)
-	tokens.sort((a, b) => a.start - b.start)
+	return tokens.sort((a, b) => a.start - b.start)
+}
 
+/**
+ * Split post text into plain runs, links, hashtags and mentions. Links show without their
+ * scheme, like X. A `#` or `@` inside a link stays part of the link.
+ */
+export function text_segments(body: string): TextSegment[] {
 	const segments: TextSegment[] = []
 	let at = 0
-	for (const token of tokens) {
+	for (const token of tokens_in(body)) {
 		if (token.start < at) continue
 		if (token.start > at) segments.push({ text: body.slice(at, token.start) })
 		segments.push(token.segment)
@@ -88,6 +91,11 @@ export function text_segments(body: string): TextSegment[] {
 	}
 	if (at < body.length) segments.push({ text: body.slice(at) })
 	return segments
+}
+
+/** Where the links, hashtags and mentions are, as `[start, end)` offsets, for highlighting. */
+export function accent_ranges(body: string): [number, number][] {
+	return tokens_in(body).map((token) => [token.start, token.end])
 }
 
 /** The distinct normalised hashtags in a post, in order of first use. */

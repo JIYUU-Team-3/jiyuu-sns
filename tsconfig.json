@@ -17,5 +17,7 @@
 		"paths": { "#lib/*": ["./src/lib/*"] },
 		"types": ["$app/types", "./worker-configuration.d.ts"]
 	},
-	"include": ["src", "drizzle.config.ts"]
+	"include": ["src", "drizzle.config.ts"],
+	// The service worker runs with WebWorker types, not the DOM's; Kit asks for it to be left out.
+	"exclude": ["src/service-worker"]
 }
