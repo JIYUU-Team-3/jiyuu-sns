@@ -14,6 +14,7 @@ import {
 	POLL_DAYS,
 	POLL_MAX_OPTIONS,
 	poll_options,
+	THREAD_MAX,
 } from './rules'
 import type { Media } from './types'
 
@@ -41,24 +42,32 @@ const MediaInput = v.object({
 	alt: Alt,
 })
 
-const NewPost = v.pipe(
-	v.object({
-		body: Text,
-		media: v.pipe(v.array(MediaInput), v.maxLength(MEDIA_MAX)),
-		poll: v.optional(
-			v.object({
-				options: v.pipe(
-					v.array(v.pipe(v.string(), v.maxLength(100))),
-					v.maxLength(POLL_MAX_OPTIONS),
-				),
-				days: v.picklist(POLL_DAYS),
-			}),
-		),
-		location: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(LOCATION_MAX))),
-		reply_to: v.optional(Id),
-	}),
+const PostFields = {
+	body: Text,
+	media: v.pipe(v.array(MediaInput), v.maxLength(MEDIA_MAX)),
+	poll: v.optional(
+		v.object({
+			options: v.pipe(v.array(v.pipe(v.string(), v.maxLength(100))), v.maxLength(POLL_MAX_OPTIONS)),
+			days: v.picklist(POLL_DAYS),
+		}),
+	),
+	location: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(LOCATION_MAX))),
+}
+
+const PostInput = v.pipe(
+	v.object(PostFields),
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
+
+const NewPost = v.pipe(
+	v.object({ ...PostFields, reply_to: v.optional(Id) }),
+	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
+)
+
+const NewThread = v.object({
+	posts: v.pipe(v.array(PostInput), v.minLength(2), v.maxLength(THREAD_MAX)),
+	reply_to: v.optional(Id),
+})
 
 /** The viewer's id when signed in; reading posts doesn't need an account at this layer. */
 function viewer() {
@@ -96,36 +105,57 @@ export const get_replies = query(v.object({ id: Id, cursor: Cursor }), ({ id, cu
 	posts.replies_page(getRequestEvent().locals.db, viewer(), id, cursor),
 )
 
+export const get_conversation = query(Id, (id) =>
+	posts.conversation(getRequestEvent().locals.db, viewer(), id),
+)
+
 export const get_author_posts = query(
 	v.object({ id: UserId, tab: v.picklist(['posts', 'replies']), cursor: Cursor }),
 	({ id, tab, cursor }) =>
 		posts.author_page(getRequestEvent().locals.db, viewer(), id, tab === 'replies', cursor),
 )
 
-export const create_post = command(NewPost, async ({ reply_to, poll, location, ...rest }) => {
-	const { db, user_id } = author()
+type PostPayload = v.InferOutput<typeof PostInput>
+
+function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 	if (!rest.media.every((media) => allowed_media(media, user_id))) error(400, 'Invalid media.')
-	const input = {
+	return {
 		...rest,
 		location: location || undefined,
 		poll: poll && { ...poll, options: poll_options(poll.options) },
 	}
-	const id = await posts.insert_post(db, user_id, input, reply_to)
-	if (!id) error(404, 'The post you replied to was deleted.')
+}
+
+async function publish(inputs: PostPayload[], reply_to: string | undefined) {
+	const { db, user_id } = author()
+	const prepared = inputs.map((input) => prepare(input, user_id))
+	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
+	if (!ids) error(404, 'The post you replied to was deleted.')
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
 		get_feed(feed_arg('for_you')).refresh(),
 		get_feed(feed_arg('following')).refresh(),
-		get_author_posts(author_arg(user_id, reply_to ? 'replies' : 'posts')).refresh(),
+		get_author_posts(author_arg(user_id, 'posts')).refresh(),
+		get_author_posts(author_arg(user_id, 'replies')).refresh(),
 		...(reply_to
-			? [get_replies(replies_arg(reply_to)).refresh(), get_post(reply_to).refresh()]
+			? [
+					get_replies(replies_arg(reply_to)).refresh(),
+					get_post(reply_to).refresh(),
+					get_conversation(reply_to).refresh(),
+				]
 			: []),
 	])
-	const post = await posts.find_post(db, user_id, id)
+	const post = await posts.find_post(db, user_id, ids[0])
 	if (!post) error(404, 'Post not found.')
 	return post
-})
+}
+
+export const create_post = command(NewPost, ({ reply_to, ...input }) => publish([input], reply_to))
+
+export const create_thread = command(NewThread, ({ posts: inputs, reply_to }) =>
+	publish(inputs, reply_to),
+)
 
 /**
  * Edit the text and, with `media`, drop, reorder, or describe the post's photos, GIFs and videos (the
@@ -153,7 +183,12 @@ export const delete_post = command(Id, async (id) => {
 	const removed = await posts.remove_post(db, user_id, id)
 	if (!removed) error(404, 'Post not found.')
 	await delete_unused_uploads(db, removed.uploads)
-	if (removed.reply_to_id) await get_post(removed.reply_to_id).refresh()
+	if (removed.reply_to_id) {
+		await Promise.all([
+			get_post(removed.reply_to_id).refresh(),
+			get_conversation(removed.reply_to_id).refresh(),
+		])
+	}
 })
 
 /** Delete the files behind `urls` that no other post still shows. */

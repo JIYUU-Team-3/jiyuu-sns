@@ -21,6 +21,9 @@ const parent_profile = alias(profile, 'parent_profile')
 
 const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
 const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
+const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId})`
+
+const THREAD_DEPTH = 100
 
 // Attachments come back as JSON arrays from correlated subqueries, so a page stays one statement.
 const media_json = sql<string>`(select json_group_array(json_object(
@@ -62,6 +65,8 @@ function select_posts(db: Db, viewer: string | undefined) {
 			author_handle: profile.handle,
 			author_image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
 			parent_handle: parent_profile.handle,
+			parent_author_id: parent.authorId,
+			continued,
 			replies: reply_count,
 			likes: like_count,
 			liked: viewer
@@ -116,8 +121,13 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 			image: row.author_image ?? undefined,
 		},
 		reply_to: row.reply_to_id
-			? { id: row.reply_to_id, handle: row.parent_handle ?? undefined }
+			? {
+					id: row.reply_to_id,
+					handle: row.parent_handle ?? undefined,
+					self: row.parent_author_id === row.author_id,
+				}
 			: undefined,
+		continued: !!row.continued,
 		media: to_media(row.media),
 		poll: to_poll(row),
 		location: row.location ?? undefined,
@@ -250,6 +260,36 @@ export function author_page(
 	)
 }
 
+export async function conversation(db: Db, viewer: string | undefined, id: string) {
+	const above = sql`(with recursive up(id, depth) as (
+		select reply_to_id, 1 from post where id = ${id}
+		union all
+		select p.reply_to_id, up.depth + 1 from post p join up on p.id = up.id
+		where up.depth < ${THREAD_DEPTH}
+	) select id from up where id is not null)`
+	const below = sql`(with recursive down(id, author_id, depth) as (
+		select id, author_id, 0 from post where id = ${id}
+		union all
+		select r.id, r.author_id, down.depth + 1 from down join post r on r.id = (
+			select n.id from post n where n.reply_to_id = down.id and n.author_id = down.author_id
+			order by n.created_at, n.id limit 1
+		)
+		where down.depth < ${THREAD_DEPTH}
+	) select id from down where depth > 0)`
+	const [up, down] = await Promise.all([
+		select_posts(db, viewer)
+			.where(inArray(post.id, above))
+			.orderBy(asc(post.createdAt), asc(post.id)),
+		select_posts(db, viewer)
+			.where(inArray(post.id, below))
+			.orderBy(asc(post.createdAt), asc(post.id)),
+	])
+	return {
+		above: up.map((row) => to_view(row, viewer)),
+		below: down.map((row) => to_view(row, viewer)),
+	}
+}
+
 export async function find_post(db: Db, viewer: string | undefined, id: string) {
 	const [row] = await select_posts(db, viewer).where(eq(post.id, id)).limit(1)
 	return row ? to_view(row, viewer) : undefined
@@ -299,6 +339,16 @@ export async function insert_post(
 	input: NewPost,
 	reply_to_id: string | undefined,
 ) {
+	const ids = await insert_thread(db, author_id, [input], reply_to_id)
+	return ids?.[0]
+}
+
+export async function insert_thread(
+	db: Db,
+	author_id: string,
+	inputs: NewPost[],
+	reply_to_id: string | undefined,
+) {
 	if (reply_to_id) {
 		const [target] = await db
 			.select({ id: post.id })
@@ -307,19 +357,25 @@ export async function insert_post(
 			.limit(1)
 		if (!target) return undefined
 	}
-	const id = crypto.randomUUID()
-	await db.batch([
-		db.insert(post).values({
-			id,
-			authorId: author_id,
-			body: input.body,
-			location: input.location ?? null,
-			replyToId: reply_to_id ?? null,
-			isReply: !!reply_to_id,
-		}),
-		...attachment_inserts(db, id, input),
-	])
-	return id
+	const ids = inputs.map(() => crypto.randomUUID())
+	const now = Date.now()
+	const [first, ...rest] = inputs.flatMap((input, i) => {
+		const parent_id = i ? ids[i - 1] : reply_to_id
+		return [
+			db.insert(post).values({
+				id: ids[i],
+				authorId: author_id,
+				body: input.body,
+				location: input.location ?? null,
+				replyToId: parent_id ?? null,
+				isReply: !!parent_id,
+				createdAt: new Date(now + i),
+			}),
+			...attachment_inserts(db, ids[i], input),
+		]
+	})
+	await db.batch([first, ...rest])
+	return ids
 }
 
 /** One photo, GIF or video an edit keeps: which one, by URL, and its description now. */

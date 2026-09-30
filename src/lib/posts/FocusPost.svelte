@@ -33,7 +33,7 @@
 		{/if}
 		<PostMenu {post} {ondeleted} />
 	</div>
-	{#if post.reply_to?.handle}
+	{#if post.reply_to?.handle && !post.reply_to.self}
 		<div class="replying">
 			{#each m.composer_replying_to.parts() as part, i (i)}
 				{#if part.type === 'text'}{part.value}{:else if part.name === 'handle'}<span class="lnk"
