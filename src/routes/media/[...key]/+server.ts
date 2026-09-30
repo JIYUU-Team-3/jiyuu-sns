@@ -44,9 +44,11 @@ async function get_object(key: string, headers: Headers) {
 /** The first and last byte R2 returned, when only part of the object was asked for. */
 function byte_range({ range, size }: R2ObjectBody) {
 	if (!range) return undefined
-	if ('suffix' in range) return { start: Math.max(0, size - range.suffix), end: size - 1 }
-	const start = range.offset ?? 0
-	return { start, end: range.length === undefined ? size - 1 : start + range.length - 1 }
+	// Deployed R2 fills in every field, `undefined` where unused, so check values, not keys.
+	const { offset, length, suffix } = range as { offset?: number; length?: number; suffix?: number }
+	if (suffix !== undefined) return { start: Math.max(0, size - suffix), end: size - 1 }
+	const start = offset ?? 0
+	return { start, end: length === undefined ? size - 1 : start + length - 1 }
 }
 
 /**
