@@ -4,6 +4,18 @@ The plan for issues #29 (content moderation) and #30 (bot and spam detection). I
 not allowed, how it is caught, what moderators can do about it, and the order to build it in.
 Nothing here is built yet. Drafted 2026-10-01; the team decides the open questions before Phase 1.
 
+## Decided
+
+- **The moderator is the `@jiyuu_org` account**, on production and in local development alike. See
+  [Moderator](#moderator).
+- **Reporting belongs to #21.** It builds the `report` table and the report buttons; this plan
+  reads reports and builds the queue on top. See [Reports](#reports).
+- **A suspended account sees only a suspension page**: why, until when, and how to ask for the
+  suspension to be lifted. See [Suspension](#suspension).
+- **The Cloudflare account is on the Workers Free plan.** Nothing can be billed, but the free
+  limits shape the design. See [Free plan limits](#free-plan-limits).
+- **AI text checks are English only**, and **there is no phone verification**.
+
 ## Principles
 
 1. **People decide, machines sort.** Automatic checks raise priority, blur, or hide pending review.
@@ -72,7 +84,7 @@ successful appeal removes the strike.
 One number decides how strict limits are and how much gets checked. Computed on write and by the
 hourly job, stored on the account.
 
-| Level        | Rule (starting values, kept in KV)                                 |
+| Level        | Rule (starting values, constants in code)                          |
 | ------------ | ------------------------------------------------------------------ |
 | `new`        | Account under 3 days old, or fewer than 3 posts that passed checks |
 | `normal`     | Everyone else                                                      |
@@ -120,12 +132,12 @@ Keep it that way.
    and links to executables (`.exe .apk .scr .bat .msi .js .zip`) from `new` accounts. Link
    shorteners are refused for `new` accounts and add to the spam score otherwise; we never follow
    them, since that is a server fetch of a typed URL.
-2. **Our blocklist.** A `blocked_domain` table, cached in KV. Moderators add to it from the queue.
+2. **Our blocklist.** A `blocked_domain` table in D1. Moderators add to it from the queue.
    Matches the domain and its subdomains.
 3. **Reputation lookup.** Cloudflare's security resolver over DNS-over-HTTPS
    (`security.cloudflare-dns.com`, the `1.1.1.2` service) answers `0.0.0.0` for known malware and
    phishing domains. Free, no key, sends only the hostname to the company that already hosts us.
-   Results cached per hostname in KV for 24 hours; at most 5 lookups per post, 1-second timeout,
+   Results cached per hostname for 24 hours in the Workers Cache API (free, no KV writes); at most 5 lookups per post, 1-second timeout,
    own rate limit. On failure, the post is saved with `links_checked = false` and retried hourly.
    Google Safe Browsing is the second layer if this misses too much (needs a key and a privacy-page
    line, since it sees full URLs).
@@ -143,9 +155,10 @@ Direct messages render through the same `PostText`, so blocklisted links are dis
 
 ### Workers AI budget
 
-The free allocation is 10,000 neurons a day. On the Workers Free plan, going over returns error
-`4006` until the next day (no charge); on Workers Paid it is billed per neuron. Either way the app
-keeps its own daily counter in KV and stops calling AI before the allocation runs out, so a spammer
+The free allocation is 10,000 neurons a day. We are on the Workers Free plan, so going over
+returns error `4006` until 00:00 UTC and nothing is ever billed. The app keeps its own daily counter
+(one D1 row per day, not KV: see [Free plan limits](#free-plan-limits)) and stops calling AI before
+the allocation runs out, and treats a `4006` the same way, so a spammer
 can't burn the budget and then post unchecked: they hit rate limits and the rules first, and
 anything not AI-checked stays `unchecked` for the hourly retry and for reports.
 
@@ -201,17 +214,49 @@ results are poor, thresholds move toward "case only" before launch.
 
 ## Moderation tools
 
-### Roles and suspension
+### Moderator
 
-Use Better Auth's `admin` plugin (`role`, `banned`, `banReason`, `banExpires` on `user`; banned
-accounts can't sign in). Check it works with `better-auth/minimal` first; otherwise add the same
-columns ourselves and check them in `hooks.server.ts`. A `moderator()` guard in `session.ts` sits
-beside `member()`. The first moderators are set by a script run against the local or production
-database on purpose, since there is no admin UI before this.
+One account moderates: `@jiyuu_org`. Rights are tied to its **user id**, not to the handle,
+because handles can be changed and re-used (`SECURITY.md` gap 7): a check on the handle would hand
+moderation to whoever registers `jiyuu_org` after it is freed, or to anyone who creates it first on
+a fresh local database.
 
-A suspended account can sign in and read, but every write and every `member()` call returns 403
-with the reason and end date, and its profile shows "suspended". Its posts stay visible unless
-removed one by one. (Open question 4.)
+- `account_standing.role` is `member` or `moderator`. `moderator()` in `session.ts`, beside
+  `member()`, requires it; every `/mod` page, remote function and action starts there.
+- `pnpm db:grant-moderator jiyuu_org --local | --remote` looks the handle up and sets the role on
+  that user id. Same shape as `scripts/backfill-tags.ts`: it refuses to run without saying which
+  database. Run once on production; locally, after signing in with the account you want to use.
+- `jiyuu_org` goes into `RESERVED_HANDLES` in `src/lib/profiles/form/profile.ts`, so nobody else
+  can take it. The account that already holds it keeps it.
+- A moderator can't change their handle, so `@jiyuu_org` never comes free.
+- e2e: a test helper grants the role to a fixed test account, so the `/mod` tests run against
+  the local build without the real account.
+
+More moderators later need no code change: run the script for another handle.
+
+### Suspension
+
+Suspension is stored on `account_standing` (`suspended_until`, `suspend_reason`, and the action
+that set it), not on Better Auth's generated `user` table. `hooks.server.ts` reads that row with
+the session, by primary key, and sets `locals.suspended`.
+
+A suspended account:
+
+- is redirected from every `(app)` page to `/suspended`;
+- gets 403 from `signed_in()` and `member()`, so no remote function reads or writes for it;
+- gets 401 from `/media` and every `+server.ts` route;
+- can still sign out.
+
+`/suspended` shows the rule that was broken, the date the suspension ends (or "permanent"), and two
+ways to ask for it to be lifted:
+
+1. A **review request form**: one request per suspension, up to 1,000 characters, rate-limited.
+   It is stored as an `appeal` on the suspension and appears in the `/mod` queue.
+2. A **contact email address**, for when the form isn't enough. The address is an open question.
+
+The account's posts stay up unless removed one by one; its profile shows "This account is
+suspended" instead of its posts while the suspension lasts. When `suspended_until` passes, access
+returns on the next request; no job is needed.
 
 ### Visibility states on posts
 
@@ -226,10 +271,20 @@ refuse a removed post's media to anyone but its author and moderators.
 
 ### Reports
 
-Report button on posts (`PostMenu.svelte`), profiles, and messages. A reason from the categories
-above and an optional note. One report per person per target. A message report includes that one
-message, after checking the reporter is in the conversation. Reporting is also part of #21; this
-plan assumes #29 owns the table and queue and #21 the button and blocking (open question 2).
+**Owned by #21.** That issue builds the `report` table, the report buttons on posts
+(`PostMenu.svelte`), profiles and messages, and the rate limit on reporting. This plan only reads
+the table. What the queue needs from it, to agree with #21's assignee before either side starts:
+
+- columns: `id`, `reporter_id`, `target_kind` (`post`/`profile`/`message`), `target_id`,
+  `reason`, `note`, `created_at`, with one report per (reporter, target);
+- `reason` values taken from the categories in [What is not allowed](#what-is-not-allowed), so a
+  report and a moderator's action name the same rule;
+- a message report checks that the reporter is in the conversation, and the queue sees only the
+  reported message;
+- a single function, `on_report(db, report)`, that #21 calls after inserting; this plan implements
+  it to open or update the case. Until #29 lands it does nothing.
+
+The queue can be built and tested before #21 lands, with automatic flags as its only input.
 
 ### The queue (`/mod`)
 
@@ -248,37 +303,66 @@ restore the post and remove the strike.
 
 New tables (a migration in `drizzle/`, via `pnpm db:generate`; never `db:push` to production):
 
-- `report` — id, reporter_id, target_kind (`post`/`profile`/`message`), target_id, reason,
-  note, created_at. Unique (reporter_id, target_kind, target_id).
 - `moderation_case` — id, target_kind, target_id (unique together), status (`open`/`actioned`/
   `dismissed`), priority, source (`report`/`auto`), flags (JSON of automatic results),
   assigned_to, created_at, closed_at.
 - `moderation_action` — id, case_id, moderator_id, action, reason, target_kind, target_id,
   expires_at, created_at, reversed_at. Append-only.
 - `appeal` — id, action_id (unique), user_id, body, status, decided_by, decided_at, created_at.
+  Also holds suspension review requests.
+- `account_standing` — user_id (primary key), role (`member`/`moderator`), trust,
+  behaviour_score, strikes, suspended_until, suspend_reason, suspend_action_id, updated_at. Only
+  accounts with something to record get a row; no row means a `member` in good standing.
 - `blocked_domain` — domain, added_by, reason, created_at.
 - `blocked_media_hash` — sha256, added_by, created_at.
-- `account_standing` — user_id, trust, behaviour_score, strikes, updated_at.
+- `ai_usage` — day, neurons. One row per day, the budget counter.
+
+`report` comes from #21 (see [Reports](#reports)).
 
 New columns: `post.moderation`, `post.checked` (`pending`/`checked`/`unchecked`),
-`post_media.sensitive`, `profile.moderation`, `notification.type` gains `moderation`, plus the
-admin-plugin columns on `user`.
+`post_media.sensitive`, `profile.moderation`, and `notification.type` gains `moderation`. Nothing
+is added to Better Auth's generated tables.
 
 ## Infrastructure
 
+### Free plan limits
+
+The account is on Workers Free. The limits that matter here, all reset at 00:00 UTC:
+
+| Limit                   | Free plan                             | What the plan does about it                                                                                               |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Workers AI              | 10,000 neurons/day, then error `4006` | Own budget counter; stop early; `unchecked` + hourly retry                                                                |
+| KV writes               | 1,000/day                             | **No KV writes** on any per-post path. Counters and blocklists in D1, link verdicts in the Cache API                      |
+| KV reads                | 100,000/day                           | Only the AI switch is read                                                                                                |
+| D1 rows written         | 100,000/day                           | A check writes 1–3 rows; fine at our size                                                                                 |
+| D1 rows read            | 5 million/day                         | The standing lookup per request is one row by primary key                                                                 |
+| CPU time per request    | 10 ms                                 | AI calls and lookups are waiting, not CPU. Hashing uses `crypto.subtle`. Heavy work goes in `waitUntil` or the hourly job |
+| Subrequests per request | 50                                    | At most 5 link lookups + 2 AI calls per post                                                                              |
+| Cron Triggers           | 5 per account                         | The plan needs one                                                                                                        |
+| Requests                | 100,000/day                           | The second Worker's hourly run is 24 a day                                                                                |
+
+If the app outgrows these, Workers Paid lifts them; nothing in the plan has to change, only the
+budget numbers.
+
+### Bindings and jobs
+
 - `ai` binding in `wrangler.jsonc`. Unit tests and e2e run without it, as `under_limit` already does
   for rate limiters; a fake answer can be injected for tests. `wrangler dev` with the binding calls
-  the real service and uses the allocation, so local dev leaves it off by default.
-- Rate limiters: `REPORT_LIMIT` (10/min), `MOD_LIMIT` (120/min), `LINK_LOOKUP_LIMIT`.
+  the real service and spends the shared daily allocation, so local dev leaves it off by default.
+- Rate limiters: `REPORT_LIMIT` (#21), `MOD_LIMIT` (120/min), `APPEAL_LIMIT` (3/hour),
+  `LINK_LOOKUP_LIMIT`.
 - Cron Trigger for the hourly job. The SvelteKit Cloudflare adapter only exports `fetch`, so the
-  job is either a small second Worker bound to the same D1 and KV (preferred: no new HTTP endpoint)
+  job is either a small second Worker bound to the same D1 (preferred: no new HTTP endpoint)
   or a custom entry that wraps the adapter's output. Decide in Phase 4.
-- KV keys for thresholds, budgets and a switch that turns all AI calls off.
+- One KV key, read only, that turns all AI calls off without a deploy. Thresholds are constants in
+  code.
 
 ## Security rules that apply (from `CLAUDE.md`)
 
-- Every moderator function starts with `moderator()`; every report with `await member()` and
-  `limit('REPORT_LIMIT', …)`.
+- Every moderator function starts with `moderator()`. Moderator rights come from the user id in
+  `account_standing`, never from a handle.
+- Suspension is checked in `signed_in()` and `member()`, so no remote function forgets it, and in
+  every `+server.ts` route and page `load` through `locals.suspended`.
 - Writes scoped in `where`; moderator actions scoped by role, not by loading and comparing.
 - Moderator views return picked fields. No email addresses, ever.
 - Outbound calls (DoH, Workers AI) capped per request and rate-limited.
@@ -290,62 +374,76 @@ admin-plugin columns on `user`.
 Each phase is one pull request with its tests. Phase 3 can come before Phase 1 if spam shows up
 first: it needs no roles or AI.
 
-### Phase 0 — decisions and measurements (no code)
+### Phase 0 — agreements and measurements (no code)
 
-Team answers the open questions. Build the English test set; measure neurons per text and image
-call. Confirm the Workers plan.
+Agree the `report` shape and `on_report` with #21's assignee. Answer the open questions below.
+Build the English test set; measure neurons per text and image call, and set the budget split from
+the measurements.
 
-### Phase 1 — roles, reports, queue, guidelines
+### Phase 1 — moderator, suspension, queue, guidelines
 
-Admin plugin and `moderator()`, suspension in `member()`, the moderator script, `report`,
-`moderation_case`, `moderation_action`, report button, `/mod` queue with dismiss/remove/suspend,
-`/guidelines` page (English text copied into `ja.json` and `km.json` until translated).
-Tests: a member can't reach `/mod` or its remote functions; a suspended account can't write; a
-member can't report a message from a chat they're not in; a report can't be repeated.
+`account_standing`, `moderator()`, `pnpm db:grant-moderator`, `jiyuu_org` reserved and its handle
+locked, suspension in `hooks.server.ts`, `signed_in()` and `member()`, the `/suspended` page with
+its review request form and contact address, `moderation_case`, `moderation_action`, `appeal`,
+`on_report`, the `/mod` queue with dismiss/remove/suspend, and the `/guidelines` page (English text
+copied into `ja.json` and `km.json` until translated).
+
+Tests:
+
+- a member can't open `/mod` or call any of its remote functions;
+- the role follows the user id: renaming `@jiyuu_org` keeps it, and a new account can't register
+  `jiyuu_org`;
+- a suspended account gets `/suspended` from every page and 403 from remote functions, `/media`
+  and `+server.ts` routes, and regains access when the suspension ends;
+- a suspended account can send one review request, not two;
+- the review request shows up in the queue.
 
 ### Phase 2 — visibility, sensitive media, appeals
 
 `post.moderation` applied in every query listed above and in `/media`; sensitive toggle in the
-composer and a viewer setting; blurred `MediaItem`; `moderation` notifications; appeals.
+composer and a viewer setting; blurred `MediaItem`; `moderation` notifications; appeals on post
+actions.
+
 Tests: a removed post is absent from feed, search, tags, profile, replies and notifications, and its
 media returns 404 to others; a limited post is absent from feeds but opens for its author.
 
 ### Phase 3 — write-time rules, links, trust
 
 Spam rules, text cleaning for posts, server-side GIF rating, image hash list, link shape checks,
-blocklist, DoH lookup with cache, `noreferrer`, `/out`, trust levels and new-account limits.
+blocklist, DoH lookup with Cache API, `noreferrer`, `/out`, trust levels and new-account limits.
+
 Tests: each rule refuses; a blocklisted domain renders as plain text in an old post; `/out` refuses
 anything not in a post; a `new` account can't post a link or start a chat with a stranger.
 
 ### Phase 4 — AI checks and the hourly job
 
-`ai` binding, budget counter, Llama Guard on English text, vision check on images by trust, retry of
-`unchecked` items, link re-check, the Cron Worker.
-Tests: unit tests with a fake AI answer for each threshold; the budget stops calls; with AI off,
-posting still works and items stay `unchecked`.
+`ai` binding, the `ai_usage` budget, Llama Guard on English text, vision check on images by trust,
+retry of `unchecked` items, link re-check, the Cron Worker.
+
+Tests: unit tests with a fake AI answer for each threshold; the budget stops calls; a `4006` is
+treated as out of budget; with AI off, posting still works and items stay `unchecked`.
 
 ### Phase 5 — behaviour score (#30)
 
 Score, `restricted` level, cases from the score, optional Turnstile.
+
 Tests: a scripted burst of duplicate posts and follows makes an account `restricted` and opens a
 case.
 
 ## Open questions for the team
 
-1. Who moderates — the team, teachers, or both — and who runs the script that appoints them?
-2. Reporting is in #21 too. Proposal: #29 owns the `report` table and queue, #21 owns the button,
-   blocking and muting. Agree with #21's assignee before Phase 1.
-3. Are any users under 18? This plan bans explicit sexual content either way.
-4. Suspended accounts: read-only as proposed, or signed out entirely? And do their posts stay up?
-5. How long do `removed` posts and their media stay before being deleted for real (proposal: 90
+1. Which email address goes on the `/suspended` page?
+2. Are any users under 18? This plan bans explicit sexual content either way.
+3. How long do `removed` posts and their media stay before being deleted for real (proposal: 90
    days, or the end of an open appeal)?
-6. Link hostnames in direct messages are checked under this plan. Agree, and say so on the privacy
+4. Link hostnames in direct messages are checked under this plan. Agree, and say so on the privacy
    page.
-7. Is the Cloudflare account on Workers Free or Paid?
-8. Which help-line links go in the self-harm resources box?
-9. Strike thresholds as proposed?
+5. Which help-line links go in the self-harm resources box?
+6. Strike thresholds as proposed?
+7. Does `@jiyuu_org` already exist on production? If not, someone signs in with the organisation's
+   Google account and picks the handle before it is reserved, or the grant script sets it.
 
 ## Not in this plan
 
 Phone verification, AI checks of Japanese or Khmer text, reading direct-message text, video frame
-analysis, link previews, and an automated appeals decision.
+analysis, link previews, an automated appeals decision, and the report table and buttons (#21).
