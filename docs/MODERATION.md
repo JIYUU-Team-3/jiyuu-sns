@@ -1,8 +1,40 @@
-# Moderation and bot detection plan
+# Moderation and bot detection
 
-The plan for issues #29 (content moderation) and #30 (bot and spam detection). It says what is
-not allowed, how it is caught, what moderators can do about it, and the order to build it in.
-Nothing here is built yet. Drafted 2026-10-01; the team decides the open questions before Phase 1.
+Issues #29 (content moderation) and #30 (bot and spam detection): what is not allowed, how it is
+caught, what moderators can do about it, and how it was built. Drafted and built 2026-10-01; all
+five phases are in. Reports and blocking are #21's.
+
+## Status
+
+Built as planned, with these differences, each for a reason found while building:
+
+- **Workers AI is reached over its REST API**, not a binding: under `wrangler dev --local`, which
+  the e2e server runs, a binding wants a Cloudflare login. Two optional secrets turn the checks on
+  (`WORKERS_AI_ACCOUNT_ID`, `WORKERS_AI_TOKEN`); deleting the token switches them off without a
+  deploy, in place of a KV switch.
+- **The hourly job is a Cron Trigger on the app's own Worker.** The Cloudflare adapter has no hook
+  for a `scheduled` handler, so `scripts/wrap-worker.ts` adds one after `vite build`. It calls
+  `/internal/hourly` in-process with a token made fresh for each run.
+- **Sensitive is a flag, not a fourth visibility state**, since a post can be both limited and
+  sensitive. Profiles have no visibility state: a profile is dealt with by suspending the account.
+- **The suspension review form uses `WRITE_LIMIT`**: Cloudflare rate limits count per minute at
+  most, so "3 an hour" isn't expressible. One request per suspension is the real limit.
+- **Bios aren't checked for links**, because bios aren't drawn as links.
+- **The "leaving Jiyuu" page covers accounts under a month old**, since new accounts (under three
+  days) can't post links at all.
+- **Images over 1 MB aren't sent to the vision model**: encoding one costs CPU the Free plan
+  doesn't have. They're left to reports.
+- **Turnstile isn't added.** The plan made it optional, after seeing the score in use.
+
+### Turning it on in production
+
+1. Merge: the deploy runs the migrations (`0008` to `0012`) and deploys the Cron Trigger.
+2. `pnpm db:grant-moderator jiyuu_org --remote` makes `@jiyuu_org` the moderator.
+3. Optional, for the automatic checks: create a token with Workers AI Read and Edit, run
+   `pnpm ai:measure` with it (see Phase 0), adjust `DAILY_NEURONS` in
+   `server/moderation/budget.ts` if the costs differ, then
+   `wrangler secret put WORKERS_AI_ACCOUNT_ID` and `wrangler secret put WORKERS_AI_TOKEN`.
+4. #21 calls `on_report(db, report)` after saving each report.
 
 ## Decided
 
