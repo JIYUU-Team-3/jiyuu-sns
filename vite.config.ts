@@ -82,6 +82,10 @@ export default defineConfig({
 						enabled: true,
 						provider: playwright(),
 						instances: [{ browser: 'chromium', headless: true }],
+						// Vitest's default, 63315, sits in the range Windows hands out in blocks to
+						// Hyper-V, WSL and Docker at boot; a reserved port refuses to open and the
+						// whole run fails. Windows never reserves ports this low.
+						api: 5183,
 					},
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**'],
