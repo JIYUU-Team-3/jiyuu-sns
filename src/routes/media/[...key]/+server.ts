@@ -2,7 +2,13 @@ import { error } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import { eq } from 'drizzle-orm'
 import { postMedia } from '#lib/server/db/schema'
-import { is_media_key, is_own_post_upload } from '#lib/server/media'
+import {
+	is_media_key,
+	is_message_key,
+	is_own_message_upload,
+	is_own_post_upload,
+} from '#lib/server/media'
+import { can_see_media, media_in_use } from '#lib/server/messages'
 import type { RequestHandler } from './$types'
 
 /**
@@ -12,6 +18,13 @@ import type { RequestHandler } from './$types'
 export const GET: RequestHandler = async ({ locals, params, request }) => {
 	if (!locals.user) error(401, 'Sign in to continue.')
 	if (!is_media_key(params.key)) error(404, 'Not found.')
+	if (is_message_key(params.key)) {
+		const url = `/media/${params.key}`
+		const allowed =
+			is_own_message_upload(url, locals.user.id) ||
+			(await can_see_media(locals.db, locals.user.id, url))
+		if (!allowed) error(404, 'Not found.')
+	}
 
 	const object = await get_object(params.key, request.headers)
 	if (!object) error(404, 'Not found.')
@@ -58,6 +71,11 @@ function byte_range({ range, size }: R2ObjectBody) {
 export const DELETE: RequestHandler = async ({ locals, params }) => {
 	if (!locals.user) error(401, 'Sign in to continue.')
 	const url = `/media/${params.key}`
+	if (is_own_message_upload(url, locals.user.id)) {
+		if (await media_in_use(locals.db, url)) error(409, 'In use.')
+		await env.MEDIA.delete(params.key)
+		return new Response(null, { status: 204 })
+	}
 	if (!is_own_post_upload(url, locals.user.id)) error(404, 'Not found.')
 
 	const [used] = await locals.db

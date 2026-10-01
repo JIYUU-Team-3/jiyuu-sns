@@ -1,0 +1,92 @@
+import { expect, test } from '@playwright/test'
+import { sign_up } from '../sign-up'
+
+test('message someone, react and reply, and the badge clears once read @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dma_${id}`
+	const bob = `e2e_dmb_${id}`
+	const hello = `Hello Alice ${id}`
+	const answer = `Hi Bob ${id}`
+
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await sign_up(page, alice)
+	await sign_up(bob_page, bob)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	await bob_page.getByLabel('Message', { exact: true }).fill(hello)
+	await bob_page.keyboard.press('Enter')
+	await expect(bob_page.locator('.chat').getByText(hello)).toBeVisible()
+
+	await page.goto('/')
+	const nav = page.locator('nav.side')
+	await expect(nav.getByRole('link', { name: /Messages.*1 unread/ })).toBeVisible()
+	await nav.getByRole('link', { name: /Messages/ }).click()
+	await page.getByRole('link', { name: new RegExp(hello) }).click()
+	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
+	const message = page.locator('.msg', { hasText: hello })
+	await expect(message).toBeVisible()
+	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
+
+	await message.hover()
+	await message.getByRole('button', { name: 'React', exact: true }).click()
+	await page.getByRole('button', { name: 'React with 👍' }).click()
+	await expect(message.getByRole('button', { name: /👍 1/ })).toBeVisible()
+
+	await message.getByRole('button', { name: 'Reply', exact: true }).click()
+	await expect(page.getByText(`Replying to ${bob}: ${hello}`)).toBeVisible()
+	await page.getByLabel('Message', { exact: true }).fill(answer)
+	await page.getByRole('button', { name: 'Send' }).click()
+	const reply = page.locator('.msg', { hasText: answer })
+	await expect(reply).toBeVisible()
+	await expect(reply.getByText(`Replying to ${bob}`)).toBeVisible()
+
+	const bob_reply = bob_page.locator('.msg', { hasText: answer })
+	await expect(bob_reply).toBeVisible({ timeout: 15_000 })
+	await expect(bob_reply.getByText('Replying to you')).toBeVisible()
+	await expect(
+		bob_page.locator('.msg', { hasText: hello }).getByRole('button', { name: /👍 1/ }),
+	).toBeVisible()
+
+	await bob_context.close()
+})
+
+test('start a named group chat from the new message dialog @writes', async ({ page, browser }) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const owner = `e2e_dmg_${id}`
+	const first = `e2e_dmh_${id}`
+	const second = `e2e_dmi_${id}`
+	const group = `Study group ${id}`
+
+	for (const handle of [first, second]) {
+		const context = await browser.newContext()
+		await sign_up(await context.newPage(), handle)
+		await context.close()
+	}
+	await sign_up(page, owner)
+
+	await page.goto('/messages')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: 'New message' }).first().click()
+	const dialog = page.getByRole('dialog')
+	const search = dialog.getByLabel('Search people')
+	for (const handle of [first, second]) {
+		await search.fill(handle)
+		await dialog.getByRole('checkbox', { name: `Select ${handle}` }).check()
+	}
+	await dialog.getByLabel('Group name (optional)').fill(group)
+	await dialog.getByRole('button', { name: 'Next' }).click()
+
+	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
+	await expect(page.getByRole('heading', { name: group })).toBeVisible()
+	await expect(page.getByText('3 members')).toBeVisible()
+	await page.getByLabel('Message', { exact: true }).fill(`Welcome ${id}`)
+	await page.keyboard.press('Enter')
+	await expect(page.locator('nav').getByRole('link', { name: new RegExp(group) })).toBeVisible()
+})

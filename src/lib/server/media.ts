@@ -6,7 +6,7 @@ const PREFIX = '/media/'
 
 /** Keys this app writes: `avatars/<user>/<uuid>.<ext>`, `banners/…` or `posts/…` (videos too). */
 const KEY_PATTERN =
-	/^(?:(?:avatars|banners|posts)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4)$/
+	/^(?:(?:avatars|banners|posts|messages)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4)$/
 
 export const is_media_key = (key: string) => KEY_PATTERN.test(key)
 
@@ -52,3 +52,9 @@ export function is_own_post_upload(url: string, user_id: string) {
 
 /** Whether one of our upload URLs is a video rather than a photo. */
 export const is_video_url = (url: string) => !!media_key(url)?.endsWith('.mp4')
+
+export function is_own_message_upload(url: string, user_id: string) {
+	return !!media_key(url)?.startsWith(`messages/${user_id}/`)
+}
+
+export const is_message_key = (key: string) => key.startsWith('messages/')

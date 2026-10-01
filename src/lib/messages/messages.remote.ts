@@ -1,0 +1,122 @@
+import { error } from '@sveltejs/kit'
+import * as v from 'valibot'
+import { command, getRequestEvent, query } from '$app/server'
+import { is_gif_url } from '#lib/server/gifs'
+import { is_own_message_upload } from '#lib/server/media'
+import * as messages from '#lib/server/messages'
+import { conversations_arg, messages_arg } from './args'
+import { GROUP_NAME_MAX, MEMBER_MAX, message_problem, REACTIONS } from './rules'
+
+const Id = v.pipe(v.string(), v.uuid())
+const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
+const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
+const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
+
+function me() {
+	const { locals } = getRequestEvent()
+	if (!locals.user) error(401, 'Sign in to continue.')
+	return { db: locals.db, user_id: locals.user.id }
+}
+
+export const get_conversations = query(v.object({ cursor: Cursor }), ({ cursor }) => {
+	const { db, user_id } = me()
+	return messages.conversations_page(db, user_id, cursor)
+})
+
+export const get_conversation = query(Id, async (id) => {
+	const { db, user_id } = me()
+	const found = await messages.find_conversation(db, user_id, id)
+	if (!found) error(404, 'Conversation not found.')
+	return found
+})
+
+export const get_messages = query(v.object({ id: Id, cursor: Cursor }), async ({ id, cursor }) => {
+	const { db, user_id } = me()
+	const page = await messages.messages_page(db, user_id, id, cursor)
+	if (!page) error(404, 'Conversation not found.')
+	return page
+})
+
+export const get_unread_messages = query(() => {
+	const { db, user_id } = me()
+	return messages.unread_count(db, user_id)
+})
+
+const NewMessage = v.pipe(
+	v.object({
+		id: Id,
+		body: v.pipe(v.string(), v.trim(), v.maxLength(8000)),
+		media: v.optional(
+			v.object({
+				kind: v.picklist(['image', 'gif']),
+				url: v.pipe(v.string(), v.maxLength(2048)),
+				width: Size,
+				height: Size,
+			}),
+		),
+		reply_to: v.optional(Id),
+	}),
+	v.check((input) => message_problem(input.body, !!input.media) === undefined, 'message_invalid'),
+)
+
+export const send_message = command(NewMessage, async ({ id, ...input }) => {
+	const { db, user_id } = me()
+	if (input.media) {
+		const ok =
+			input.media.kind === 'gif'
+				? is_gif_url(input.media.url)
+				: is_own_message_upload(input.media.url, user_id)
+		if (!ok) error(400, 'Invalid media.')
+	}
+	const sent = await messages.send_message(db, user_id, id, input)
+	if (sent === 'not_found') error(404, 'Conversation not found.')
+	await Promise.all([
+		get_messages(messages_arg(id)).refresh(),
+		get_conversations(conversations_arg()).refresh(),
+	])
+	return sent
+})
+
+export const mark_conversation_read = command(Id, async (id) => {
+	const { db, user_id } = me()
+	await messages.mark_read(db, user_id, id)
+	await Promise.all([
+		get_unread_messages().refresh(),
+		get_conversations(conversations_arg()).refresh(),
+	])
+})
+
+export const react_to_message = command(
+	v.object({ id: Id, emoji: v.picklist(REACTIONS) }),
+	async ({ id, emoji }) => {
+		const { db, user_id } = me()
+		const result = await messages.react(db, user_id, id, emoji)
+		if (!result) error(404, 'Message not found.')
+		await get_messages(messages_arg(result.conversation_id)).refresh()
+		return result.reactions
+	},
+)
+
+export const start_conversation = command(
+	v.object({
+		user_ids: v.pipe(v.array(UserId), v.minLength(1), v.maxLength(MEMBER_MAX - 1)),
+		name: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(GROUP_NAME_MAX))),
+	}),
+	async ({ user_ids, name }) => {
+		const { db, user_id } = me()
+		const id = await messages.start_conversation(db, user_id, user_ids, name)
+		if (id === 'invalid') error(400, 'Invalid members.')
+		await get_conversations(conversations_arg()).refresh()
+		return id
+	},
+)
+
+export const leave_conversation = command(Id, async (id) => {
+	const { db, user_id } = me()
+	const left = await messages.leave_conversation(db, user_id, id)
+	if (!left) error(404, 'Conversation not found.')
+	await Promise.all([
+		get_conversations(conversations_arg()).refresh(),
+		get_unread_messages().refresh(),
+	])
+})
