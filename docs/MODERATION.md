@@ -15,6 +15,11 @@ Nothing here is built yet. Drafted 2026-10-01; the team decides the open questio
 - **The Cloudflare account is on the Workers Free plan.** Nothing can be billed, but the free
   limits shape the design. See [Free plan limits](#free-plan-limits).
 - **AI text checks are English only**, and **there is no phone verification**.
+- **`@jiyuu_org` already exists on production**, so reserving the handle takes nothing from anyone.
+- **No users are under 18.** Explicit sexual content stays banned anyway: this is a classroom
+  network.
+- **Removed posts are kept for 1 day**, then deleted for real with their media, unless an appeal
+  is open. See [Appeals](#appeals).
 
 ## Principles
 
@@ -252,7 +257,7 @@ ways to ask for it to be lifted:
 
 1. A **review request form**: one request per suspension, up to 1,000 characters, rate-limited.
    It is stored as an `appeal` on the suspension and appears in the `/mod` queue.
-2. A **contact email address**, for when the form isn't enough. The address is an open question.
+2. The contact address **jiyuu.org@gmail.com**, for when the form isn't enough.
 
 The account's posts stay up unless removed one by one; its profile shows "This account is
 suspended" instead of its posts while the suspension lasts. When `suspended_until` passes, access
@@ -298,6 +303,12 @@ action writes a `moderation_action` row in the same batch, with the reason.
 The author gets a `moderation` notification naming the rule and the action. One appeal per action,
 answered in the same queue; a different moderator decides it when there is one. Upheld appeals
 restore the post and remove the strike.
+
+A removed post can be appealed for **1 day**. The hourly job deletes removed posts (and their R2
+media) once that day has passed with no appeal, or once an appeal on them is refused. While an
+appeal is open, the post is kept. The `moderation_action` row stays after the post is gone: it records
+who removed what, under which rule and when, but not the post's text or media, so a deleted post is
+really gone. Strikes keep counting from those rows.
 
 ## Schema
 
@@ -432,16 +443,15 @@ case.
 
 ## Open questions for the team
 
-1. Which email address goes on the `/suspended` page?
-2. Are any users under 18? This plan bans explicit sexual content either way.
-3. How long do `removed` posts and their media stay before being deleted for real (proposal: 90
-   days, or the end of an open appeal)?
-4. Link hostnames in direct messages are checked under this plan. Agree, and say so on the privacy
-   page.
-5. Which help-line links go in the self-harm resources box?
-6. Strike thresholds as proposed?
-7. Does `@jiyuu_org` already exist on production? If not, someone signs in with the organisation's
-   Google account and picks the handle before it is reserved, or the grant script sets it.
+1. **Link checks in direct messages.** When a direct message contains a link, may the server check
+   only the website's name (never the message text) against the list of known malware and
+   phishing sites, and make the link unclickable if it is on it? Recommended: yes, with a sentence
+   on the privacy page.
+2. **The help box for self-harm posts.** Posts about self-harm stay up with a "Need someone to
+   talk to?" box of support services under them. Which services, for Japan and Cambodia? Without
+   an answer the box is left out until there is one.
+3. **Strike numbers.** Proposed: each removal is a strike; 1 is a warning, 3 within 90 days a
+   7-day suspension, 5 a permanent one; the worst categories suspend at once. Stricter or looser?
 
 ## Not in this plan
 
