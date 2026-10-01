@@ -32,6 +32,8 @@
 		unsuspend: m.mod_action_unsuspend,
 		block_domain: m.mod_action_block_domain,
 		block_media: m.mod_action_block_media,
+		restrict: m.mod_action_restrict,
+		unrestrict: m.mod_action_unrestrict,
 	}
 </script>
 

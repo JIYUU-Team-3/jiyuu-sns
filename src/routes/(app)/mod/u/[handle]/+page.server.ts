@@ -11,6 +11,7 @@ import {
 	strike_counts,
 	suspend,
 } from '#lib/server/moderation/standing'
+import { set_restricted } from '#lib/server/moderation/score'
 import { limit } from '#lib/server/rate-limit'
 import type { Actions, PageServerLoad } from './$types'
 
@@ -28,6 +29,9 @@ async function find_account(db: App.Locals['db'], handle: string) {
 			suspendedUntil: accountStanding.suspendedUntil,
 			suspendReason: accountStanding.suspendReason,
 			suspendActionId: accountStanding.suspendActionId,
+			restricted: accountStanding.restricted,
+			restrictedBy: accountStanding.restrictedBy,
+			score: accountStanding.behaviourScore,
 		})
 		.from(profile)
 		.leftJoin(accountStanding, eq(accountStanding.userId, profile.userId))
@@ -51,6 +55,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			handle: account.handle,
 			name: account.name,
 			moderator: account.role === 'moderator',
+			restricted: !!account.restricted,
+			restricted_by: account.restrictedBy ?? undefined,
+			score: account.score ?? 0,
 		},
 		suspension: suspension && {
 			until: suspension.until,
@@ -91,6 +98,14 @@ export const actions: Actions = {
 			note,
 		})
 		if (!action) return fail(409, { moderator: true })
+	},
+
+	restrict: async ({ locals, params, request }) => {
+		const { db, user_id } = require_moderator(locals)
+		await limit('MOD_LIMIT', user_id)
+		const account = await find_account(db, params.handle)
+		const on = (await read_form(request, 1024)).get('on') === '1'
+		await set_restricted(db, user_id, account.id, on)
 	},
 
 	lift: async ({ locals, params }) => {

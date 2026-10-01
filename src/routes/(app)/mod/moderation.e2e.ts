@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { sign_up } from '../sign-up'
-import { age_removal, grant_moderator } from './local-db'
+import { age_removal, grant_moderator, settle_account } from './local-db'
 
 const unique = () => crypto.randomUUID().slice(0, 8)
 
@@ -185,4 +185,47 @@ test('the hourly job deletes a removed post, with its photo, once its day has pa
 	expect((await author.goto(`/p/${posted.id}`))?.status()).toBe(404)
 	expect((await author.request.get(posted.photo)).status()).toBe(404)
 	await author.context().close()
+})
+
+test('a burst of near-identical link posts restricts the account and asks a moderator @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const spammer = await (await browser.newContext()).newPage()
+	await sign_up(spammer, `e2e_bs_${id}`)
+	settle_account(`e2e_bs_${id}`)
+	await sign_up(page, `e2e_bm_${id}`)
+	grant_moderator(`e2e_bm_${id}`)
+
+	// Each one differs in a number, so none is refused as a repeat; together they're one message.
+	const composer = spammer.locator('form.inline')
+	for (let i = 0; i < 10; i++) {
+		await composer
+			.getByLabel('Post text')
+			.fill(
+				`Free notes ${i} ${id} at https://notes${i}-${id}.example/a https://mirror-${id}.example/${i}`,
+			)
+		const stored = spammer.waitForResponse((response) => response.url().includes('/create_post'))
+		await composer.getByRole('button', { name: 'Post', exact: true }).click()
+		expect((await (await stored).json()).type).toBe('result')
+	}
+
+	const ran = await page.request.get('/__scheduled?cron=17+*+*+*+*')
+	expect(ran.ok(), await ran.text()).toBe(true)
+
+	// Restricted: back to a new account's limits, so ten posts an hour is the most.
+	await composer.getByLabel('Post text').fill(`One more ${id}`)
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	await expect(spammer.getByText('Your account can post 10 times an hour for now.')).toBeVisible()
+
+	// The moderator sees why, and can lift it.
+	await page.goto('/mod')
+	const item = page.locator('article', { hasText: `@e2e_bs_${id}` })
+	await expect(item.getByText(/Automatic checks: .*/)).toBeVisible()
+	await page.goto(`/mod/u/e2e_bs_${id}`)
+	await expect(page.getByText(/Restricted by its behaviour score/)).toBeVisible()
+	await page.getByRole('button', { name: 'Lift restriction' }).click()
+	await expect(page.getByRole('button', { name: 'Restrict' })).toBeVisible()
+	await spammer.context().close()
 })

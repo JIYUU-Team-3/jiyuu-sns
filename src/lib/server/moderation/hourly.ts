@@ -6,6 +6,7 @@ import { raise_case } from './cases'
 import { check_post, type CheckDeps } from './checks'
 import { block_domain, blocked_hosts, links_in, reputation } from './links'
 import { purge_removed_posts } from './posts'
+import { run_scores } from './score'
 
 type Db = ReturnType<typeof getDb>
 
@@ -26,8 +27,8 @@ export type HourlyDeps = CheckDeps & { lookup?: typeof fetch }
 
 /**
  * The hourly job, run by the Worker's Cron Trigger: deletes removed posts whose day has passed,
- * retries checks that couldn't run, and asks again about hosts in recent posts, since a domain can
- * turn bad after it was posted. Returns what it did, for the log.
+ * retries checks that couldn't run, asks again about hosts in recent posts, since a domain can turn
+ * bad after it was posted, and scores the accounts active lately. Returns what it did, for the log.
  */
 export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 	const { purged, unused } = await purge_removed_posts(db, now)
@@ -76,7 +77,8 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 			)
 		}
 	}
-	return { purged, retried: pending.length, hosts: hosts.length, blocked }
+	const scores = await run_scores(db, now)
+	return { purged, retried: pending.length, hosts: hosts.length, blocked, ...scores }
 }
 
 /**

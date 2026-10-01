@@ -24,6 +24,8 @@
 		unsuspend: m.mod_action_unsuspend,
 		block_domain: m.mod_action_block_domain,
 		block_media: m.mod_action_block_media,
+		restrict: m.mod_action_restrict,
+		unrestrict: m.mod_action_unrestrict,
 	}
 </script>
 
@@ -36,6 +38,23 @@
 		<a class="lnk" href={profile_href(data.account.handle)}>{m.mod_view_profile()}</a>
 	</p>
 	<p>{m.mod_strikes({ recent: data.strikes.recent, total: data.strikes.total })}</p>
+	<p>{m.mod_score({ score: data.account.score })}</p>
+	{#if !data.account.moderator}
+		<form class="row" method="post" action="?/restrict" use:enhance>
+			{#if data.account.restricted}
+				<p class="note">
+					{data.account.restricted_by === 'score'
+						? m.mod_restricted_by_score()
+						: m.mod_restricted_by_moderator()}
+				</p>
+				<input type="hidden" name="on" value="0" />
+				<button class="btn btn-outline sm">{m.mod_unrestrict()}</button>
+			{:else}
+				<input type="hidden" name="on" value="1" />
+				<button class="btn btn-outline sm">{m.mod_restrict()}</button>
+			{/if}
+		</form>
+	{/if}
 
 	{#if data.account.moderator}
 		<p class="note">{m.mod_is_moderator()}</p>
@@ -106,6 +125,12 @@
 		padding: 12px 14px;
 		border-radius: 12px;
 		background: var(--bg-2);
+	}
+	.row {
+		display: grid;
+		gap: 8px;
+		justify-items: start;
+		margin-bottom: 12px;
 	}
 	.suspend {
 		display: grid;

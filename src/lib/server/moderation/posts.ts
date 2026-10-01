@@ -282,12 +282,13 @@ export async function purge_removed_posts(db: Db, now = Date.now(), limit = 100)
 			),
 		)
 		.limit(limit)
-	const uploads: string[] = []
+	// One post at a time: a post holds at most a few uploads, well inside D1's parameter limit.
+	const unused: string[] = []
 	for (const row of due) {
 		const removed = await remove_post(db, row.author_id, row.id)
-		if (removed) uploads.push(...removed.uploads)
+		if (removed) unused.push(...(await unused_uploads(db, removed.uploads)))
 	}
-	return { purged: due.length, unused: await unused_uploads(db, uploads) }
+	return { purged: due.length, unused }
 }
 
 /** Delete one removed post now, after a refused review. */

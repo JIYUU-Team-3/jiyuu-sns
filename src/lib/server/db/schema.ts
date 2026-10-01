@@ -333,6 +333,11 @@ export const accountStanding = sqliteTable('account_standing', {
 	suspendActionId: text('suspend_action_id'),
 	/** Held to a new account's limits, by a moderator or a high behaviour score. */
 	restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
+	/** Who restricted it; a moderator's restriction is only lifted by a moderator. */
+	restrictedBy: text('restricted_by', { enum: ['moderator', 'score'] }),
+	/** The last behaviour score, 0 to 100, from `server/moderation/score.ts`. */
+	behaviourScore: integer('behaviour_score').notNull().default(0),
+	scoredAt: integer('scored_at', { mode: 'timestamp_ms' }),
 	updatedAt: written_at('updated_at'),
 })
 
@@ -394,6 +399,8 @@ export const moderationAction = sqliteTable(
 				'unsuspend',
 				'block_domain',
 				'block_media',
+				'restrict',
+				'unrestrict',
 			],
 		}).notNull(),
 		reason: text('reason'),

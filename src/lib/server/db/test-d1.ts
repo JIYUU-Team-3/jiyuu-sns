@@ -12,6 +12,9 @@ import { profile } from './schema'
 
 const MIGRATIONS = join(import.meta.dirname, '../../../../drizzle')
 
+/** https://developers.cloudflare.com/d1/platform/limits/ */
+const D1_MAX_PARAMS = 100
+
 /** D1 takes booleans and undefined; SQLite wants numbers and null. */
 const to_sqlite = (value: unknown): SQLInputValue =>
 	typeof value === 'boolean' ? Number(value) : value === undefined ? null : (value as SQLInputValue)
@@ -24,6 +27,12 @@ class Statement {
 	) {}
 
 	bind(...params: unknown[]) {
+		// D1's own limit, which SQLite alone doesn't have: a query that passes it here fails there.
+		if (params.length > D1_MAX_PARAMS) {
+			throw new Error(
+				`D1 allows ${D1_MAX_PARAMS} bound parameters; this query has ${params.length}`,
+			)
+		}
 		return new Statement(this.sqlite, this.sql, params)
 	}
 

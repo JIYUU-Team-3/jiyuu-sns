@@ -52,6 +52,15 @@ describe('blocklist', () => {
 	})
 })
 
+describe('blocked_hosts with many hosts', () => {
+	it('stays inside D1’s 100-parameter limit', async () => {
+		const db = test_db()
+		await db.insert(blockedDomain).values({ domain: 'h149.example' })
+		const hosts = Array.from({ length: 150 }, (_, i) => `www.h${i}.example`)
+		expect([...(await blocked_hosts(db, hosts))]).toEqual(['www.h149.example'])
+	})
+})
+
 describe('reputation', () => {
 	it('reads the resolver’s answer, and says unknown when it fails', async () => {
 		expect(await reputation('bad.example', resolver(['bad.example']))).toBe('blocked')

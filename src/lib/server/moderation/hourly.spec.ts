@@ -39,7 +39,7 @@ describe('run_hourly', () => {
 			{ bucket, enabled: false, lookup: resolver('turned-bad.example') },
 			later,
 		)
-		expect(summary).toEqual({ purged: 1, retried: 1, hosts: 2, blocked: 1 })
+		expect(summary).toMatchObject({ purged: 1, retried: 1, hosts: 2, blocked: 1, restricted: 0 })
 
 		const left = await db.select({ id: post.id, checked: post.checked }).from(post)
 		expect(left.map((row) => row.id).sort()).toEqual(['fine', 'link', 'retry'])

@@ -1,6 +1,7 @@
 import { inArray, sql, type SQLWrapper } from 'drizzle-orm'
 import { text_segments } from '#lib/posts/text'
 import { cached } from '../cache'
+import { chunks } from '../db/chunks'
 import type { getDb } from '../db'
 import { blockedDomain } from '../db/schema'
 
@@ -98,11 +99,14 @@ export function host_and_parents(host: string) {
 export async function blocked_hosts(db: Db, hosts: string[]) {
 	const candidates = [...new Set(hosts.flatMap(host_and_parents))]
 	if (!candidates.length) return new Set<string>()
-	const rows = await db
-		.select({ domain: blockedDomain.domain })
-		.from(blockedDomain)
-		.where(inArray(blockedDomain.domain, candidates))
-	const blocked = new Set(rows.map((row) => row.domain))
+	const blocked = new Set<string>()
+	for (const part of chunks(candidates)) {
+		const rows = await db
+			.select({ domain: blockedDomain.domain })
+			.from(blockedDomain)
+			.where(inArray(blockedDomain.domain, part))
+		for (const row of rows) blocked.add(row.domain)
+	}
 	return new Set(hosts.filter((host) => host_and_parents(host).some((d) => blocked.has(d))))
 }
 

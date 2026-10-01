@@ -29,6 +29,7 @@
 		}
 		const links = flags.links
 		if (Array.isArray(links) && links.length) parts.push(`links: ${links.join(', ')}`)
+		if (typeof flags.score === 'number') parts.push(`behaviour score ${flags.score}`)
 		return parts.filter(Boolean).join(' · ')
 	}
 

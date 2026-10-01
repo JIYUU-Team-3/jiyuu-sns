@@ -245,14 +245,14 @@ test('a new account cannot post links or message people who do not follow it @wr
 
 	const refused = await try_post(page, `See https://example.com/notes ${id}`)
 	expect(refused).toMatchObject({ type: 'error', error: { status: 403 } })
-	await expect(page.getByText('New accounts can’t share links yet.')).toBeVisible()
+	await expect(page.getByText('Your account can’t share links yet.')).toBeVisible()
 	await expect(page.locator('article.post', { hasText: id })).toHaveCount(0)
 
 	await page.goto(`/u/e2e_ns_${id}`)
 	await page.waitForLoadState('networkidle')
 	await page.getByRole('button', { name: `Message @e2e_ns_${id}` }).click()
 	await expect(
-		page.getByText('New accounts can only message people who follow them.'),
+		page.getByText('For now, your account can only message people who follow it.'),
 	).toBeVisible()
 	await expect(page).toHaveURL(new RegExp(`/u/e2e_ns_${id}$`))
 	await stranger.context().close()
