@@ -47,22 +47,23 @@ These are the ones that have already been broken once.
 
 ## Where each defence lives
 
-| Threat                                   | Defence                                                                        | Where                                     |
-| ---------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------- |
-| Reading posts/profiles without a session | `signed_in()` on every query; redirects in page loads                          | `session.ts`, `*.remote.ts`               |
-| Fake or squatted accounts                | Google sign-in only; email accounts need a flag that only works on loopback    | `auth.ts` (`email_signup`)                |
-| Posting without a profile                | `member()`                                                                     | `session.ts`, `routes/media/+server.ts`   |
-| Cross-site requests                      | SvelteKit's origin check (forms and remote calls); SameSite session cookie     | framework default — don't turn `csrf` off |
-| Script injection                         | No `{@html}` on user text; CSP with nonces, `script-src 'self'`                | `vite.config.ts`                          |
-| Clickjacking                             | `frame-ancestors 'none'`, `X-Frame-Options: DENY`                              | `vite.config.ts`, `hooks.server.ts`       |
-| Tracking readers through media           | Avatar host allowlist, GIF host allowlist, CSP `img-src`, `no-referrer`        | `account-image.ts`, `gifs.ts`             |
-| Hostile uploads                          | Type from the bytes, no SVG, metadata stripped, `nosniff`, size and rate caps  | `media.ts`, `strip-*.ts`, `form.ts`       |
-| Attaching someone else's upload          | `is_own_post_upload`                                                           | `server/media.ts`                         |
-| Server-side request forgery via push     | Push endpoints limited to known push services                                  | `web-push.ts` (`is_push_endpoint`)        |
-| Abuse and scraping                       | Rate limits; mention, subscription and offset caps; hourly push de-duplication | `rate-limit.ts`, `posts.ts`, `push.ts`    |
-| Impersonation                            | Reserved handles; control and bidi characters stripped from names and bios     | `profiles/form/profile.ts`                |
-| Misleading links                         | URLs with user info (`https://bank@evil/`) are not linkified                   | `posts/text.ts`                           |
-| Poisoned CI dependencies                 | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile           | `.github/workflows/`                      |
+| Threat                                    | Defence                                                                                         | Where                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Reading posts/profiles without a session  | `signed_in()` on every query; redirects in page loads                                           | `session.ts`, `*.remote.ts`                   |
+| Fake or squatted accounts                 | Google sign-in only; email accounts need a flag that only works on loopback                     | `auth.ts` (`email_signup`)                    |
+| Posting without a profile                 | `member()`                                                                                      | `session.ts`, `routes/media/+server.ts`       |
+| Cross-site requests                       | SvelteKit's origin check (forms and remote calls); SameSite session cookie                      | framework default — don't turn `csrf` off     |
+| Script injection                          | No `{@html}` on user text; CSP with nonces, `script-src 'self'`                                 | `vite.config.ts`                              |
+| Clickjacking                              | `frame-ancestors 'none'`, `X-Frame-Options: DENY`                                               | `vite.config.ts`, `hooks.server.ts`           |
+| Tracking readers through media            | Avatar host allowlist, GIF host allowlist, CSP `img-src`, `no-referrer`                         | `account-image.ts`, `gifs.ts`                 |
+| Hostile uploads                           | Type from the bytes, no SVG, metadata stripped, `nosniff`, size and rate caps                   | `media.ts`, `strip-*.ts`, `form.ts`           |
+| Attaching someone else's upload           | `is_own_post_upload`                                                                            | `server/media.ts`                             |
+| Server-side request forgery via push      | Push endpoints limited to known push services                                                   | `web-push.ts` (`is_push_endpoint`)            |
+| Abuse and scraping                        | Rate limits; mention, subscription and offset caps; hourly push de-duplication                  | `rate-limit.ts`, `posts.ts`, `push.ts`        |
+| Impersonation                             | Reserved handles; control and bidi characters stripped from names and bios                      | `profiles/form/profile.ts`                    |
+| Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                    | `posts/text.ts`                               |
+| Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader | `server/messages.ts`, `routes/media/[...key]` |
+| Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                            | `.github/workflows/`                          |
 
 ## Known gaps, most important first
 
@@ -95,13 +96,18 @@ look next.
 ### Code — not done yet
 
 1. **No block, mute or report.** Rate limits slow harassment; nothing lets its target stop it.
-   This is the largest missing safety feature.
+   This is the largest missing safety feature, and direct messages make it sharper: anyone can
+   message anyone, and anyone can put up to 49 people in a group without asking them. A direct
+   chat can't be left at all. Until blocking exists, consider limiting who can start a chat
+   (people you follow, or who follow you) and letting people leave or hide a direct chat.
 2. **No moderation or admin role.** Nobody can remove someone else's post or suspend an account
    except by editing the database.
 3. **No account deletion or data export.** The schema cascades correctly from `user`, but nothing
    calls it, and R2 objects would be left behind.
 4. **Uploads that are never attached stay in R2.** The composer deletes what it discards, but a
-   scripted client need not. Needs a scheduled sweep of `posts/…` keys with no `post_media` row.
+   scripted client need not. Needs a scheduled sweep of `posts/…` keys with no `post_media` row,
+   and of `messages/…` keys with no `message` row. A group's photos are also left in R2 when its
+   last member leaves and the conversation is deleted.
 5. **Uploads pass through Worker memory.** A 50 MB video is buffered; a few at once approach the
    128 MB isolate limit. The durable fix is uploading straight to R2 (presigned URL or multipart)
    and stripping metadata afterwards.
@@ -144,7 +150,7 @@ look next.
 
 ## Checking it yourself
 
-- `pnpm exec playwright test src/routes/security.e2e.ts` — signed-out reads, writes without a
+- `pnpm exec playwright test src/routes/security.e2e.ts` — signed-out reads, chats closed to outsiders, writes without a
   profile, avatar URLs, upload rate limit.
 - `pnpm audit` — runs in CI and before commits that touch dependencies.
 - The server the tests run against has `ALLOW_EMAIL_SIGNUP=1` (`.env.e2e`). To see what production

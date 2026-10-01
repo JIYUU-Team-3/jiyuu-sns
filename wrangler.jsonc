@@ -46,6 +46,8 @@
 	"ratelimits": [
 		// Posting, liking, following, voting: more than a person does in a minute.
 		{ "name": "WRITE_LIMIT", "namespace_id": "1701", "simple": { "limit": 60, "period": 60 } },
+		// Sending and reacting in a chat, which goes faster than posting.
+		{ "name": "MESSAGE_LIMIT", "namespace_id": "1705", "simple": { "limit": 120, "period": 60 } },
 		// Photos and videos. A full thread of photos is 60; nobody posts two a minute.
 		{ "name": "UPLOAD_LIMIT", "namespace_id": "1702", "simple": { "limit": 90, "period": 60 } },
 		// Search-as-you-type and the GIF and place pickers.
