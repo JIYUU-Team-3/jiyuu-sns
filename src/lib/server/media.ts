@@ -1,4 +1,5 @@
 import type { ImageUpload } from '#lib/media'
+import { message_file_name } from '#lib/messages/files'
 import { strip_metadata } from './strip-metadata'
 
 /** Uploads are stored as `/media/<key>` URLs, served by `src/routes/media/[...key]`. */
@@ -6,7 +7,7 @@ const PREFIX = '/media/'
 
 /** Keys this app writes: `avatars/<user>/<uuid>.<ext>`, `banners/…` or `posts/…` (videos too). */
 const KEY_PATTERN =
-	/^(?:(?:avatars|banners|posts|messages)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4)$/
+	/^(?:(?:avatars|banners|posts|messages)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4|messages\/[\w-]+\/[\w-]+\.bin)$/
 
 export const is_media_key = (key: string) => KEY_PATTERN.test(key)
 
@@ -35,6 +36,23 @@ export async function put_video(bucket: R2Bucket, user_id: string, video: Blob) 
 	await bucket.put(key, video, { httpMetadata: { contentType: 'video/mp4' } })
 	return PREFIX + key
 }
+
+/** Arbitrary DM files are downloads, never executable content on our origin. */
+export async function put_message_file(bucket: R2Bucket, user_id: string, file: File) {
+	const key = fresh_key('messages', user_id, 'bin')
+	const name = message_file_name(file.name)
+	await bucket.put(key, await file.arrayBuffer(), {
+		httpMetadata: {
+			contentType: 'application/octet-stream',
+			contentDisposition: `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(name).replace(/[!'()*]/g, (char) => '%' + char.charCodeAt(0).toString(16))}`,
+		},
+		customMetadata: { name },
+	})
+	return PREFIX + key
+}
+
+export const is_message_file_url = (url: string) =>
+	!!media_key(url)?.startsWith('messages/') && url.endsWith('.bin')
 
 const fresh_key = (folder: string, user_id: string, ext: string) =>
 	`${folder}/${user_id}/${crypto.randomUUID()}.${ext}`

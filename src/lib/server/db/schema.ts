@@ -256,10 +256,12 @@ export const message = sqliteTable(
 		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
 			onDelete: 'set null',
 		}),
-		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
+		mediaKind: text('media_kind', { enum: ['image', 'gif', 'file'] }),
 		mediaUrl: text('media_url'),
 		mediaWidth: integer('media_width'),
 		mediaHeight: integer('media_height'),
+		mediaName: text('media_name'),
+		mediaSize: integer('media_size'),
 		createdAt: created_at(),
 	},
 	(table) => [

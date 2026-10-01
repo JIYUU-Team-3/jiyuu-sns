@@ -427,5 +427,10 @@
 	"dm_send_failed": "Your message couldn’t be sent.",
 	"dm_too_long": "Messages can be up to {count} characters.",
 	"dm_photo_size": "Photos can be up to 5 MB.",
-	"dm_deleted_account": "Deleted account"
+	"dm_deleted_account": "Deleted account",
+	"dm_file": "File",
+	"dm_add_file": "Add file",
+	"dm_sent_file": "sent a file",
+	"dm_file_size": "Files can be up to 5 MB.",
+	"dm_download": "Download"
 }
