@@ -3,7 +3,7 @@
 	"name": "jiyuu-sns",
 	"compatibility_date": "2026-09-16",
 	"compatibility_flags": ["nodejs_als"],
-	// Written by the Cloudflare adapter, then wrapped by scripts/wrap-worker.ts to add the hourly
+	// Written by the Cloudflare adapter, then wrapped by scripts/wrap-worker.js to add the hourly
 	// Cron Trigger below, which the adapter has no hook for.
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
@@ -65,7 +65,7 @@
 			"simple": { "limit": 30, "period": 60 },
 		},
 	],
-	// The hourly moderation job (scripts/wrap-worker.ts). The Free plan allows 5 per account.
+	// The hourly moderation job (scripts/wrap-worker.js). The Free plan allows 5 per account.
 	"triggers": { "crons": ["17 * * * *"] },
 	"workers_dev": true,
 	// Preview versions would run with the production database and secrets on a second URL.

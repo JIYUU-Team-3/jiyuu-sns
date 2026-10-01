@@ -82,7 +82,7 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 }
 
 /**
- * The one-time token the Worker's `scheduled` handler (scripts/wrap-worker.ts) puts here before
+ * The one-time token the Worker's `scheduled` handler (scripts/wrap-worker.js) puts here before
  * calling the hourly route in-process. A request from outside can't know it.
  */
 export const CRON_TOKEN = Symbol.for('jiyuu.cron-token')

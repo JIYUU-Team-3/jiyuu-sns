@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const ENTRY = '.svelte-kit/cloudflare/_worker.js'
 const APP = '.svelte-kit/cloudflare-tmp/app.js'
-const MARKER = '// Wrapped by scripts/wrap-worker.ts'
+const MARKER = '// Wrapped by scripts/wrap-worker.js'
 
 const built = readFileSync(ENTRY, 'utf8')
 if (built.startsWith(MARKER)) process.exit(0)

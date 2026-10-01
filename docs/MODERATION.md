@@ -13,7 +13,7 @@ Built as planned, with these differences, each for a reason found while building
   (`WORKERS_AI_ACCOUNT_ID`, `WORKERS_AI_TOKEN`); deleting the token switches them off without a
   deploy, in place of a KV switch.
 - **The hourly job is a Cron Trigger on the app's own Worker.** The Cloudflare adapter has no hook
-  for a `scheduled` handler, so `scripts/wrap-worker.ts` adds one after `vite build`. It calls
+  for a `scheduled` handler, so `scripts/wrap-worker.js` adds one after `vite build`. It calls
   `/internal/hourly` in-process with a token made fresh for each run.
 - **Sensitive is a flag, not a fourth visibility state**, since a post can be both limited and
   sensitive. Profiles have no visibility state: a profile is dealt with by suspending the account.
