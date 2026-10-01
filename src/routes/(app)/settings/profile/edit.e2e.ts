@@ -42,6 +42,38 @@ test('edit your own profile, including the handle @writes', async ({ page }) => 
 	await expect(header).toContainText('Second bio')
 })
 
+for (const rename of [false, true]) {
+	test(`back after saving skips the edit page${rename ? ', with a new handle' : ''} @writes`, async ({
+		page,
+	}) => {
+		const id = crypto.randomUUID().slice(0, 8)
+		const handle = `e2e_b_${id}`
+		const saved = rename ? `e2e_n_${id}` : handle
+		await sign_up(page, handle)
+		// Reloaded, so going back to the feed isn't served sign-up's redirect to onboarding.
+		await page.goto('/')
+
+		await page.goto(`/u/${handle}`)
+		await page.getByRole('link', { name: 'Edit profile' }).click()
+		const name = page.getByLabel(/Display name/)
+		await expect(async () => {
+			await name.fill('Back Test')
+			await expect(name).toHaveValue('Back Test', { timeout: 1_000 })
+		}).toPass()
+		if (rename) await page.getByLabel('Username').fill(saved)
+		await page.getByRole('button', { name: 'Save' }).click()
+
+		await expect(page).toHaveURL(new RegExp(`/u/${saved}$`))
+		await expect(
+			page.locator('section.top').getByRole('heading', { name: 'Back Test' }),
+		).toBeVisible()
+		await expect(page.locator('.acct-chip')).toContainText(`@${saved}`)
+
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(page).toHaveURL(/\/$/)
+	})
+}
+
 test('someone else’s profile has no edit link and keeps its handle @writes', async ({
 	page,
 	browser,
