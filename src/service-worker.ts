@@ -50,7 +50,10 @@ sw.addEventListener('push', (event) => {
 
 sw.addEventListener('notificationclick', (event) => {
 	event.notification.close()
-	const url = new URL(event.notification.data?.url ?? '/notifications', sw.location.origin).href
+	// Whatever the message said, a click only ever opens a page of this site.
+	const target = new URL(event.notification.data?.url ?? '/notifications', sw.location.origin)
+	const url =
+		target.origin === sw.location.origin ? target.href : `${sw.location.origin}/notifications`
 
 	event.waitUntil(
 		(async () => {
