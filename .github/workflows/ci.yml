@@ -104,6 +104,14 @@ jobs:
   test:
     name: Unit tests
     runs-on: ubuntu-latest
+    # Playwright's own image: the browsers and their system libraries are already in it, so
+    # nothing is downloaded or installed with apt, which took anywhere from one minute to
+    # thirteen. The tag must be the Playwright version in pnpm-lock.yaml; the check below says
+    # so when an upgrade leaves it behind. `--user 1001` is the runner's own user, which Firefox
+    # needs to own its home directory.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -124,19 +132,13 @@ jobs:
           rm /tmp/install-safe-chain.sh
       - run: pnpm install --frozen-lockfile
       # The `client` vitest project runs in a real browser via @vitest/browser-playwright
-      # The browsers are kept between runs: downloading them every time took anywhere from
-      # one minute to thirteen. The key follows the Playwright version, so an upgrade fetches
-      # fresh ones.
-      - name: Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      # Skips any browser the cache already has; the system libraries are installed either way.
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Check the image matches the installed Playwright
+        run: |
+          installed="$(pnpm exec playwright --version)"
+          if [ "$installed" != "Version 1.63.0" ]; then
+            echo "::error::Playwright is $installed but this job's container image is v1.63.0. Update the image tag in ci.yml."
+            exit 1
+          fi
       - run: pnpm exec vitest --run
 
   build:
@@ -171,8 +173,15 @@ jobs:
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest
-    # The tests take about five minutes; the rest is room for a slow install.
-    timeout-minutes: 30
+    # Playwright's own image: the browsers and their system libraries are already in it, so
+    # nothing is downloaded or installed with apt, which took anywhere from one minute to
+    # thirteen. The tag must be the Playwright version in pnpm-lock.yaml; the check below says
+    # so when an upgrade leaves it behind. `--user 1001` is the runner's own user, which Firefox
+    # needs to own its home directory.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -196,19 +205,13 @@ jobs:
       # Only the key names matter here, never the values - `.env.example` has them.
       - name: Seed .env for wrangler types
         run: cp -n .env.example .env
-      # The browsers are kept between runs: downloading them every time took anywhere from
-      # one minute to thirteen. The key follows the Playwright version, so an upgrade fetches
-      # fresh ones.
-      - name: Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-all-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      # Skips any browser the cache already has; the system libraries are installed either way.
-      - run: pnpm exec playwright install --with-deps
+      - name: Check the image matches the installed Playwright
+        run: |
+          installed="$(pnpm exec playwright --version)"
+          if [ "$installed" != "Version 1.63.0" ]; then
+            echo "::error::Playwright is $installed but this job's container image is v1.63.0. Update the image tag in ci.yml."
+            exit 1
+          fi
       # playwright.config.ts serves this build via `pnpm preview:ci`
       # (wrangler --local: D1 is emulated, no Cloudflare credentials needed).
       - run: pnpm run build
