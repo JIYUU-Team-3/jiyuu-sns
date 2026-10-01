@@ -54,5 +54,5 @@ export async function search_gifs(q: string, locale: string): Promise<Gif[]> {
 	const response = await fetch(`${API}/${q ? 'search' : 'trending'}?${params}`)
 	if (!response.ok) throw new Error(`GIPHY ${response.status}`)
 	const { data } = (await response.json()) as { data: GiphyItem[] }
-	return data.map(to_gif).filter((gif) => is_gif_url(gif.full.url))
+	return data.map(to_gif).filter((gif) => is_gif_url(gif.full.url) && is_gif_url(gif.preview.url))
 }

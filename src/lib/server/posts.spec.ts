@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kept_media } from './posts'
+import { kept_media, last_at_cap, OFFSET_MAX, PAGE_SIZE } from './posts'
 
 const current = [{ url: '/a' }, { url: '/b', alt: 'old' }, { url: '/c' }]
 
@@ -22,5 +22,15 @@ describe('kept_media', () => {
 	it('refuses new or repeated items', () => {
 		expect(kept_media(current, [{ url: '/a' }, { url: '/x' }])).toBeUndefined()
 		expect(kept_media(current, [{ url: '/a' }, { url: '/a' }])).toBeUndefined()
+	})
+})
+
+describe('last_at_cap', () => {
+	const page = { posts: [], next: 'more' }
+
+	it('keeps paging until the next page would start past the cap', () => {
+		expect(last_at_cap(page, 0).next).toBe('more')
+		expect(last_at_cap(page, OFFSET_MAX - PAGE_SIZE).next).toBe('more')
+		expect(last_at_cap(page, OFFSET_MAX).next).toBeUndefined()
 	})
 })

@@ -2,7 +2,9 @@ import { redirect } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import { localizeHref } from '#lib/paraglide/runtime'
 import { suggest_handle } from '#lib/profiles/form/profile'
-import { submit_profile } from '#lib/server/profile-form'
+import { account_image } from '#lib/server/account-image'
+import { read_form } from '#lib/server/form'
+import { PROFILE_FORM_MAX_BYTES, submit_profile } from '#lib/server/profile-form'
 import { home_href } from '../links'
 import type { Actions, PageServerLoad } from './$types'
 
@@ -10,7 +12,7 @@ export const load: PageServerLoad = ({ locals }) => {
 	if (!locals.user) return redirect(302, localizeHref('/login'))
 	const { id, name, email, image } = locals.user
 	return {
-		account: { id, name, email, image: image ?? undefined },
+		account: { id, name, email, image: account_image(image) },
 		suggested_handle: suggest_handle(name, email),
 	}
 }
@@ -23,7 +25,7 @@ export const actions: Actions = {
 			locals.db,
 			env.MEDIA,
 			locals.user.id,
-			await request.formData(),
+			await read_form(request, PROFILE_FORM_MAX_BYTES),
 		)
 		if (!('saved' in result)) return result
 		return redirect(303, home_href())

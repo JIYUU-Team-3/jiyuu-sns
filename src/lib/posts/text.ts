@@ -15,6 +15,12 @@ const URL_PATTERN = /https?:\/\/[^\s<>"]*[^\s<>".,:;!?)\]'’”]/g
 const TAG_PATTERN =
 	/(?<![\p{L}\p{M}\p{N}_&/#＃@])[#＃]([\p{L}\p{M}\p{N}_]{1,50})(?![\p{L}\p{M}\p{N}_])/gu
 
+/**
+ * `https://bank.example@evil.example/` goes to evil.example; shown without its scheme it reads
+ * as the bank. Such a URL stays plain text.
+ */
+const HAS_USERINFO = /^https?:\/\/[^/?#]*@/
+
 /** `@` then handle characters; an `@` inside a word, like an email address, isn't a mention. */
 const MENTION_PATTERN = /(?<![\p{L}\p{M}\p{N}_.@])@([A-Za-z0-9_.]+)/gu
 
@@ -67,6 +73,7 @@ function tokens_in(body: string): Token[] {
 		tokens.push(...tags_in(text, start), ...mentions_in(text, start))
 	}
 	for (const match of body.matchAll(URL_PATTERN)) {
+		if (HAS_USERINFO.test(match[0])) continue
 		between(last, match.index)
 		const end = match.index + match[0].length
 		tokens.push({

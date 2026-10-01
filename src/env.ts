@@ -16,6 +16,11 @@ export const variables = defineEnvVars({
 		description:
 			'Google OAuth client secret. See [Better Auth Google provider](https://www.better-auth.com/docs/authentication/google).',
 	},
+	ALLOW_EMAIL_SIGNUP: {
+		description:
+			'Set to `1` only for the e2e server (`.env.e2e`): turns on email and password accounts, which the tests sign up with. Leave empty everywhere else; people sign in with Google.',
+		schema: (value) => value || undefined,
+	},
 	VAPID_PUBLIC_KEY: {
 		public: true,
 		description:

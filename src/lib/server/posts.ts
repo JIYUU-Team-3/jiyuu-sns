@@ -15,6 +15,7 @@ import {
 	follow,
 	poll,
 	pollOption,
+	pollVote,
 	post,
 	postLike,
 	postMedia,
@@ -22,11 +23,23 @@ import {
 	profile,
 	user,
 } from './db/schema'
+import { shown_image } from './account-image'
 import { notify, retract } from './notifications'
 
 type Db = ReturnType<typeof getDb>
 
 export const PAGE_SIZE = 20
+
+/**
+ * How far offset paging goes. Each page further costs the database the whole way there, so a
+ * made-up cursor can't ask for the millionth page; nobody scrolls this deep.
+ */
+export const OFFSET_MAX = 2000
+
+/** How many of a post's mentions are notified, so one post can't ping a crowd. */
+const MENTIONS_NOTIFIED_MAX = 10
+
+const notified_mentions = (body: string) => extract_mentions(body).slice(0, MENTIONS_NOTIFIED_MAX)
 
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
@@ -75,7 +88,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			author_id: user.id,
 			author_name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 			author_handle: profile.handle,
-			author_image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
+			author_image: shown_image,
 			parent_handle: parent_profile.handle,
 			parent_author_id: parent.authorId,
 			continued,
@@ -195,7 +208,7 @@ export async function page(
 function decode_rank_cursor(cursor: string | undefined) {
 	const [as_of, offset] = (cursor ?? '').split(':').map(Number)
 	if (!Number.isSafeInteger(as_of) || !Number.isSafeInteger(offset) || offset < 0) return undefined
-	return { as_of, offset }
+	return { as_of, offset: Math.min(offset, OFFSET_MAX) }
 }
 
 async function ranked_page(
@@ -214,7 +227,15 @@ async function ranked_page(
 		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
-	return to_page(rows, viewer, () => `${as_of}:${offset + PAGE_SIZE}`)
+	return last_at_cap(
+		to_page(rows, viewer, () => `${as_of}:${offset + PAGE_SIZE}`),
+		offset,
+	)
+}
+
+/** An offset page, with no next page once that would start past `OFFSET_MAX`. */
+export function last_at_cap(result: PostPage, offset: number): PostPage {
+	return offset + PAGE_SIZE > OFFSET_MAX ? { ...result, next: undefined } : result
 }
 
 export function feed_page(
@@ -347,8 +368,8 @@ async function update_mentions(
 	before: { body: string; reply_to_id: string | null },
 	body: string,
 ) {
-	const already = new Set(extract_mentions(before.body))
-	const now = new Set(extract_mentions(body))
+	const already = new Set(notified_mentions(before.body))
+	const now = new Set(notified_mentions(body))
 	const dropped = [...already].filter((handle) => !now.has(handle))
 	for (const user_id of await mentioned_users(db, dropped, author_id)) {
 		await retract(db, { user_id, actor_id: author_id, type: 'mention', post_id })
@@ -463,7 +484,7 @@ export async function insert_thread(
 	for (const [i, input] of inputs.entries()) {
 		const mentioned = await mentioned_users(
 			db,
-			extract_mentions(input.body),
+			notified_mentions(input.body),
 			author_id,
 			i ? undefined : parent_author,
 		)
@@ -492,12 +513,13 @@ export function kept_media<T extends { url: string }>(current: T[], wanted: Kept
 	return kept.every((item) => item !== undefined) ? kept : undefined
 }
 
-export type EditResult = 'not_found' | 'invalid' | { removed_uploads: string[] }
+export type EditResult = 'not_found' | 'invalid' | 'locked' | { removed_uploads: string[] }
 
 /**
  * Replace the text of the author's own post and, when `media` is given, keep only those photos,
  * GIFs and videos, in that order, with those descriptions. Returns the upload URLs it dropped, so
- * their files can go. Its hashtags follow the new text, and mentions are updated.
+ * their files can go. Its hashtags follow the new text, and mentions are updated. `locked` when
+ * it's a poll someone has voted in: the question can't change under their answer.
  */
 export async function update_post(
 	db: Db,
@@ -512,6 +534,7 @@ export async function update_post(
 		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
 		.limit(1)
 	if (!owned) return 'not_found'
+	if (body !== owned.body && (await has_votes(db, id))) return 'locked'
 
 	const current = await db.select().from(postMedia).where(eq(postMedia.postId, id))
 	const kept = media ? kept_media(current, media) : current
@@ -540,6 +563,15 @@ export async function update_post(
 	const kept_urls = new Set(kept.map((item) => item.url))
 	const removed = current.filter((item) => is_upload(item.kind) && !kept_urls.has(item.url))
 	return { removed_uploads: removed.map((item) => item.url) }
+}
+
+async function has_votes(db: Db, post_id: string) {
+	const [vote] = await db
+		.select({ post_id: pollVote.postId })
+		.from(pollVote)
+		.where(eq(pollVote.postId, post_id))
+		.limit(1)
+	return !!vote
 }
 
 /**

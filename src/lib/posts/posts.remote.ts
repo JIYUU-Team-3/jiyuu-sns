@@ -5,6 +5,7 @@ import { command, getRequestEvent, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
+import { member, signed_in } from '#lib/server/session'
 import { author_arg, feed_arg, replies_arg } from './args'
 import {
 	ALT_MAX,
@@ -69,17 +70,11 @@ const NewThread = v.object({
 	reply_to: v.optional(Id),
 })
 
-/** The viewer's id when signed in; reading posts doesn't need an account at this layer. */
-function viewer() {
-	return getRequestEvent().locals.user?.id
-}
+/** Posts are for signed-in people only, so reading them needs a session too. */
+const viewer = () => signed_in().user_id
 
-/** Every write goes through here: no session, no write. */
-function author() {
-	const { locals } = getRequestEvent()
-	if (!locals.user) error(401, 'Sign in to continue.')
-	return { db: locals.db, user_id: locals.user.id }
-}
+/** Every write goes through here: no session or no profile, no write. */
+const author = member
 
 /**
  * Photos and videos must be the author's own uploads, of the kind they claim to be; GIFs must
@@ -127,7 +122,7 @@ function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 }
 
 async function publish(inputs: PostPayload[], reply_to: string | undefined) {
-	const { db, user_id } = author()
+	const { db, user_id } = await author()
 	const prepared = inputs.map((input) => prepare(input, user_id))
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
 	if (!ids) error(404, 'The post you replied to was deleted.')
@@ -169,17 +164,18 @@ export const edit_post = command(
 		media: v.optional(v.pipe(v.array(v.object({ url: Url, alt: Alt })), v.maxLength(MEDIA_MAX))),
 	}),
 	async ({ id, body, media }) => {
-		const { db, user_id } = author()
+		const { db, user_id } = await author()
 		const result = await posts.update_post(db, user_id, id, body, media)
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')
+		if (result === 'locked') error(409, 'poll_locked')
 		await delete_unused_uploads(db, result.removed_uploads)
 		await get_post(id).refresh()
 	},
 )
 
 export const delete_post = command(Id, async (id) => {
-	const { db, user_id } = author()
+	const { db, user_id } = await author()
 	const removed = await posts.remove_post(db, user_id, id)
 	if (!removed) error(404, 'Post not found.')
 	await delete_unused_uploads(db, removed.uploads)
@@ -197,7 +193,7 @@ async function delete_unused_uploads(db: App.Locals['db'], urls: string[]) {
 }
 
 export const set_like = command(v.object({ id: Id, on: v.boolean() }), async ({ id, on }) => {
-	const { db, user_id } = author()
+	const { db, user_id } = await author()
 	await posts.set_like(db, user_id, id, on)
 })
 
@@ -205,7 +201,7 @@ export const set_like = command(v.object({ id: Id, on: v.boolean() }), async ({ 
 export const vote_poll = command(
 	v.object({ id: Id, option: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
 	async ({ id, option }) => {
-		const { db, user_id } = author()
+		const { db, user_id } = await author()
 		await posts.vote(db, user_id, id, option)
 		const found = await posts.find_post(db, user_id, id)
 		if (!found?.poll) error(404, 'Post not found.')

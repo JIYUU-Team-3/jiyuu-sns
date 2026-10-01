@@ -1,7 +1,10 @@
 import { error, json } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import { picked_file, POST_UPLOAD_MAX_BYTES, read_image, sniff_post_upload } from '#lib/media'
+import { read_form } from '#lib/server/form'
 import { put_image, put_video } from '#lib/server/media'
+import { find_profile } from '#lib/server/profiles'
+import { limit } from '#lib/server/rate-limit'
 import { MetadataError } from '#lib/server/strip-metadata'
 import { strip_video } from '#lib/server/strip-video'
 import { VIDEO_MAX_SECONDS } from '#lib/posts/rules'
@@ -13,7 +16,12 @@ import type { RequestHandler } from './$types'
  */
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) error(401, 'Sign in to continue.')
-	const file = picked_file((await request.formData()).get('file'))
+	await limit('UPLOAD_LIMIT', locals.user.id)
+	if (!(await find_profile(locals.db, locals.user.id)))
+		error(403, 'Finish setting up your profile.')
+	// The biggest thing this takes is a video; anything larger is refused before it's read.
+	const form = await read_form(request, POST_UPLOAD_MAX_BYTES.video)
+	const file = picked_file(form.get('file'))
 	if (!file) error(400, 'No file.')
 	// The bytes decide the kind, and the kind decides the size limit.
 	const kind = (await sniff_post_upload(file)) ?? error(415, 'type')

@@ -1,4 +1,5 @@
 import {
+	ALLOW_EMAIL_SIGNUP,
 	ORIGIN,
 	BETTER_AUTH_SECRET,
 	GOOGLE_CLIENT_ID,
@@ -11,10 +12,19 @@ import { sveltekitCookies } from 'better-auth/svelte-kit'
 import { getRequestEvent } from '$app/server'
 import { getDb } from '#lib/server/db'
 
+/**
+ * Whether email and password accounts are on. They need no proof of the address, so they exist
+ * only for the e2e tests: the flag is ignored unless the server itself runs at a loopback
+ * address, so setting it on a deployment by mistake turns nothing on.
+ */
+export const email_signup =
+	!!ALLOW_EMAIL_SIGNUP && /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(ORIGIN)
+
 const authConfig = {
 	baseURL: ORIGIN,
 	secret: BETTER_AUTH_SECRET,
-	emailAndPassword: { enabled: true },
+	// People sign in with Google; the e2e server has no Google to sign in with.
+	emailAndPassword: { enabled: email_signup },
 	socialProviders: {
 		google: {
 			clientId: GOOGLE_CLIENT_ID,
