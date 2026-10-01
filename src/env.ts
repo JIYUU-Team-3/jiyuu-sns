@@ -36,6 +36,16 @@ export const variables = defineEnvVars({
 			'A contact push services can reach about this app, e.g. `mailto:jiyuu.org@gmail.com`.',
 		schema: (value) => value || undefined,
 	},
+	WORKERS_AI_ACCOUNT_ID: {
+		description:
+			'The Cloudflare account whose Workers AI runs the automatic moderation checks. Optional: with this or `WORKERS_AI_TOKEN` empty, the checks are off and posts are left to reports and moderators. See docs/MODERATION.md.',
+		schema: (value) => value || undefined,
+	},
+	WORKERS_AI_TOKEN: {
+		description:
+			'An API token with Workers AI Read and Edit, for the automatic moderation checks. Optional; deleting the Worker secret turns the checks off without a deploy.',
+		schema: (value) => value || undefined,
+	},
 	GIPHY_API_KEY: {
 		description:
 			'GIPHY API key for the composer’s GIF picker. Optional: without it the picker says GIFs are unavailable. See [GIPHY developers](https://developers.giphy.com/).',

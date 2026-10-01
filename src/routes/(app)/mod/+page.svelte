@@ -13,6 +13,25 @@
 
 	let { data }: PageProps = $props()
 
+	/** The automatic findings on a case, in a moderator's shorthand: `S10`, `nudity 3`, a host. */
+	function findings(flags: Record<string, unknown>) {
+		const parts: string[] = []
+		for (const key of ['text', 'bio'] as const) {
+			const codes = flags[key]
+			if (Array.isArray(codes) && codes.length) parts.push(`${key}: ${codes.join(', ')}`)
+		}
+		const images = flags.images
+		if (Array.isArray(images)) {
+			for (const image of images as { scores?: Record<string, number> }[]) {
+				const scores = Object.entries(image.scores ?? {}).filter(([, score]) => score >= 2)
+				parts.push(scores.map(([name, score]) => `${name} ${score}`).join(', '))
+			}
+		}
+		const links = flags.links
+		if (Array.isArray(links) && links.length) parts.push(`links: ${links.join(', ')}`)
+		return parts.filter(Boolean).join(' · ')
+	}
+
 	const KIND: Record<'post' | 'profile' | 'message', () => string> = {
 		post: m.mod_kind_post,
 		profile: m.mod_kind_profile,
@@ -78,6 +97,9 @@
 				· {item.reason ? rule_label(item.reason) : m.mod_no_reason()}
 				· {m.mod_reports({ count: item.reports })}
 			</p>
+			{#if findings(item.flags)}
+				<p class="meta">{m.mod_findings({ list: findings(item.flags) })}</p>
+			{/if}
 			{#if !item.exists}
 				<p class="text gone">{m.mod_gone()}</p>
 			{:else if item.text}

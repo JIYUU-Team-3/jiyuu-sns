@@ -55,10 +55,15 @@ export async function raise_case(
  * buttons; this only puts the target in the moderator's queue. `reason` that isn't one of the
  * rules still counts, unnamed.
  */
-export function on_report(
+export async function on_report(
 	db: Db,
 	report: { target_kind: TargetKind; target_id: string; target_user_id: string; reason: string },
 ) {
+	// A reported post is checked again, every image included, to set its place in the queue.
+	if (report.target_kind === 'post') {
+		const { check_posts_later } = await import('./after-write')
+		check_posts_later(db, [report.target_id], 'report')
+	}
 	return raise_case(
 		db,
 		{ kind: report.target_kind, id: report.target_id, user_id: report.target_user_id },

@@ -312,3 +312,16 @@ test('a blocked domain is refused, and its links already posted stop linking @wr
 	await reader.context().close()
 	await mod.context().close()
 })
+
+test('the hourly job cannot be started from outside @writes', async ({ page, playwright }) => {
+	await sign_up(page, `e2e_c_${unique()}`)
+	for (const token of [undefined, 'guess']) {
+		const headers = { ...from_site(page), ...(token ? { 'x-cron-token': token } : {}) }
+		expect((await page.request.post('/internal/hourly', { headers })).status()).toBe(404)
+	}
+	// Without a session or an Origin, SvelteKit's cross-site check refuses it even sooner.
+	const anonymous = await playwright.request.newContext()
+	const status = (await anonymous.post('http://127.0.0.1:4173/internal/hourly')).status()
+	expect([403, 404]).toContain(status)
+	await anonymous.dispose()
+})

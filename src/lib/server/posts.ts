@@ -494,6 +494,8 @@ export async function insert_thread(
 				body: input.body,
 				location: input.location ?? null,
 				sensitive: !!input.sensitive,
+				// The automatic checks run right after; see `check_posts_later`.
+				checked: 'pending',
 				replyToId: parent_id ?? null,
 				isReply: !!parent_id,
 				createdAt: created_at,

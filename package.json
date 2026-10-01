@@ -6,9 +6,9 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "wrangler types && vite build",
+		"build": "wrangler types && vite build && node scripts/wrap-worker.ts",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
-		"preview:ci": "wrangler dev --port 4173 --ip 127.0.0.1 --env-file .env --env-file .env.e2e",
+		"preview:ci": "wrangler dev --port 4173 --ip 127.0.0.1 --test-scheduled --env-file .env --env-file .env.e2e",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "wrangler types && pnpm run paraglide && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "pnpm run paraglide && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

@@ -1,4 +1,3 @@
-import type { Path } from '$app/types'
 import { resolve } from '$app/paths'
 import { getLocale, localizeHref } from '#lib/paraglide/runtime'
 
@@ -30,7 +29,14 @@ export const EXTERNAL_HREFS = {
 export const localized = (
 	path:
 		'/about' | '/terms' | '/privacy' | '/accessibility' | '/guidelines' | '/login' | '/suspended',
-) => resolve(localizeHref(path) as Path)
+) => resolve_path(localizeHref(path))
+
+/**
+ * `resolve` for a path that's already a whole app path. Its own type checks the argument route by
+ * route, which TypeScript can no longer infer once the app has as many routes as this one; at run
+ * time it only adds the base path.
+ */
+export const resolve_path = resolve as unknown as (path: string) => string
 
 /** Where a signed-in user lands, kept in the locale they signed in from. */
 export const home_href = () => localizeHref('/', { locale: getLocale() })

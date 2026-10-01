@@ -1,9 +1,8 @@
 <script lang="ts">
 	import '../app.css'
 	import { untrack } from 'svelte'
-	import type { Path } from '$app/types'
 	import { browser } from '$app/env'
-	import { resolve } from '$app/paths'
+	import { resolve_path } from './(public)/links'
 	import { page } from '$app/state'
 	import { locales, localizeHref } from '#lib/paraglide/runtime'
 	import { accent_style, prefs } from '#lib/settings/prefs.svelte'
@@ -29,6 +28,6 @@
 
 <div style="display:none">
 	{#each locales as locale (locale)}
-		<a href={resolve(localizeHref(page.url.pathname, { locale }) as Path)}>{locale}</a>
+		<a href={resolve_path(localizeHref(page.url.pathname, { locale }))}>{locale}</a>
 	{/each}
 </div>

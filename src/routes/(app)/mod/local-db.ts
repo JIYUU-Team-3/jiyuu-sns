@@ -11,8 +11,10 @@ import { DatabaseSync } from 'node:sqlite'
 const D1_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject'
 
 /**
- * One statement straight to the file, waiting its turn. `pnpm db:grant-moderator --local` starts a
+ * A write straight to the file, waiting its turn. `pnpm db:grant-moderator --local` starts a
  * second wrangler instead, whose write can collide with the server's own while other tests run.
+ * The server doesn't wait for a lock (it gets SQLITE_BUSY), so the lock is held for as little as
+ * possible: the rare collision left is a logged error a retry absorbs, not a wrong result.
  */
 function write(run: (db: DatabaseSync) => void) {
 	const file = readdirSync(D1_DIR).find(
@@ -22,7 +24,17 @@ function write(run: (db: DatabaseSync) => void) {
 	const db = new DatabaseSync(join(D1_DIR, file))
 	try {
 		db.exec('pragma busy_timeout = 5000')
-		run(db)
+		// Leave checkpointing the log to the server: a checkpoint here would hold the lock longer.
+		db.exec('pragma wal_autocheckpoint = 0')
+		// One short transaction, so the server's own writes meet the lock once at most.
+		db.exec('begin immediate')
+		try {
+			run(db)
+			db.exec('commit')
+		} catch (error) {
+			db.exec('rollback')
+			throw error
+		}
 	} finally {
 		db.close()
 	}
@@ -60,5 +72,17 @@ export function settle_account(handle: string, days = 10) {
 				`insert into post (id, author_id, body, is_reply, created_at) values (?, ?, ?, 1, ?)`,
 			).run(crypto.randomUUID(), row.user_id, `Earlier post ${i}`, then)
 		}
+	})
+}
+
+/** Move a removed post's removal `days` into the past, as if its day to appeal had passed. */
+export function age_removal(post_id: string, days = 2) {
+	write((db) => {
+		const aged = db
+			.prepare(
+				'update post set removed_at = removed_at - ? where id = ? and removed_at is not null',
+			)
+			.run(days * 24 * 60 * 60 * 1000, post_id)
+		if (aged.changes !== 1) throw new Error(`No removed post ${post_id}.`)
 	})
 }

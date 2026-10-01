@@ -65,11 +65,21 @@ export const post = sqliteTable(
 		sensitive: integer('sensitive', { mode: 'boolean' }).notNull().default(false),
 		/** When a moderator removed it; the post is deleted for good a day later, unless appealed. */
 		removedAt: integer('removed_at', { mode: 'timestamp_ms' }),
+		/**
+		 * The automatic checks: `pending` until they run, `unchecked` when they couldn't (no budget,
+		 * no answer) and the hourly job should try again, `skipped` when there was nothing for them.
+		 * Posts from before the checks existed are `skipped`, so they're never queued all at once.
+		 */
+		checked: text('checked', { enum: ['pending', 'checked', 'unchecked', 'skipped'] })
+			.notNull()
+			.default('skipped'),
 	},
 	(table) => [
 		index('post_author_created_idx').on(table.authorId, table.createdAt),
 		index('post_reply_to_created_idx').on(table.replyToId, table.createdAt),
 		index('post_timeline_idx').on(table.isReply, table.createdAt),
+		// The hourly job's retry of posts the checks couldn't finish.
+		index('post_checked_idx').on(table.checked, table.createdAt),
 	],
 )
 
@@ -446,6 +456,15 @@ export const blockedMediaHash = sqliteTable('blocked_media_hash', {
 	sha256: text('sha256').primaryKey(),
 	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
 	createdAt: created_at(),
+})
+
+/** Neurons the automatic checks spent each UTC day, by kind, against `server/moderation/budget.ts`. */
+export const aiUsage = sqliteTable('ai_usage', {
+	/** `YYYY-MM-DD`, UTC, as Workers AI counts its free allocation. */
+	day: text('day').primaryKey(),
+	text: integer('text').notNull().default(0),
+	image: integer('image').notNull().default(0),
+	report: integer('report').notNull().default(0),
 })
 
 export * from './auth.schema'

@@ -78,6 +78,13 @@
       "when": 1790885104762,
       "tag": "0010_write_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790886686711,
+      "tag": "0011_ai_checks",
+      "breakpoints": true
     }
   ]
 }

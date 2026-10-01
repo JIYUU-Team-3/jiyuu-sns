@@ -5,6 +5,7 @@ import { command, getRequestEvent, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
+import { check_posts_later } from '#lib/server/moderation/after-write'
 import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
 import { trust_level } from '#lib/server/moderation/trust'
 import { member, signed_in } from '#lib/server/session'
@@ -140,6 +141,7 @@ async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
 	if (!ids) error(404, 'The post you replied to was deleted.')
 	await flag_risky_links(db, user_id, ids, risky)
+	check_posts_later(db, ids)
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -184,6 +186,8 @@ export const edit_post = command(
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')
 		if (result === 'locked') error(409, 'poll_locked')
+		// New text gets the same checks as a new post.
+		check_posts_later(db, [id])
 		await delete_unused_uploads(db, result.removed_uploads)
 		await get_post(id).refresh()
 	},

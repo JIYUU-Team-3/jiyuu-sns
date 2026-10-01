@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { sign_up } from '../sign-up'
-import { grant_moderator } from './local-db'
+import { age_removal, grant_moderator } from './local-db'
 
 const unique = () => crypto.randomUUID().slice(0, 8)
 
@@ -157,4 +157,32 @@ test('media marked sensitive waits behind a cover @writes', async ({ page, brows
 	await reader.getByRole('button', { name: 'Show', exact: true }).click()
 	await expect(reader.locator('main img[src^="/media/posts/"]').first()).toBeVisible()
 	await reader.context().close()
+})
+
+test('the hourly job deletes a removed post, with its photo, once its day has passed @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const author = await (await browser.newContext()).newPage()
+	await sign_up(author, `e2e_ha_${id}`)
+	await sign_up(page, `e2e_hm_${id}`)
+	grant_moderator(`e2e_hm_${id}`)
+	const posted = await post_photo(author, `Hourly ${id}`)
+
+	await page.goto(`/mod/p/${posted.id}`)
+	await page.getByLabel('Rule broken').selectOption({ label: 'Spam' })
+	await page.getByRole('button', { name: 'Remove', exact: true }).click()
+	await expect(page.getByText('Removed · Spam · Strike')).toBeVisible()
+
+	// The job leaves it alone while the author can still ask for a review.
+	const run = () => page.request.get('/__scheduled?cron=17+*+*+*+*')
+	expect((await run()).ok()).toBe(true)
+	expect((await author.goto(`/p/${posted.id}`))?.status()).toBe(200)
+
+	age_removal(posted.id)
+	expect((await run()).ok()).toBe(true)
+	expect((await author.goto(`/p/${posted.id}`))?.status()).toBe(404)
+	expect((await author.request.get(posted.photo)).status()).toBe(404)
+	await author.context().close()
 })

@@ -8,6 +8,7 @@ import {
 } from '#lib/profiles/form/profile'
 import type { getDb } from './db'
 import { save_profile_with_images } from './profile-images'
+import { check_profile_later } from './moderation/after-write'
 import { find_profile } from './profiles'
 
 type Db = ReturnType<typeof getDb>
@@ -54,5 +55,6 @@ export async function submit_profile(
 		const blocked: ProfileErrors = { [saved.blocked]: 'blocked' }
 		return fail(400, { draft, errors: blocked })
 	}
+	check_profile_later(db, user_id)
 	return { saved: draft }
 }

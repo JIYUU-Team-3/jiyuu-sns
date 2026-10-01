@@ -601,5 +601,6 @@
 	"mod_links_heading": "Links",
 	"mod_block_domain": "Block {domain}",
 	"mod_block_image": "Block this image everywhere",
-	"mod_blocked": "Blocked."
+	"mod_blocked": "Blocked.",
+	"mod_findings": "Automatic checks: {list}"
 }
