@@ -172,15 +172,21 @@
 		}
 	}
 
+	const react_seq: Record<string, number> = {}
+
 	async function react(message: MessageView, emoji: string) {
 		if (!is_reaction(emoji)) return
 		const before = reactions.get(message.id) ?? message.reactions
 		reactions.set(message.id, toggle_reaction(before, emoji))
+		const seq = (react_seq[message.id] ?? 0) + 1
+		react_seq[message.id] = seq
 		try {
 			const result = await react_to_message({ id: message.id, emoji })
+			if (react_seq[message.id] !== seq) return
 			if (latest.items.some((item) => item.id === message.id)) reactions.delete(message.id)
 			else reactions.set(message.id, result)
 		} catch {
+			if (react_seq[message.id] !== seq) return
 			reactions.set(message.id, before)
 			toast.show(m.toast_error())
 		}
