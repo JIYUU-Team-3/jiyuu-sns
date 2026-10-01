@@ -50,6 +50,13 @@
       "when": 1790749464564,
       "tag": "0006_notifications_tags_push",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790841604134,
+      "tag": "0007_direct_messages",
+      "breakpoints": true
     }
   ]
 }

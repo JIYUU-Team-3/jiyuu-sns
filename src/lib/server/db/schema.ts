@@ -210,4 +210,77 @@ export const pushSubscription = sqliteTable(
 	(table) => [index('push_subscription_user_idx').on(table.userId)],
 )
 
+export const conversation = sqliteTable('conversation', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	name: text('name'),
+	isGroup: integer('is_group', { mode: 'boolean' }).notNull().default(false),
+	directKey: text('direct_key').unique(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	lastMessageAt: integer('last_message_at', { mode: 'timestamp_ms' }),
+	createdAt: created_at(),
+})
+
+export const conversationMember = sqliteTable(
+	'conversation_member',
+	{
+		conversationId: text('conversation_id')
+			.notNull()
+			.references(() => conversation.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		lastReadAt: integer('last_read_at', { mode: 'timestamp_ms' }),
+		createdAt: created_at(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.conversationId, table.userId] }),
+		index('conversation_member_user_idx').on(table.userId),
+	],
+)
+
+export const message = sqliteTable(
+	'message',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		conversationId: text('conversation_id')
+			.notNull()
+			.references(() => conversation.id, { onDelete: 'cascade' }),
+		senderId: text('sender_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		body: text('body').notNull().default(''),
+		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
+			onDelete: 'set null',
+		}),
+		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
+		mediaUrl: text('media_url'),
+		mediaWidth: integer('media_width'),
+		mediaHeight: integer('media_height'),
+		createdAt: created_at(),
+	},
+	(table) => [
+		index('message_conversation_created_idx').on(table.conversationId, table.createdAt),
+		index('message_media_url_idx').on(table.mediaUrl),
+	],
+)
+
+export const messageReaction = sqliteTable(
+	'message_reaction',
+	{
+		messageId: text('message_id')
+			.notNull()
+			.references(() => message.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		emoji: text('emoji').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [primaryKey({ columns: [table.messageId, table.userId] })],
+)
+
 export * from './auth.schema'

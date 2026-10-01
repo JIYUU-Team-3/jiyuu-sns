@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { format_month_year } from '#lib/format-date'
+	import MessageButton from '#lib/messages/MessageButton.svelte'
 	import { getLocale, type MessagePart } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
 	import { format_count } from '#lib/posts/format'
@@ -41,6 +42,7 @@
 			{#if profile.mine}
 				<a class="btn btn-outline" href={edit_profile_href()}>{m.profile_edit()}</a>
 			{:else}
+				<MessageButton user_id={profile.id} handle={profile.handle} />
 				<FollowButton {profile} />
 			{/if}
 		</span>
@@ -130,6 +132,8 @@
 		position: absolute;
 		top: var(--pad-top);
 		right: var(--pad-x);
+		display: flex;
+		gap: 8px;
 	}
 	.ring {
 		margin-top: calc(-1 * var(--rise));

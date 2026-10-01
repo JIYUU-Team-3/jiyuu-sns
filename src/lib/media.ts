@@ -2,12 +2,13 @@
 export type ImageKind = 'avatar' | 'banner'
 
 /** Profile images plus photos attached to posts. */
-export type UploadKind = ImageKind | 'post'
+export type UploadKind = ImageKind | 'post' | 'message'
 
 export const IMAGE_MAX_BYTES: Record<UploadKind, number> = {
 	avatar: 2 * 1024 * 1024,
 	banner: 5 * 1024 * 1024,
 	post: 5 * 1024 * 1024,
+	message: 5 * 1024 * 1024,
 }
 
 /** The file picker's `accept`. SVG is left out on purpose: it can run script from our origin. */

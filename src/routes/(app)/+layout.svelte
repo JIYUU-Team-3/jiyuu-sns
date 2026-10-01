@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { page } from '$app/state'
+	import { messages_href } from '#lib/messages/links'
+	import { get_unread_messages } from '#lib/messages/messages.remote'
 	import { notifications_href } from '#lib/notifications/links'
 	import { get_unread_count } from '#lib/notifications/notifications.remote'
 	import { m } from '#lib/paraglide/messages.js'
@@ -27,9 +29,13 @@
 		page.route.id === '/(app)/explore' || page.route.id === '/(app)/search',
 	)
 	const on_notifications = $derived(page.route.id === '/(app)/notifications')
+	const on_messages = $derived(page.route.id?.startsWith('/(app)/messages') ?? false)
+	const in_chat = $derived(page.route.id === '/(app)/messages/[id]')
 
 	const unread = $derived(await get_unread_count().catch(() => 0))
 	const unread_label = $derived(unread >= 100 ? '99+' : String(unread))
+	const unread_dms = $derived(await get_unread_messages().catch(() => 0))
+	const unread_dms_label = $derived(unread_dms >= 100 ? '99+' : String(unread_dms))
 
 	// New notifications arrive while the tab is open; check once a minute when it's visible.
 	// With push on, the service worker also says the moment one arrives.
@@ -38,12 +44,16 @@
 		const timer = setInterval(() => {
 			if (document.visibilityState === 'visible') refresh()
 		}, 60_000)
+		const dm_timer = setInterval(() => {
+			if (document.visibilityState === 'visible') get_unread_messages().refresh()
+		}, 30_000)
 		const onmessage = (event: MessageEvent) => {
 			if (event.data?.type === 'notification') refresh()
 		}
 		navigator.serviceWorker?.addEventListener('message', onmessage)
 		return () => {
 			clearInterval(timer)
+			clearInterval(dm_timer)
 			navigator.serviceWorker?.removeEventListener('message', onmessage)
 		}
 	})
@@ -64,11 +74,11 @@
 
 <svelte:window {onkeydown} />
 
-<div class="shell">
+<div class="shell" class:wide={on_messages} class:chat={in_chat}>
 	<nav class="side" aria-label={m.app_home()}>
 		<a class="brand" href={home_href()} aria-label="Jiyuu"><Wordmark /></a>
 		<div class="nav">
-			<!-- Messages and Bookmarks join as their features land. -->
+			<!-- Bookmarks joins as its feature lands. -->
 			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
 				<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
 			</a>
@@ -86,6 +96,16 @@
 				</span>
 				<span class="lbl">{m.app_notifications()}</span>
 				{#if unread}<span class="visually-hidden">{m.app_unread({ count: unread_label })}</span
+					>{/if}
+			</a>
+			<a class="nav-item" href={messages_href()} aria-current={on_messages ? 'page' : undefined}>
+				<span class="ico-wrap">
+					<Icon name="mail" size="lg" />
+					{#if unread_dms}<span class="badge" aria-hidden="true">{unread_dms_label}</span>{/if}
+				</span>
+				<span class="lbl">{m.app_messages()}</span>
+				{#if unread_dms}<span class="visually-hidden"
+						>{m.app_unread({ count: unread_dms_label })}</span
 					>{/if}
 			</a>
 			<a
@@ -108,19 +128,21 @@
 
 	<main class="main">{@render children()}</main>
 
-	<aside class="rail">
-		<!-- Explore and Search already show all of this in the main column. -->
-		{#if !on_explore}
-			<svelte:boundary>
-				<RailDiscover />
-				{#snippet failed()}{/snippet}
-			</svelte:boundary>
-		{/if}
-		<SiteFooter />
-	</aside>
+	{#if !on_messages}
+		<aside class="rail">
+			<!-- Explore and Search already show all of this in the main column. -->
+			{#if !on_explore}
+				<svelte:boundary>
+					<RailDiscover />
+					{#snippet failed()}{/snippet}
+				</svelte:boundary>
+			{/if}
+			<SiteFooter />
+		</aside>
+	{/if}
 </div>
 
-<nav class="tabbar" aria-label={m.app_home()}>
+<nav class="tabbar" class:hidden={in_chat} aria-label={m.app_home()}>
 	<a href={home_href()} aria-label={m.app_home()} aria-current={on_home ? 'page' : undefined}>
 		<Icon name="home" size="lg" />
 	</a>
@@ -144,6 +166,18 @@
 		</span>
 	</a>
 	<a
+		href={messages_href()}
+		aria-label={unread_dms
+			? `${m.app_messages()}, ${m.app_unread({ count: unread_dms_label })}`
+			: m.app_messages()}
+		aria-current={on_messages ? 'page' : undefined}
+	>
+		<span class="ico-wrap">
+			<Icon name="mail" size="lg" />
+			{#if unread_dms}<span class="badge" aria-hidden="true">{unread_dms_label}</span>{/if}
+		</span>
+	</a>
+	<a
 		href={profile_href(data.me.handle)}
 		aria-label={m.app_profile()}
 		aria-current={on_own_profile ? 'page' : undefined}
@@ -154,6 +188,7 @@
 <button
 	type="button"
 	class="fab"
+	class:hidden={on_messages}
 	aria-label={m.app_new_post()}
 	onclick={() => composer.open({ kind: 'new' })}
 >
@@ -263,6 +298,9 @@
 		height: 100vh;
 		overflow-y: auto;
 	}
+	.shell.wide .main {
+		width: calc(var(--main-w) + var(--rail-w));
+	}
 	.rail :global(.site-foot) {
 		justify-content: flex-start;
 	}
@@ -301,15 +339,22 @@
 		.rail {
 			display: none;
 		}
+		.shell.wide .main {
+			width: var(--main-w);
+		}
 	}
 	@media (max-width: 700px) {
 		.side {
 			display: none;
 		}
-		.main {
+		.main,
+		.shell.wide .main {
 			width: 100%;
 			border: 0;
 			padding-bottom: calc(64px + env(safe-area-inset-bottom));
+		}
+		.shell.chat .main {
+			padding-bottom: 0;
 		}
 		.tabbar {
 			display: flex;
@@ -350,6 +395,10 @@
 			background: var(--accent-fill);
 			color: var(--on-accent);
 			box-shadow: var(--shadow-pop);
+		}
+		.tabbar.hidden,
+		.fab.hidden {
+			display: none;
 		}
 	}
 </style>
