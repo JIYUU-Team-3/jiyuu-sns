@@ -5,15 +5,18 @@ import {
 	integer,
 	primaryKey,
 	sqliteTable,
+	uniqueIndex,
 	text,
 } from 'drizzle-orm/sqlite-core'
 import { user } from './auth.schema'
 
-/** Same `timestamp_ms` style as the generated auth tables. */
-const created_at = () =>
-	integer('created_at', { mode: 'timestamp_ms' })
+/** Same `timestamp_ms` style as the generated auth tables, set when the row is written. */
+const written_at = (name: string) =>
+	integer(name, { mode: 'timestamp_ms' })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull()
+
+const created_at = () => written_at('created_at')
 
 /** The public side of an account: 1:1 with `user`, written by onboarding. */
 export const profile = sqliteTable('profile', {
@@ -281,6 +284,135 @@ export const messageReaction = sqliteTable(
 		createdAt: created_at(),
 	},
 	(table) => [primaryKey({ columns: [table.messageId, table.userId] })],
+)
+
+/**
+ * An account's place in moderation: its role and any suspension. Only accounts with something to
+ * record have a row; no row is a member in good standing. See docs/MODERATION.md.
+ */
+export const accountStanding = sqliteTable('account_standing', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Set by `pnpm db:grant-moderator`, never by the app. Tied to the id, not the handle. */
+	role: text('role', { enum: ['member', 'moderator'] })
+		.notNull()
+		.default('member'),
+	/** When the current suspension began; null when the account isn't suspended. */
+	suspendedAt: integer('suspended_at', { mode: 'timestamp_ms' }),
+	/** When it ends; null with `suspendedAt` set is a permanent suspension. */
+	suspendedUntil: integer('suspended_until', { mode: 'timestamp_ms' }),
+	/** The rule broken, from `#lib/moderation/rules`. */
+	suspendReason: text('suspend_reason'),
+	/** The action that suspended it, which a review request is filed against. */
+	suspendActionId: text('suspend_action_id'),
+	updatedAt: written_at('updated_at'),
+})
+
+const target_kind = () => text('target_kind', { enum: ['post', 'profile', 'message'] }).notNull()
+
+/**
+ * Everything about one post, profile or message that needs a moderator: its reports and automatic
+ * flags together, so ten reports are one item in the queue. Reopened by the next report.
+ */
+export const moderationCase = sqliteTable(
+	'moderation_case',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		targetKind: target_kind(),
+		targetId: text('target_id').notNull(),
+		/** Whose content it is, so the queue can show their history. */
+		targetUserId: text('target_user_id').references(() => user.id, { onDelete: 'cascade' }),
+		status: text('status', { enum: ['open', 'actioned', 'dismissed'] })
+			.notNull()
+			.default('open'),
+		/** Higher first in the queue. */
+		priority: integer('priority').notNull().default(0),
+		reports: integer('reports').notNull().default(0),
+		/** The rule most reports or flags named. */
+		reason: text('reason'),
+		/** Results of automatic checks, as a JSON object keyed by check. */
+		flags: text('flags').notNull().default('{}'),
+		createdAt: created_at(),
+		updatedAt: written_at('updated_at'),
+		closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+	},
+	(table) => [
+		uniqueIndex('moderation_case_target_idx').on(table.targetKind, table.targetId),
+		index('moderation_case_queue_idx').on(table.status, table.priority, table.updatedAt),
+	],
+)
+
+/** Every moderator decision, and every automatic one, in order. Rows are never edited but to reverse. */
+export const moderationAction = sqliteTable(
+	'moderation_action',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		caseId: text('case_id').references(() => moderationCase.id, { onDelete: 'set null' }),
+		/** Null for an automatic action. */
+		moderatorId: text('moderator_id').references(() => user.id, { onDelete: 'set null' }),
+		action: text('action', {
+			enum: [
+				'dismiss',
+				'warn',
+				'sensitive',
+				'limit',
+				'remove',
+				'restore',
+				'suspend',
+				'unsuspend',
+				'block_domain',
+				'block_media',
+			],
+		}).notNull(),
+		reason: text('reason'),
+		/** Whether this counts as a strike against `targetUserId`. */
+		strike: integer('strike', { mode: 'boolean' }).notNull().default(false),
+		targetKind: text('target_kind', {
+			enum: ['post', 'profile', 'message', 'account', 'domain', 'media'],
+		}).notNull(),
+		targetId: text('target_id').notNull(),
+		targetUserId: text('target_user_id').references(() => user.id, { onDelete: 'cascade' }),
+		/** For a suspension, when it ends; null for permanent. */
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+		/** The moderator's own words, shown to the person affected. */
+		note: text('note'),
+		createdAt: created_at(),
+		reversedAt: integer('reversed_at', { mode: 'timestamp_ms' }),
+	},
+	(table) => [
+		index('moderation_action_user_idx').on(table.targetUserId, table.createdAt),
+		index('moderation_action_target_idx').on(table.targetKind, table.targetId),
+	],
+)
+
+/** A request to undo an action: one per action, so a suspension is reviewed once. */
+export const appeal = sqliteTable(
+	'appeal',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		actionId: text('action_id')
+			.notNull()
+			.unique()
+			.references(() => moderationAction.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		body: text('body').notNull(),
+		status: text('status', { enum: ['open', 'upheld', 'refused'] })
+			.notNull()
+			.default('open'),
+		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+		decidedAt: integer('decided_at', { mode: 'timestamp_ms' }),
+		createdAt: created_at(),
+	},
+	(table) => [index('appeal_status_idx').on(table.status, table.createdAt)],
 )
 
 export * from './auth.schema'

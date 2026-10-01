@@ -3,9 +3,10 @@ import { env } from 'cloudflare:workers'
 import { building } from '$app/env'
 import { createAuth, email_signup } from '#lib/server/auth'
 import { getDb } from '#lib/server/db'
+import { find_standing } from '#lib/server/moderation/standing'
 import { under_limit } from '#lib/server/rate-limit'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
-import { getTextDirection } from '#lib/paraglide/runtime'
+import { deLocalizeUrl, getTextDirection, localizeHref } from '#lib/paraglide/runtime'
 import { paraglideMiddleware } from '#lib/paraglide/server'
 import {
 	PREFS_COOKIE,
@@ -99,9 +100,56 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session
 		event.locals.user = session.user
+		event.locals.standing = await find_standing(event.locals.db, session.user.id)
+	}
+
+	// A suspended account may still read its session and sign out, and change nothing else.
+	if (
+		event.locals.standing?.suspension &&
+		event.url.pathname.startsWith('/api/auth/') &&
+		!SUSPENDED_AUTH_PATHS.has(event.url.pathname)
+	) {
+		return new Response('This account is suspended.', { status: 403 })
 	}
 
 	return svelteKitHandler({ event, resolve, auth, building })
+}
+
+const SUSPENDED_AUTH_PATHS = new Set(['/api/auth/get-session', '/api/auth/sign-out'])
+
+/** What a suspended account can still open: its suspension page and the public documents. */
+const SUSPENDED_PAGES = new Set([
+	'/suspended',
+	'/guidelines',
+	'/terms',
+	'/privacy',
+	'/about',
+	'/accessibility',
+])
+
+/**
+ * A suspended account sees `/suspended` and nothing else of the app: pages redirect there, page
+ * data asks the client to go there, and every other request (remote functions, media, uploads)
+ * gets a 403. One gate here, so no route can forget it; `signed_in()` checks again behind it.
+ */
+const handleSuspended: Handle = ({ event, resolve }) => {
+	if (!event.locals.standing?.suspension) return resolve(event)
+
+	const path = deLocalizeUrl(event.url).pathname
+	const page = path.replace(/\/__data\.json$/, '') || '/'
+	if (SUSPENDED_PAGES.has(page) || path.startsWith('/_app/immutable/')) return resolve(event)
+
+	const location = localizeHref('/suspended')
+	if (event.request.method === 'GET' && path.endsWith('/__data.json')) {
+		return Response.json({ type: 'redirect', location })
+	}
+	if (
+		event.request.method === 'GET' &&
+		event.request.headers.get('accept')?.includes('text/html')
+	) {
+		return new Response(null, { status: 303, headers: { location } })
+	}
+	return new Response('This account is suspended.', { status: 403 })
 }
 
 export const handle: Handle = sequence(
@@ -110,4 +158,5 @@ export const handle: Handle = sequence(
 	handlePrefs,
 	handleAuthLimit,
 	handleBetterAuth,
+	handleSuspended,
 )

@@ -32,6 +32,17 @@ describe('handle_problem', () => {
 		expect(handle_problem('jiyuu')).toBe('taken')
 		expect(handle_problem('admin')).toBe('taken')
 	})
+
+	it('reserves the moderator’s handle, except for the account holding it', () => {
+		expect(handle_problem('jiyuu_org')).toBe('taken')
+		expect(handle_problem('jiyuu_org', 'someone')).toBe('taken')
+		expect(handle_problem('jiyuu_org', 'jiyuu_org')).toBeUndefined()
+	})
+
+	it('keeps a locked handle as it is', () => {
+		expect(handle_problem('jiyuu_org', 'jiyuu_org', true)).toBeUndefined()
+		expect(handle_problem('mika', 'jiyuu_org', true)).toBe('locked')
+	})
 })
 
 describe('profile_errors', () => {

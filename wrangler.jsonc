@@ -54,6 +54,8 @@
 		{ "name": "LOOKUP_LIMIT", "namespace_id": "1703", "simple": { "limit": 240, "period": 60 } },
 		// Better Auth's endpoints and starting a Google sign-in, per address.
 		{ "name": "AUTH_LIMIT", "namespace_id": "1704", "simple": { "limit": 30, "period": 60 } },
+		// Moderator actions: a fast moderator clears a few items a minute, a script far more.
+		{ "name": "MOD_LIMIT", "namespace_id": "1706", "simple": { "limit": 120, "period": 60 } },
 	],
 	"workers_dev": true,
 	// Preview versions would run with the production database and secrets on a second URL.

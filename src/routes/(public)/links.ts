@@ -27,8 +27,10 @@ export const EXTERNAL_HREFS = {
 }
 
 /** An app path in the current locale, e.g. `/terms` → `/ja/terms`. */
-export const localized = (path: '/about' | '/terms' | '/privacy' | '/accessibility' | '/login') =>
-	resolve(localizeHref(path) as Path)
+export const localized = (
+	path:
+		'/about' | '/terms' | '/privacy' | '/accessibility' | '/guidelines' | '/login' | '/suspended',
+) => resolve(localizeHref(path) as Path)
 
 /** Where a signed-in user lands, kept in the locale they signed in from. */
 export const home_href = () => localizeHref('/', { locale: getLocale() })

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state'
+	import { mod_href } from '#lib/moderation/links'
 	import { m } from '#lib/paraglide/messages.js'
 	import type { Author } from '#lib/posts/types'
 	import { profile_href } from '#lib/profiles/links'
@@ -33,6 +35,11 @@
 		<a class="menu-item" role="menuitem" href={settings_href()} onclick={close}>
 			<Icon name="settings" />{m.settings_title()}
 		</a>
+		{#if page.data.moderator}
+			<a class="menu-item" role="menuitem" href={mod_href()} onclick={close}>
+				<Icon name="shield" />{m.mod_title()}
+			</a>
+		{/if}
 		<form method="post" action="{home_href()}?/signOut" onsubmit={sign_out}>
 			<button class="menu-item" role="menuitem">
 				<Icon name="logout" />{m.app_log_out({ handle: me.handle })}

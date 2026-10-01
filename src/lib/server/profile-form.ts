@@ -8,6 +8,7 @@ import {
 } from '#lib/profiles/form/profile'
 import type { getDb } from './db'
 import { save_profile_with_images } from './profile-images'
+import { find_profile } from './profiles'
 
 type Db = ReturnType<typeof getDb>
 
@@ -17,15 +18,27 @@ export const PROFILE_FORM_MAX_BYTES = IMAGE_MAX_BYTES.avatar + IMAGE_MAX_BYTES.b
 /**
  * Check and save a submitted profile form, from onboarding or the edit page. Returns the saved
  * draft as `{ saved }`, or a `fail` carrying the draft and its field errors for the form to show.
+ * `locked` keeps a moderator's handle as it is.
  */
-export async function submit_profile(db: Db, bucket: R2Bucket, user_id: string, data: FormData) {
+export async function submit_profile(
+	db: Db,
+	bucket: R2Bucket,
+	user_id: string,
+	data: FormData,
+	locked = false,
+) {
 	const draft = read_profile(data)
+	// The handle the account holds now, which it may keep even if it's reserved.
+	const current = (await find_profile(db, user_id))?.handle
 	const images = {
 		avatar: picked_file(data.get('avatar')),
 		banner: picked_file(data.get('banner')),
 	}
 	// Files stay out of `fail` data: they can't be serialized, and the inputs keep them anyway.
-	const errors = { ...profile_errors(draft), ...(await image_errors(images)) }
+	const errors = {
+		...profile_errors(draft, current, locked),
+		...(await image_errors(images)),
+	}
 	if (Object.keys(errors).length) return fail(400, { draft, errors })
 
 	const removals = {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { grant_moderator } from './(app)/mod/grant'
 import { sign_up } from './(app)/sign-up'
 
 /** A 1×1 PNG. */
@@ -122,4 +123,101 @@ test('uploads are refused once an account passes its limit @writes', async ({ pa
 	}
 	expect(statuses).toContain(400)
 	expect(statuses).toContain(429)
+})
+
+test('moderation tools answer 404 to anyone who is not a moderator @writes', async ({ page }) => {
+	const handle = `e2e_x_${unique()}`
+	await sign_up(page, handle)
+
+	expect((await page.goto('/mod'))?.status()).toBe(404)
+	expect((await page.goto(`/mod/u/${handle}`))?.status()).toBe(404)
+	// Form actions skip the layout, so each checks the role itself.
+	const suspend = await page.request.post(`/mod/u/${handle}?/suspend`, {
+		headers: from_site(page),
+		form: { reason: 'spam', days: '1' },
+	})
+	expect(suspend.status()).toBe(404)
+	const dismiss = await page.request.post('/mod?/dismiss', {
+		headers: from_site(page),
+		form: { case: crypto.randomUUID() },
+	})
+	expect(dismiss.status()).toBe(404)
+
+	await page.goto('/')
+	await expect(page).toHaveURL(/\/$/)
+})
+
+test('a suspended account is refused everything but its suspension page @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const member = `e2e_sm_${id}`
+	const mod_page = await (await browser.newContext()).newPage()
+	await sign_up(mod_page, `e2e_sd_${id}`)
+	grant_moderator(`e2e_sd_${id}`)
+	await sign_up(page, member)
+
+	// What the account could reach before: a feed request and its own upload.
+	const feed = page.waitForRequest((request) => request.url().includes('/get_feed'))
+	await page.getByRole('tab', { name: 'Following' }).click()
+	const feed_url = (await feed).url()
+	const photo = (await (await upload(page, PNG)).json()).url as string
+
+	const suspended = await mod_page.request.post(`/mod/u/${member}?/suspend`, {
+		headers: from_site(mod_page),
+		form: { reason: 'spam', days: '1' },
+	})
+	expect(suspended.ok()).toBe(true)
+
+	await page.goto('/')
+	await expect(page).toHaveURL(/\/suspended$/)
+	await page.goto(`/u/${member}`)
+	await expect(page).toHaveURL(/\/suspended$/)
+	expect((await page.request.get(feed_url)).status()).toBe(403)
+	expect((await page.request.get(photo)).status()).toBe(403)
+	expect((await upload(page, PNG)).status()).toBe(403)
+	const renamed = await page.request.post('/api/auth/update-user', {
+		headers: from_site(page),
+		data: { name: 'Renamed while suspended' },
+	})
+	expect(renamed.status()).toBe(403)
+	// The public pages stay open.
+	await page.goto('/guidelines')
+	await expect(page.getByRole('heading', { name: 'Community Guidelines' })).toBeVisible()
+
+	await mod_page.context().close()
+})
+
+test('nobody can take the moderator handle, and a moderator cannot change theirs @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const newcomer = await (await browser.newContext()).newPage()
+	const name = `e2e_h_${id}`
+	const account = await newcomer.request.post('/api/auth/sign-up/email', {
+		data: { email: `${name}@example.test`, password: crypto.randomUUID(), name },
+	})
+	expect(account.ok()).toBe(true)
+	await newcomer.goto('/onboarding')
+	const taken = await newcomer.request.post('/onboarding', {
+		headers: from_site(newcomer),
+		multipart: { name, handle: 'jiyuu_org', bio: '' },
+	})
+	expect(taken.status()).toBe(400)
+	await newcomer.goto('/')
+	await expect(newcomer).toHaveURL(/\/onboarding$/)
+	await newcomer.context().close()
+
+	const mod = `e2e_hm_${id}`
+	await sign_up(page, mod)
+	grant_moderator(mod)
+	const renamed = await page.request.post('/settings/profile', {
+		headers: from_site(page),
+		multipart: { name: mod, handle: `e2e_hn_${id}`, bio: '' },
+	})
+	expect(renamed.status()).toBe(400)
+	await page.goto(`/u/${mod}`)
+	await expect(page.locator('h1')).toHaveText(mod)
 })
