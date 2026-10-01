@@ -31,7 +31,7 @@
 	}
 </script>
 
-<header class="bar">
+<header class="bar" data-clip-bar>
 	{#if back}
 		<div class="bar-row">
 			<button type="button" class="icon-btn" aria-label={m.app_back()} onclick={go_back}>

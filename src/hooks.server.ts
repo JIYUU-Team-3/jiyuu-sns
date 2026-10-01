@@ -6,6 +6,14 @@ import { getDb } from '#lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getTextDirection } from '#lib/paraglide/runtime'
 import { paraglideMiddleware } from '#lib/paraglide/server'
+import {
+	PREFS_COOKIE,
+	TZ_COOKIE,
+	local_minutes,
+	parse_prefs,
+	parse_tz,
+	root_attributes,
+} from '#lib/settings/prefs'
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) => {
@@ -23,6 +31,16 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 					.replace('%paraglide.dir%', getTextDirection(locale)),
 		})
 	})
+
+/** Paints the device's theme, accent and the rest onto <html>, so the first frame is right. */
+const handlePrefs: Handle = ({ event, resolve }) => {
+	const prefs = parse_prefs(event.cookies.get(PREFS_COOKIE))
+	event.locals.prefs = prefs
+	const minutes = local_minutes(new Date(), parse_tz(event.cookies.get(TZ_COOKIE)))
+	return resolve(event, {
+		transformPageChunk: ({ html }) => html.replace('%jiyuu.root%', root_attributes(prefs, minutes)),
+	})
+}
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	// adapter-cloudflare (Kit 3) no longer populates `event.platform.env`;
@@ -43,4 +61,4 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ event, resolve, auth, building })
 }
 
-export const handle: Handle = sequence(handleParaglide, handleBetterAuth)
+export const handle: Handle = sequence(handleParaglide, handlePrefs, handleBetterAuth)

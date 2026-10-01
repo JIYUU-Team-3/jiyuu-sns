@@ -126,6 +126,248 @@
 	color-scheme: dark;
 }
 
+@property --bg {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #fff;
+}
+@property --bg-2 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #f7f8f9;
+}
+@property --bg-3 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #eff1f3;
+}
+@property --bg-elev {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #fff;
+}
+@property --line {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #e6e8eb;
+}
+@property --line-2 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #cfd5da;
+}
+@property --text {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #0f1419;
+}
+@property --text-2 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #536471;
+}
+@property --text-3 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #6b7885;
+}
+@property --accent {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #1d9bf0;
+}
+@property --accent-text {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #0070c9;
+}
+@property --accent-fill {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #0070c9;
+}
+@property --accent-fill-hover {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --accent-soft {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --accent-soft-2 {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --like {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --like-soft {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --repost {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --repost-soft {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --danger {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --danger-soft {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --danger-fill {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --backdrop {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: transparent;
+}
+@property --img-fallback {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #e3e7eb;
+}
+/* How much of the page shows under the columns; transparent mode fades it to nothing. */
+@property --page-alpha {
+	syntax: '<percentage>';
+	inherits: true;
+	initial-value: 100%;
+}
+/* The page itself, under the columns. Not registered, so it follows --bg exactly mid-fade. */
+:root {
+	--page-bg: color-mix(in srgb, var(--bg) var(--page-alpha), transparent);
+}
+:root[data-theme='daylight'] {
+	transition:
+		--bg 1.4s ease,
+		--bg-2 1.4s ease,
+		--bg-3 1.4s ease,
+		--bg-elev 1.4s ease,
+		--line 1.4s ease,
+		--line-2 1.4s ease,
+		--text 1.4s ease,
+		--text-2 1.4s ease,
+		--text-3 1.4s ease,
+		--accent 1.4s ease,
+		--accent-text 1.4s ease,
+		--accent-fill 1.4s ease,
+		--accent-fill-hover 1.4s ease,
+		--accent-soft 1.4s ease,
+		--accent-soft-2 1.4s ease,
+		--like 1.4s ease,
+		--like-soft 1.4s ease,
+		--repost 1.4s ease,
+		--repost-soft 1.4s ease,
+		--danger 1.4s ease,
+		--danger-soft 1.4s ease,
+		--danger-fill 1.4s ease,
+		--backdrop 1.4s ease,
+		--img-fallback 1.4s ease;
+}
+/* After the Daylight rule, so a change you make fades at this pace there too. */
+:root[data-theme-fade='theme'] {
+	transition:
+		--bg 0.4s ease,
+		--bg-2 0.4s ease,
+		--bg-3 0.4s ease,
+		--bg-elev 0.4s ease,
+		--line 0.4s ease,
+		--line-2 0.4s ease,
+		--text 0.4s ease,
+		--text-2 0.4s ease,
+		--text-3 0.4s ease,
+		--accent 0.4s ease,
+		--accent-text 0.4s ease,
+		--accent-fill 0.4s ease,
+		--accent-fill-hover 0.4s ease,
+		--accent-soft 0.4s ease,
+		--accent-soft-2 0.4s ease,
+		--like 0.4s ease,
+		--like-soft 0.4s ease,
+		--repost 0.4s ease,
+		--repost-soft 0.4s ease,
+		--danger 0.4s ease,
+		--danger-soft 0.4s ease,
+		--danger-fill 0.4s ease,
+		--backdrop 0.4s ease,
+		--img-fallback 0.4s ease;
+}
+/* Turning transparency on or off fades the page and every grey on it. Only the sticky bars,
+   painted in the page colour itself, switch at once: fading them over the fading page would
+   show a doubled band. */
+:root[data-theme-fade='clear'] {
+	transition:
+		--page-alpha 0.4s ease,
+		--bg-2 0.4s ease,
+		--bg-3 0.4s ease,
+		--img-fallback 0.4s ease,
+		--line 0.4s ease,
+		--line-2 0.4s ease,
+		--text-2 0.4s ease,
+		--text-3 0.4s ease;
+}
+/* Elements with colour transitions of their own would trail the tokens. While the theme fades,
+   only movement transitions, so every colour on the page moves together. */
+:root[data-theme-fade] *,
+:root[data-theme-fade] *::before,
+:root[data-theme-fade] *::after {
+	transition-property: transform, translate, scale, opacity !important;
+}
+
+/*
+ * Transparent mode, for translucent desktop browsers such as Zen. It sits on top of any
+ * theme, which still decides the ink. Page surfaces go clear so the window's own blur shows
+ * through; overlays (menus, dialogs, the composer, the toast) keep their opaque --bg-elev. Flat
+ * greys become tints of --text so hovers, borders and chips read on any wallpaper. !important
+ * because Daylight writes these tokens inline.
+ */
+/* Same query as DESKTOP in src/lib/settings/clear.svelte.ts. */
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+	/* The page fades out, greys become tints of the ink, and the secondary text greys are pushed
+	   toward it: an unknown wallpaper eats mid-grey contrast. All of it fades, and fades back as
+	   soon as transparency starts leaving (src/lib/settings/prefs.svelte.ts). */
+	:root[data-clear]:not([data-clear-leaving]) {
+		--page-alpha: 0%;
+		--bg-2: color-mix(in srgb, var(--text) 6%, transparent) !important;
+		--bg-3: color-mix(in srgb, var(--text) 10%, transparent) !important;
+		--img-fallback: color-mix(in srgb, var(--text) 10%, transparent) !important;
+		--line: color-mix(in srgb, var(--text) 16%, transparent) !important;
+		--line-2: color-mix(in srgb, var(--text) 28%, transparent) !important;
+		--text-2: color-mix(in srgb, var(--text) 84%, var(--bg)) !important;
+		--text-3: color-mix(in srgb, var(--text) 76%, var(--bg)) !important;
+	}
+	/* Sticky bars go fully clear at once, and stay clear until the page has faded back in;
+	   src/lib/settings/clear.svelte.ts clips what scrolls under them. */
+	:root[data-clear] [data-clip-bar] {
+		background: transparent;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+	/* Cut-out rings painted in --bg would show as solid rings on glass. */
+	:root[data-clear] .badge {
+		box-shadow: none;
+	}
+}
+
 @media (max-width: 1180px) {
 	:root {
 		--rail-w: 290px;
@@ -146,7 +388,7 @@ html {
 }
 body {
 	margin: 0;
-	background: var(--bg);
+	background: var(--page-bg);
 	color: var(--text);
 	font: 15px/1.4 var(--font);
 	-webkit-font-smoothing: antialiased;
@@ -335,4 +577,12 @@ img {
 		animation-duration: 0.001ms !important;
 		transition-duration: 0.001ms !important;
 	}
+}
+/* The Reduce motion setting, for devices that don't ask for it themselves. */
+:root[data-motion='reduce'],
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+	animation-duration: 0.001ms !important;
+	transition-duration: 0.001ms !important;
 }

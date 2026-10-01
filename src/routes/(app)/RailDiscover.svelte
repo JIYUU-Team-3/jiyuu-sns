@@ -10,7 +10,7 @@
 	const people = $derived(await get_who_to_follow(3).catch(() => []))
 </script>
 
-<div class="box"><SearchBox /></div>
+<div class="box" data-clip-bar><SearchBox /></div>
 
 {#if trending.length}
 	<section class="card" aria-labelledby="rail-trending">

@@ -4,6 +4,8 @@
  * While a video the viewer started is playing, nothing autoplays beside it; scrolled away, it
  * pauses, and autoplay picks up again.
  */
+import { reduced_motion } from '#lib/settings/motion'
+import { prefs } from '#lib/settings/prefs.svelte'
 
 type Entry = {
 	/** Share of the video on screen, 0 to 1. */
@@ -36,8 +38,6 @@ function on_visibility(changes: IntersectionObserverEntry[]) {
 	pick()
 }
 
-const reduced_motion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
-
 /** How far a video's middle is from the screen's, to break ties between fully shown ones. */
 function off_center(video: HTMLVideoElement) {
 	const { top, height } = video.getBoundingClientRect()
@@ -56,7 +56,8 @@ const viewer_playing = () => [...entries].some(([video, entry]) => entry.manual 
 
 /** Play the video most in view and pause every other autoplaying one. */
 function pick() {
-	const next = reduced_motion() || viewer_playing() ? undefined : most_in_view()
+	const quiet = reduced_motion() || !prefs.value.autoplay || viewer_playing()
+	const next = quiet ? undefined : most_in_view()
 	for (const [video, entry] of entries) {
 		if (!entry.manual && video !== next) video.pause()
 	}

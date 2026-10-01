@@ -1,4 +1,5 @@
 /** Motion and measuring shared by the text morphs (`TextMorph`, `NumberRoll`). */
+import { reduced_motion } from '#lib/settings/motion'
 
 const EXPO_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
 export const MOVE = { duration: 320, easing: EXPO_OUT }
@@ -9,7 +10,7 @@ export const BLUR = 'blur(3px)'
 
 export type Spot = { x: number; y: number }
 
-export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+export const still = reduced_motion
 
 /**
  * Where each element sits, from the base box's top right. The text is anchored right, so that
