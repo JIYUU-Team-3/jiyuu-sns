@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { enhance, type SubmitFunction } from '$app/forms'
+	import { afterNavigate } from '$app/navigation'
 	import { m } from '#lib/paraglide/messages.js'
 	import BannerField from '#lib/profiles/form/BannerField.svelte'
 	import HandleField from '#lib/profiles/form/HandleField.svelte'
 	import ProfilePhoto from '#lib/profiles/form/ProfilePhoto.svelte'
 	import TextField from '#lib/profiles/form/TextField.svelte'
+	import { leave_after_save } from '#lib/profiles/form/after-save'
 	import { BIO_MAX, NAME_MAX, profile_errors } from '#lib/profiles/form/profile'
+	import { profile_href } from '#lib/profiles/links'
 	import PageBar from '../../PageBar.svelte'
 	import type { PageProps } from './$types'
 
@@ -25,10 +28,19 @@
 		Object.keys(profile_errors({ name: name.trim(), handle: handle.trim(), bio })).length === 0,
 	)
 
+	// Null on a direct load, so saving then just replaces this page.
+	let from_path: string | undefined
+	afterNavigate(({ from }) => (from_path = from?.url.pathname))
+
+	const from_own_profile = () =>
+		from_path === new URL(profile_href(data.me.handle), location.href).pathname
+
 	const submit: SubmitFunction = () => {
 		pending = true
-		return async ({ update }) => {
-			await update({ reset: false })
+		return async ({ result, update }) => {
+			// Handled here, not by update(), which would push the profile on top of this page.
+			if (result.type === 'redirect') leave_after_save(result.location, from_own_profile())
+			else await update({ reset: false })
 			pending = false
 		}
 	}

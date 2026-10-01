@@ -68,7 +68,8 @@ export default defineConfig({
 			project: './project.inlang',
 			outdir: './src/lib/paraglide',
 			emitTsDeclarations: true,
-			strategy: ['url', 'cookie', 'baseLocale'],
+			// The picked language wins over a link's; see define_chosen_strategy in src/lib/settings/locale.ts.
+			strategy: ['custom-chosen', 'url', 'baseLocale'],
 		}),
 	],
 	test: {

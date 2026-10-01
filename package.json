@@ -18,7 +18,7 @@
 		"test": "pnpm run test:unit -- --run && pnpm run test:e2e",
 		"test:e2e": "playwright install && playwright test",
 		"gen": "wrangler types",
-		"paraglide": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy url cookie baseLocale --emit-ts-declarations --silent",
+		"paraglide": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy custom-chosen url baseLocale --emit-ts-declarations --silent",
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",

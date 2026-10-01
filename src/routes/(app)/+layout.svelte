@@ -259,7 +259,7 @@
 		padding: 0 5px;
 		border-radius: 9px;
 		background: var(--accent);
-		color: #fff;
+		color: var(--on-accent);
 		font-size: 11px;
 		font-weight: 700;
 		line-height: 18px;
@@ -393,7 +393,7 @@
 			height: 56px;
 			border-radius: 50%;
 			background: var(--accent-fill);
-			color: #fff;
+			color: var(--on-accent);
 			box-shadow: var(--shadow-pop);
 		}
 		.tabbar.hidden,
