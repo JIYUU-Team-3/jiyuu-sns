@@ -321,6 +321,8 @@ export const accountStanding = sqliteTable('account_standing', {
 	suspendReason: text('suspend_reason'),
 	/** The action that suspended it, which a review request is filed against. */
 	suspendActionId: text('suspend_action_id'),
+	/** Held to a new account's limits, by a moderator or a high behaviour score. */
+	restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
 	updatedAt: written_at('updated_at'),
 })
 
@@ -429,5 +431,21 @@ export const appeal = sqliteTable(
 	},
 	(table) => [index('appeal_status_idx').on(table.status, table.createdAt)],
 )
+
+/** Domains whose links are refused and no longer drawn as links. Covers their subdomains. */
+export const blockedDomain = sqliteTable('blocked_domain', {
+	domain: text('domain').primaryKey(),
+	/** Null when a check added it. */
+	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+	reason: text('reason'),
+	createdAt: created_at(),
+})
+
+/** SHA-256 of removed images, as stored after stripping, so the same file can't come back. */
+export const blockedMediaHash = sqliteTable('blocked_media_hash', {
+	sha256: text('sha256').primaryKey(),
+	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: created_at(),
+})
 
 export * from './auth.schema'

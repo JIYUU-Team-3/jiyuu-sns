@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { sign_up } from '../sign-up'
-import { grant_moderator } from './grant'
+import { grant_moderator } from './local-db'
 
 const unique = () => crypto.randomUUID().slice(0, 8)
 

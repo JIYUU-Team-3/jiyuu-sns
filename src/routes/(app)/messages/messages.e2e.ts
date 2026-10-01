@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { follow } from '../follow'
 import { sign_up } from '../sign-up'
 
 test('message someone, react and reply, and the badge clears once read @writes', async ({
@@ -15,6 +16,8 @@ test('message someone, react and reply, and the badge clears once read @writes',
 	const bob_page = await bob_context.newPage()
 	await sign_up(page, alice)
 	await sign_up(bob_page, bob)
+	// New accounts can only start a chat with someone who follows them.
+	await follow(page, bob)
 
 	await bob_page.goto(`/u/${alice}`)
 	await bob_page.waitForLoadState('networkidle')
@@ -68,12 +71,15 @@ test('start a named group chat from the new message dialog @writes', async ({ pa
 	const second = `e2e_dmi_${id}`
 	const group = `Study group ${id}`
 
+	await sign_up(page, owner)
 	for (const handle of [first, second]) {
 		const context = await browser.newContext()
-		await sign_up(await context.newPage(), handle)
+		const other = await context.newPage()
+		await sign_up(other, handle)
+		// New accounts can only start a chat with people who follow them.
+		await follow(other, owner)
 		await context.close()
 	}
-	await sign_up(page, owner)
 
 	await page.goto('/messages')
 	await page.waitForLoadState('networkidle')

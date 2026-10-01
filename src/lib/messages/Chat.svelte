@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { refusal_message } from '#lib/moderation/refusals'
 	import { onMount, tick, untrack } from 'svelte'
 	import { SvelteMap } from 'svelte/reactivity'
 	import { goto } from '$app/navigation'
@@ -145,6 +146,7 @@
 			sender: me,
 			mine: true,
 			body: outgoing.body,
+			blocked_hosts: [],
 			media: outgoing.media,
 			reply_to: reply && {
 				id: reply.id,
@@ -163,8 +165,8 @@
 		try {
 			await send_message({ id, ...outgoing, reply_to: reply?.id })
 			return true
-		} catch {
-			toast.show(m.dm_send_failed())
+		} catch (cause) {
+			toast.show(refusal_message(cause, m.dm_send_failed))
 			replying = reply
 			return false
 		} finally {

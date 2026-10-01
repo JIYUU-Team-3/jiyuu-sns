@@ -11,3 +11,7 @@ export const search_href = (q: string) => localizeHref(`/search?q=${encodeURICom
 
 /** Posts with a hashtag; `tag` comes without its `#`. */
 export const tag_href = (tag: string) => search_href(`#${tag}`)
+
+/** The "leaving Jiyuu" page for a post's `n`th link. It takes ids, never a URL, so it can't be an open redirect. */
+export const out_href = (post_id: string, n: number) =>
+	localizeHref(`/out?post=${encodeURIComponent(post_id)}&n=${n}`)

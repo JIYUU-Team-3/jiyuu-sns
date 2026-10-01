@@ -106,7 +106,7 @@
 			</div>
 		{/if}
 		{#if message.body}
-			<div class="bubble"><PostText body={message.body} /></div>
+			<div class="bubble"><PostText body={message.body} blocked={message.blocked_hosts} /></div>
 		{/if}
 		{#if reactions.length}
 			<div class="reacts">

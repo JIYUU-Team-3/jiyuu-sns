@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { grant_moderator } from './(app)/mod/grant'
+import { grant_moderator, settle_account } from './(app)/mod/local-db'
+import { follow } from './(app)/follow'
 import { sign_up } from './(app)/sign-up'
 
 /** A 1×1 PNG. */
@@ -68,6 +69,8 @@ test('a chat and its photos are closed to people who are not in it @writes', asy
 	}
 	const [bob, carol] = pages
 	await sign_up(page, alice)
+	// New accounts can only start a chat with someone who follows them.
+	await follow(page, `e2e_mb_${id}`)
 
 	// Bob opens a chat with Alice; the page asks for its messages.
 	await bob.goto(`/u/${alice}`)
@@ -220,4 +223,92 @@ test('nobody can take the moderator handle, and a moderator cannot change theirs
 	expect(renamed.status()).toBe(400)
 	await page.goto(`/u/${mod}`)
 	await expect(page.locator('h1')).toHaveText(mod)
+})
+
+/** Post from the home composer and return what the server said about it. */
+async function try_post(page: Page, text: string) {
+	const composer = page.locator('form.inline')
+	await composer.getByLabel('Post text').fill(text)
+	const answered = page.waitForResponse((response) => response.url().includes('/create_post'))
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	return (await answered).json()
+}
+
+test('a new account cannot post links or message people who do not follow it @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const stranger = await (await browser.newContext()).newPage()
+	await sign_up(stranger, `e2e_ns_${id}`)
+	await sign_up(page, `e2e_nn_${id}`)
+
+	const refused = await try_post(page, `See https://example.com/notes ${id}`)
+	expect(refused).toMatchObject({ type: 'error', error: { status: 403 } })
+	await expect(page.getByText('New accounts can’t share links yet.')).toBeVisible()
+	await expect(page.locator('article.post', { hasText: id })).toHaveCount(0)
+
+	await page.goto(`/u/e2e_ns_${id}`)
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: `Message @e2e_ns_${id}` }).click()
+	await expect(
+		page.getByText('New accounts can only message people who follow them.'),
+	).toBeVisible()
+	await expect(page).toHaveURL(new RegExp(`/u/e2e_ns_${id}$`))
+	await stranger.context().close()
+})
+
+test('a blocked domain is refused, and its links already posted stop linking @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const domain = `docs-${id}.example`
+	const [reader, mod] = await Promise.all(
+		[0, 1].map(async () => (await browser.newContext()).newPage()),
+	)
+	await sign_up(page, `e2e_la_${id}`)
+	settle_account(`e2e_la_${id}`)
+	await sign_up(reader, `e2e_lr_${id}`)
+	await sign_up(mod, `e2e_lm_${id}`)
+	grant_moderator(`e2e_lm_${id}`)
+
+	const posted = await try_post(page, `Notes at https://${domain}/start ${id}`)
+	expect(posted.type).toBe('result')
+	const card = page.locator('article.post', { hasText: id }).first()
+	await card.getByText(`Notes at`).click()
+	await expect(page).toHaveURL(/\/p\/[0-9a-f-]{36}$/)
+	const post_id = page.url().split('/p/')[1]
+
+	// A month-young account's link goes through the leaving page, which only follows the post.
+	await reader.goto(`/p/${post_id}`)
+	const link = reader.getByRole('link', { name: `${domain}/start` })
+	await expect(link).toHaveAttribute('href', new RegExp(`/out\\?post=${post_id}&n=0$`))
+	await link.click()
+	await expect(reader.getByText(domain, { exact: true })).toBeVisible()
+	await expect(reader.getByRole('link', { name: 'Continue' })).toHaveAttribute(
+		'href',
+		`https://${domain}/start`,
+	)
+	expect((await reader.goto(`/out?post=${post_id}&n=1`))?.status()).toBe(404)
+	expect((await reader.goto(`/out?post=${crypto.randomUUID()}&n=0`))?.status()).toBe(404)
+
+	// Blocked by a moderator: the old post keeps its text but loses the link, and new ones are refused.
+	await mod.goto(`/mod/p/${post_id}`)
+	await mod.getByRole('button', { name: `Block ${domain}` }).click()
+	await expect(mod.getByText('Blocked.')).toBeVisible()
+	await reader.goto(`/p/${post_id}`)
+	await expect(reader.getByText(`${domain}/start`)).toBeVisible()
+	await expect(reader.getByRole('link', { name: `${domain}/start` })).toHaveCount(0)
+	expect((await reader.goto(`/out?post=${post_id}&n=0`))?.status()).toBe(404)
+
+	await page.goto('/')
+	const again = await try_post(page, `Mirror at https://www.${domain}/start ${id}`)
+	expect(again).toMatchObject({ type: 'error', error: { status: 400 } })
+	await expect(
+		page.getByText('That link goes to a site known for malware or phishing'),
+	).toBeVisible()
+
+	await reader.context().close()
+	await mod.context().close()
 })

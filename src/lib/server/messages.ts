@@ -20,6 +20,7 @@ import {
 	profile,
 	user,
 } from './db/schema'
+import { blocked_hosts_in } from './moderation/links'
 
 type Db = ReturnType<typeof getDb>
 
@@ -219,6 +220,7 @@ export async function messages_page(
 			sender_handle: profile.handle,
 			sender_image: avatar,
 			body: message.body,
+			blocked_hosts: blocked_hosts_in(message.body),
 			media_kind: message.mediaKind,
 			media_url: message.mediaUrl,
 			media_width: message.mediaWidth,
@@ -269,6 +271,7 @@ export async function messages_page(
 		},
 		mine: row.sender_id === me,
 		body: row.body,
+		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
 		media: to_media(row),
 		reply_to: row.reply_id
 			? {

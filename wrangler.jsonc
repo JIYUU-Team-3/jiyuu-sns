@@ -56,6 +56,12 @@
 		{ "name": "AUTH_LIMIT", "namespace_id": "1704", "simple": { "limit": 30, "period": 60 } },
 		// Moderator actions: a fast moderator clears a few items a minute, a script far more.
 		{ "name": "MOD_LIMIT", "namespace_id": "1706", "simple": { "limit": 120, "period": 60 } },
+		// Posts and messages with links: each one asks Cloudflare's security resolver about them.
+		{
+			"name": "LINK_LOOKUP_LIMIT",
+			"namespace_id": "1707",
+			"simple": { "limit": 30, "period": 60 },
+		},
 	],
 	"workers_dev": true,
 	// Preview versions would run with the production database and secrets on a second URL.

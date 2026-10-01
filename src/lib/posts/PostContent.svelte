@@ -2,7 +2,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
-	import { search_href } from './links'
+	import { out_href, search_href } from './links'
 	import Poll from './Poll.svelte'
 	import PostMedia from './PostMedia.svelte'
 	import PostText from './PostText.svelte'
@@ -36,7 +36,15 @@
 	</p>
 {/if}
 
-{#if content.body}<div class="text" class:focus><PostText body={content.body} /></div>{/if}
+{#if content.body}
+	<div class="text" class:focus>
+		<PostText
+			body={content.body}
+			blocked={post.blocked_hosts}
+			out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
+		/>
+	</div>
+{/if}
 {#if covered}
 	<!-- Nothing loads until the viewer chooses to see it. -->
 	<div class="cover">

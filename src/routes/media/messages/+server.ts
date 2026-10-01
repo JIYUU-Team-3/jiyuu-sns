@@ -2,7 +2,8 @@ import { error, json } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import { IMAGE_MAX_BYTES, image_problem, picked_file, read_image } from '#lib/media'
 import { read_form } from '#lib/server/form'
-import { put_image } from '#lib/server/media'
+import { BlockedMediaError, put_image } from '#lib/server/media'
+import { is_blocked_media } from '#lib/server/moderation/media'
 import { find_profile } from '#lib/server/profiles'
 import { limit } from '#lib/server/rate-limit'
 import { MetadataError } from '#lib/server/strip-metadata'
@@ -25,10 +26,16 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (problem === 'size') error(413, 'size')
 
 	try {
-		const url = await put_image(env.MEDIA, locals.user.id, await read_image(file, 'message'))
+		const url = await put_image(
+			env.MEDIA,
+			locals.user.id,
+			await read_image(file, 'message'),
+			(bytes) => is_blocked_media(locals.db, bytes),
+		)
 		return json({ url }, { status: 201 })
 	} catch (cause) {
 		if (cause instanceof MetadataError) error(415, 'type')
+		if (cause instanceof BlockedMediaError) error(422, 'blocked')
 		throw cause
 	}
 }

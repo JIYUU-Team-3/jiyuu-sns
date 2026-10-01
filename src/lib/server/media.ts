@@ -20,10 +20,18 @@ export function media_key(url: string | null | undefined): string | undefined {
 /**
  * Store an upload under a fresh key, so its URL never changes content and can cache forever.
  * Location, camera details and other metadata are stripped first; a file that can't be cleaned
- * throws `MetadataError` and is never stored.
+ * throws `MetadataError` and is never stored, and a file a moderator blocked throws
+ * `BlockedMediaError`.
  */
-export async function put_image(bucket: R2Bucket, user_id: string, upload: ImageUpload) {
+export async function put_image(
+	bucket: R2Bucket,
+	user_id: string,
+	upload: ImageUpload,
+	/** Refuses bytes a moderator blocked; see `is_blocked_media`. */
+	blocked?: (bytes: ArrayBuffer) => Promise<boolean>,
+) {
 	const bytes = strip_metadata(upload.bytes, upload.type)
+	if (await blocked?.(bytes)) throw new BlockedMediaError()
 	const key = fresh_key(`${upload.kind}s`, user_id, upload.ext)
 	await bucket.put(key, bytes, { httpMetadata: { contentType: upload.type } })
 	return PREFIX + key
@@ -35,6 +43,9 @@ export async function put_video(bucket: R2Bucket, user_id: string, video: Blob) 
 	await bucket.put(key, video, { httpMetadata: { contentType: 'video/mp4' } })
 	return PREFIX + key
 }
+
+/** The exact image a moderator removed and blocked, uploaded again. */
+export class BlockedMediaError extends Error {}
 
 const fresh_key = (folder: string, user_id: string, ext: string) =>
 	`${folder}/${user_id}/${crypto.randomUUID()}.${ext}`

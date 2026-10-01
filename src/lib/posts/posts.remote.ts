@@ -5,7 +5,10 @@ import { command, getRequestEvent, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
+import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
+import { trust_level } from '#lib/server/moderation/trust'
 import { member, signed_in } from '#lib/server/session'
+import { clean_text } from './clean'
 import { author_arg, feed_arg, replies_arg } from './args'
 import {
 	ALT_MAX,
@@ -23,8 +26,15 @@ const Id = v.pipe(v.string(), v.uuid())
 // Better Auth ids aren't UUIDs, so only the length is bounded.
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
-// The real limit is checked in graphemes by `post_problem`; this only bounds the payload.
-const Text = v.pipe(v.string(), v.trim(), v.maxLength(4000))
+// The real limit is checked in graphemes by `post_problem`; this only bounds the payload. Bidi
+// overrides and stacked marks are taken out first, as names and bios already are.
+const Text = v.pipe(
+	v.string(),
+	v.maxLength(8000),
+	v.transform(clean_text),
+	v.trim(),
+	v.maxLength(4000),
+)
 const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
 const Url = v.pipe(v.string(), v.maxLength(2048))
 // A blank description is no description.
@@ -125,8 +135,11 @@ function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	const { db, user_id } = await author()
 	const prepared = inputs.map((input) => prepare(input, user_id))
+	const trust = await trust_level(db, user_id)
+	const { risky } = await check_new_posts(db, user_id, trust, prepared)
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
 	if (!ids) error(404, 'The post you replied to was deleted.')
+	await flag_risky_links(db, user_id, ids, risky)
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -166,6 +179,7 @@ export const edit_post = command(
 	}),
 	async ({ id, body, media }) => {
 		const { db, user_id } = await author()
+		await check_edited_post(db, user_id, await trust_level(db, user_id), body)
 		const result = await posts.update_post(db, user_id, id, body, media)
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')

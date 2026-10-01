@@ -1,7 +1,10 @@
 import { error, fail } from '@sveltejs/kit'
+import { env } from 'cloudflare:workers'
 import { is_rule } from '#lib/moderation/rules'
 import { read_form } from '#lib/server/form'
 import { require_moderator } from '#lib/server/moderation/guard'
+import { block_domain, links_in } from '#lib/server/moderation/links'
+import { block_media } from '#lib/server/moderation/media'
 import { moderate_post, post_for_review, type PostAction } from '#lib/server/moderation/posts'
 import { limit } from '#lib/server/rate-limit'
 import type { Actions, PageServerLoad } from './$types'
@@ -14,6 +17,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const found = UUID.test(params.id) ? await post_for_review(db, params.id) : undefined
 	if (!found) error(404, 'Not found.')
 	return {
+		hosts: [...new Set(links_in(found.body).map((link) => link.host))],
 		post: {
 			...found,
 			created_at: found.created_at.getTime(),
@@ -36,6 +40,23 @@ export const actions: Actions = {
 		await limit('MOD_LIMIT', user_id)
 		if (!UUID.test(params.id)) error(404, 'Not found.')
 		const data = await read_form(request, 4096)
+
+		// Blocking acts on what the post holds, never on a domain or URL the form names freely.
+		if (data.get('action') === 'block_domain' || data.get('action') === 'block_image') {
+			const found = await post_for_review(db, params.id)
+			if (!found) error(404, 'Not found.')
+			const target = String(data.get('target') ?? '')
+			if (data.get('action') === 'block_domain') {
+				if (!links_in(found.body).some((link) => link.host === target))
+					return fail(400, { invalid: true })
+				await block_domain(db, target, user_id, 'malicious_link')
+				return { blocked: target }
+			}
+			if (!found.media.some((item) => item.url === target)) return fail(400, { invalid: true })
+			if (!(await block_media(db, env.MEDIA, target, user_id))) return fail(400, { invalid: true })
+			return { blocked: target }
+		}
+
 		const action = String(data.get('action') ?? '') as PostAction
 		const reason = data.get('reason')
 		const note = String(data.get('note') ?? '').trim()

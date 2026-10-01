@@ -11,6 +11,8 @@ export type MessageView = {
 	sender: Author
 	mine: boolean
 	body: string
+	/** Blocked domains the text mentions; links to them are drawn as plain text. */
+	blocked_hosts: string[]
 	media?: MessageMedia
 	reply_to?: {
 		id: string

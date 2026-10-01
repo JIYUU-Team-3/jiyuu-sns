@@ -2,7 +2,8 @@ import { error, json } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import { picked_file, POST_UPLOAD_MAX_BYTES, read_image, sniff_post_upload } from '#lib/media'
 import { read_form } from '#lib/server/form'
-import { put_image, put_video } from '#lib/server/media'
+import { BlockedMediaError, put_image, put_video } from '#lib/server/media'
+import { is_blocked_media } from '#lib/server/moderation/media'
 import { find_profile } from '#lib/server/profiles'
 import { limit } from '#lib/server/rate-limit'
 import { MetadataError } from '#lib/server/strip-metadata'
@@ -31,11 +32,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		const url =
 			kind === 'video'
 				? await store_video(locals.user.id, file)
-				: await put_image(env.MEDIA, locals.user.id, await read_image(file, 'post'))
+				: await put_image(env.MEDIA, locals.user.id, await read_image(file, 'post'), (bytes) =>
+						is_blocked_media(locals.db, bytes),
+					)
 		return json({ url }, { status: 201 })
 	} catch (cause) {
 		// A file whose metadata can't be stripped is refused rather than stored with it.
 		if (cause instanceof MetadataError) error(415, 'type')
+		if (cause instanceof BlockedMediaError) error(422, 'blocked')
 		throw cause
 	}
 }

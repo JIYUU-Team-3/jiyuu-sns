@@ -11,6 +11,7 @@ import { m } from '#lib/paraglide/messages.js'
 /** What went wrong with a picked image, in the reader's language. */
 export function image_problem_text(problem: ImageProblem, kind: ImageKind) {
 	if (problem === 'type') return m.onboarding_image_type()
+	if (problem === 'blocked') return m.image_blocked()
 	return m.onboarding_image_size({ mb: IMAGE_MAX_BYTES[kind] / 1024 / 1024 })
 }
 

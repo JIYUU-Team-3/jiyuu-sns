@@ -3,7 +3,13 @@ import { env } from 'cloudflare:workers'
 
 /** The rate limiters bound in wrangler.jsonc; each has its own limit per minute. */
 export type Limiter =
-	'WRITE_LIMIT' | 'MESSAGE_LIMIT' | 'UPLOAD_LIMIT' | 'LOOKUP_LIMIT' | 'AUTH_LIMIT' | 'MOD_LIMIT'
+	| 'WRITE_LIMIT'
+	| 'MESSAGE_LIMIT'
+	| 'UPLOAD_LIMIT'
+	| 'LOOKUP_LIMIT'
+	| 'AUTH_LIMIT'
+	| 'MOD_LIMIT'
+	| 'LINK_LOOKUP_LIMIT'
 
 type Binding = { limit(options: { key: string }): Promise<{ success: boolean }> }
 

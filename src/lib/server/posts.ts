@@ -24,6 +24,8 @@ import {
 	user,
 } from './db/schema'
 import { shown_image } from './account-image'
+import { blocked_hosts_in } from './moderation/links'
+import { TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
 
 type Db = ReturnType<typeof getDb>
@@ -94,6 +96,8 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			location: post.location,
 			moderation: post.moderation,
 			sensitive: post.sensitive,
+			blocked_hosts: blocked_hosts_in(post.body),
+			author_created_at: user.createdAt,
 			media: media_json,
 			poll_ends_at: poll.endsAt,
 			poll_options: poll_json,
@@ -174,6 +178,8 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		liked: !!row.liked,
 		mine: row.author_id === viewer,
 		sensitive: row.sensitive,
+		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
+		warn_links: row.author_created_at.getTime() > Date.now() - TRUSTED_DAYS * 24 * 60 * 60 * 1000,
 		// Only its author is ever shown a hidden post, so only they learn its state.
 		moderation: row.moderation === 'visible' ? undefined : row.moderation,
 	}

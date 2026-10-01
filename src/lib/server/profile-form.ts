@@ -50,5 +50,9 @@ export async function submit_profile(
 		const taken: ProfileErrors = { handle: 'taken' }
 		return fail(400, { draft, errors: taken })
 	}
+	if (typeof saved === 'object') {
+		const blocked: ProfileErrors = { [saved.blocked]: 'blocked' }
+		return fail(400, { draft, errors: blocked })
+	}
 	return { saved: draft }
 }

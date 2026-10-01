@@ -1,5 +1,6 @@
 import { GIPHY_API_KEY } from '$app/env/private'
 import type { Gif } from '#lib/posts/types'
+import { cached } from './cache'
 
 const API = 'https://api.giphy.com/v1/gifs'
 const LIMIT = 24
@@ -55,4 +56,48 @@ export async function search_gifs(q: string, locale: string): Promise<Gif[]> {
 	if (!response.ok) throw new Error(`GIPHY ${response.status}`)
 	const { data } = (await response.json()) as { data: GiphyItem[] }
 	return data.map(to_gif).filter((gif) => is_gif_url(gif.full.url) && is_gif_url(gif.preview.url))
+}
+
+/** The ratings the picker shows (`rating: 'pg-13'` and below). */
+const ALLOWED_RATINGS = new Set(['y', 'g', 'pg', 'pg-13'])
+
+/** The GIF's id in a GIPHY CDN URL: `/media/<id>/…`, `/media/v1.<…>/<id>/…` or `i.giphy.com/<id>.gif`. */
+export function gif_id(url: string) {
+	try {
+		const parsed = new URL(url)
+		const parts = parsed.pathname.split('/').filter(Boolean)
+		const id = parsed.hostname === 'i.giphy.com' ? parts[0]?.replace(/\.\w+$/, '') : parts.at(-2)
+		return id && /^[A-Za-z0-9]{3,40}$/.test(id) ? id : undefined
+	} catch {
+		return undefined
+	}
+}
+
+/**
+ * Whether a GIF is one the picker would have offered, asked of GIPHY by id: a scripted client can
+ * attach any GIPHY URL, not only the picker's. Ratings don't change, so answers are cached; a GIF
+ * GIPHY won't vouch for is refused.
+ */
+export async function gif_allowed(url: string, fetcher: typeof fetch = fetch) {
+	const id = gif_id(url)
+	if (!id || !GIPHY_API_KEY) return false
+	const rating = await cached<string | null>(
+		`giphy-rating:${id}`,
+		7 * 24 * 60 * 60,
+		async () => {
+			try {
+				const params = new URLSearchParams({ api_key: GIPHY_API_KEY! })
+				const response = await fetcher(`${API}/${id}?${params}`, {
+					signal: AbortSignal.timeout(2000),
+				})
+				if (!response.ok) return null
+				const { data } = (await response.json()) as { data?: { rating?: string } }
+				return data?.rating ?? null
+			} catch {
+				return null
+			}
+		},
+		(value) => value !== null,
+	)
+	return rating !== null && ALLOWED_RATINGS.has(rating)
 }

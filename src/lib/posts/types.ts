@@ -49,6 +49,13 @@ export type PostView = {
 	sensitive: boolean
 	/** Set only for the author of a post a moderator limited or removed; nobody else sees it. */
 	moderation?: 'limited' | 'removed'
+	/** Blocked domains its text mentions; links to them are drawn as plain text. */
+	blocked_hosts: string[]
+	/**
+	 * The author's account is under a month old, so its links go through the "leaving Jiyuu" page.
+	 * (New accounts can't post links at all; this covers the ones that just became able to.)
+	 */
+	warn_links: boolean
 }
 
 export type FeedTab = 'for_you' | 'following'

@@ -25,7 +25,8 @@ export const POST_UPLOAD_MAX_BYTES: Record<PostUploadKind, number> = {
 	video: 50 * 1024 * 1024,
 }
 
-export type ImageProblem = 'type' | 'size'
+/** `blocked`: a file a moderator removed before, refused by the server. */
+export type ImageProblem = 'type' | 'size' | 'blocked'
 
 export type ImageType = { type: string; ext: string }
 

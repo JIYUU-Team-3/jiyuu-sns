@@ -59,6 +59,13 @@
 						<video src={item.url} controls preload="none"></video>
 					{:else}
 						<img src={item.url} alt={item.alt ?? ''} loading="lazy" />
+						{#if item.kind === 'image'}
+							<form method="post" use:enhance>
+								<input type="hidden" name="action" value="block_image" />
+								<input type="hidden" name="target" value={item.url} />
+								<button class="btn btn-outline sm">{m.mod_block_image()}</button>
+							</form>
+						{/if}
 					{/if}
 				{/each}
 			</div>
@@ -69,6 +76,18 @@
 		{/if}
 	{/if}
 
+	{#if data.hosts.length}
+		<h2>{m.mod_links_heading()}</h2>
+		<form class="row" method="post" use:enhance>
+			<input type="hidden" name="action" value="block_domain" />
+			{#each data.hosts as host (host)}
+				<button class="btn btn-outline sm" name="target" value={host}
+					>{m.mod_block_domain({ domain: host })}</button
+				>
+			{/each}
+		</form>
+	{/if}
+	{#if form?.blocked}<p class="note" role="status">{m.mod_blocked()}</p>{/if}
 	{#if form?.unchanged}<p class="err">{m.mod_unchanged()}</p>{/if}
 	{#if form?.invalid}<p class="err">{m.mod_invalid()}</p>{/if}
 	{#if form?.suspended}<p class="note">{m.mod_strike_suspended()}</p>{/if}

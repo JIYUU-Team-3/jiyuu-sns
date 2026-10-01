@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { refusal_message } from '#lib/moderation/refusals'
 	import { onMount } from 'svelte'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
@@ -117,8 +118,8 @@
 		try {
 			await (editing ? save() : publish())
 			ondone?.()
-		} catch {
-			toast.show(m.toast_error())
+		} catch (cause) {
+			toast.show(refusal_message(cause, m.toast_error))
 		} finally {
 			busy = false
 		}

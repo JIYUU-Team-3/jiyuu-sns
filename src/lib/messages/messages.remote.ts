@@ -8,6 +8,9 @@ import { member, signed_in } from '#lib/server/session'
 import { visible_text } from '#lib/profiles/form/profile'
 import { conversations_arg, messages_arg } from './args'
 import { GROUP_NAME_MAX, MEMBER_MAX, message_problem, REACTIONS } from './rules'
+import { clean_text } from '#lib/posts/clean'
+import { follows, is_limited, trust_level } from '#lib/server/moderation/trust'
+import { check_message } from '#lib/server/moderation/write'
 
 const Id = v.pipe(v.string(), v.uuid())
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
@@ -47,7 +50,13 @@ export const get_unread_messages = query(() => {
 const NewMessage = v.pipe(
 	v.object({
 		id: Id,
-		body: v.pipe(v.string(), v.trim(), v.maxLength(8000)),
+		body: v.pipe(
+			v.string(),
+			v.maxLength(16000),
+			v.transform(clean_text),
+			v.trim(),
+			v.maxLength(8000),
+		),
 		media: v.optional(
 			v.object({
 				kind: v.picklist(['image', 'gif']),
@@ -70,6 +79,8 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 				: is_own_message_upload(input.media.url, user_id)
 		if (!ok) error(400, 'Invalid media.')
 	}
+	// Only the links' host names are checked; nobody reads the message itself.
+	await check_message(db, user_id, await trust_level(db, user_id), input.body)
 	const sent = await messages.send_message(db, user_id, id, input)
 	if (sent === 'not_found') error(404, 'Conversation not found.')
 	await Promise.all([
@@ -110,6 +121,13 @@ export const start_conversation = command(
 	async ({ user_ids, name }) => {
 		// Starting a chat puts it in other people's lists, so it goes at the pace of a post.
 		const { db, user_id } = await member()
+		// A new account can only start a chat with people who follow it, so it can't cold-message.
+		if (is_limited(await trust_level(db, user_id))) {
+			for (const other of user_ids) {
+				if (other !== user_id && !(await follows(db, other, user_id)))
+					error(403, 'chat_new_account')
+			}
+		}
 		const id = await messages.start_conversation(db, user_id, user_ids, name)
 		if (id === 'invalid') error(400, 'Invalid members.')
 		await get_conversations(conversations_arg()).refresh()
