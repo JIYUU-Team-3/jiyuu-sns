@@ -44,9 +44,20 @@ const notified_mentions = (body: string) => extract_mentions(body).slice(0, MENT
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
 
-export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
+/**
+ * Who may see a post: anyone while it's visible; only its author once a moderator limits or
+ * removes it. Every query that lists posts includes this. Moderators look at hidden posts through
+ * `/mod/p/[id]`, so nothing here needs to know about roles.
+ */
+export function shown_to(viewer: string | undefined) {
+	const visible = eq(post.moderation, 'visible')
+	return viewer ? or(visible, eq(post.authorId, viewer)) : visible
+}
+
+// Hidden replies aren't counted, so a count never hints at a post nobody else can see.
+export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id} and r.moderation = 'visible')`
 export const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
-const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId})`
+const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId} and r.moderation = 'visible')`
 
 const THREAD_DEPTH = 100
 
@@ -81,6 +92,8 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			edited_at: post.editedAt,
 			reply_to_id: post.replyToId,
 			location: post.location,
+			moderation: post.moderation,
+			sensitive: post.sensitive,
 			media: media_json,
 			poll_ends_at: poll.endsAt,
 			poll_options: poll_json,
@@ -160,6 +173,9 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		likes: row.likes,
 		liked: !!row.liked,
 		mine: row.author_id === viewer,
+		sensitive: row.sensitive,
+		// Only its author is ever shown a hidden post, so only they learn its state.
+		moderation: row.moderation === 'visible' ? undefined : row.moderation,
 	}
 }
 
@@ -198,7 +214,7 @@ export async function page(
 ): Promise<PostPage> {
 	const order = direction === 'newer_first' ? desc : asc
 	const rows = await select_posts(db, viewer)
-		.where(and(...where))
+		.where(and(shown_to(viewer), ...where))
 		.orderBy(order(post.createdAt), order(post.id))
 		// One extra row says whether another page exists without a count query.
 		.limit(PAGE_SIZE + 1)
@@ -223,7 +239,7 @@ async function ranked_page(
 	const age = sql`((${as_of} - ${post.createdAt}) / 3600000.0 + 2)`
 	const score = sql`(1.0 + ${like_count} + 2 * ${reply_count} + 3 * ${followed}) / (${age} * ${age})`
 	const rows = await select_posts(db, viewer)
-		.where(and(eq(post.isReply, false), lte(post.createdAt, new Date(as_of))))
+		.where(and(shown_to(viewer), eq(post.isReply, false), lte(post.createdAt, new Date(as_of))))
 		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
@@ -311,10 +327,10 @@ export async function conversation(db: Db, viewer: string | undefined, id: strin
 	) select id from down where depth > 0)`
 	const [up, down] = await Promise.all([
 		select_posts(db, viewer)
-			.where(inArray(post.id, above))
+			.where(and(shown_to(viewer), inArray(post.id, above)))
 			.orderBy(asc(post.createdAt), asc(post.id)),
 		select_posts(db, viewer)
-			.where(inArray(post.id, below))
+			.where(and(shown_to(viewer), inArray(post.id, below)))
 			.orderBy(asc(post.createdAt), asc(post.id)),
 	])
 	return {
@@ -324,14 +340,16 @@ export async function conversation(db: Db, viewer: string | undefined, id: strin
 }
 
 export async function find_post(db: Db, viewer: string | undefined, id: string) {
-	const [row] = await select_posts(db, viewer).where(eq(post.id, id)).limit(1)
+	const [row] = await select_posts(db, viewer)
+		.where(and(shown_to(viewer), eq(post.id, id)))
+		.limit(1)
 	return row ? to_view(row, viewer) : undefined
 }
 
 /** Several posts by id, in no particular order; missing ones are left out. */
 export async function find_posts(db: Db, viewer: string | undefined, ids: string[]) {
 	if (!ids.length) return []
-	const rows = await select_posts(db, viewer).where(inArray(post.id, ids))
+	const rows = await select_posts(db, viewer).where(and(shown_to(viewer), inArray(post.id, ids)))
 	return rows.map((row) => to_view(row, viewer))
 }
 
@@ -396,6 +414,8 @@ export type NewPost = {
 	media: Media[]
 	poll?: { options: string[]; days: PollDays }
 	location?: string
+	/** The author marked the media as sensitive, so it's blurred until a viewer opens it. */
+	sensitive?: boolean
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -446,10 +466,11 @@ export async function insert_thread(
 ) {
 	let parent_author: string | undefined
 	if (reply_to_id) {
+		// A hidden post can't be replied to, except by its author, who still sees it.
 		const [target] = await db
 			.select({ author_id: post.authorId })
 			.from(post)
-			.where(eq(post.id, reply_to_id))
+			.where(and(eq(post.id, reply_to_id), shown_to(author_id)))
 			.limit(1)
 		if (!target) return undefined
 		parent_author = target.author_id
@@ -466,6 +487,7 @@ export async function insert_thread(
 				authorId: author_id,
 				body: input.body,
 				location: input.location ?? null,
+				sensitive: !!input.sensitive,
 				replyToId: parent_id ?? null,
 				isReply: !!parent_id,
 				createdAt: created_at,
@@ -531,7 +553,8 @@ export async function update_post(
 	const [owned] = await db
 		.select({ body: post.body, created_at: post.createdAt, reply_to_id: post.replyToId })
 		.from(post)
-		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
+		// A post a moderator limited or removed stays as it was reviewed.
+		.where(and(eq(post.id, id), eq(post.authorId, author_id), eq(post.moderation, 'visible')))
 		.limit(1)
 	if (!owned) return 'not_found'
 	if (body !== owned.body && (await has_votes(db, id))) return 'locked'
@@ -614,7 +637,7 @@ export async function set_like(db: Db, user_id: string, post_id: string, on: boo
 	const [target] = await db
 		.select({ author_id: post.authorId })
 		.from(post)
-		.where(eq(post.id, post_id))
+		.where(and(eq(post.id, post_id), shown_to(user_id)))
 		.limit(1)
 	if (!target) return
 	const note = { user_id: target.author_id, actor_id: user_id, type: 'like' as const, post_id }
@@ -638,5 +661,7 @@ export async function vote(db: Db, user_id: string, post_id: string, position: n
 	await db.run(sql`insert or ignore into poll_vote (post_id, user_id, position)
 		select o.post_id, ${user_id}, o.position from poll_option o
 		join poll p on p.post_id = o.post_id
-		where o.post_id = ${post_id} and o.position = ${position} and p.ends_at > ${Date.now()}`)
+		join post on post.id = o.post_id
+		where o.post_id = ${post_id} and o.position = ${position} and p.ends_at > ${Date.now()}
+		and (post.moderation = 'visible' or post.author_id = ${user_id})`)
 }

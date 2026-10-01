@@ -1,6 +1,7 @@
+import type { Rule } from '#lib/moderation/rules'
 import type { Author, PostView } from '#lib/posts/types'
 
-export type NotificationType = 'follow' | 'like' | 'reply' | 'mention'
+export type NotificationType = 'follow' | 'like' | 'reply' | 'mention' | 'moderation'
 
 export type NotificationTab = 'all' | 'mentions'
 
@@ -17,6 +18,8 @@ export type NotificationView = {
 	snippet?: string
 	/** The reply or the mentioning post, shown as a card. */
 	post?: PostView
+	/** For `moderation`: what a moderator did to the viewer's post, and under which rule. */
+	moderation?: { action: 'remove' | 'limit' | 'restore'; reason?: Rule }
 }
 
 export type NotificationPage = {

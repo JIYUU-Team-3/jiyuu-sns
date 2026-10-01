@@ -54,6 +54,17 @@ export const post = sqliteTable(
 		createdAt: created_at(),
 		// Set only by an edit, so the "Edited" label never comes from an unrelated write.
 		editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+		/**
+		 * `limited` waits for a moderator and `removed` was taken down; both are shown to their author
+		 * only. See `shown_to` in `server/posts.ts` and docs/MODERATION.md.
+		 */
+		moderation: text('moderation', { enum: ['visible', 'limited', 'removed'] })
+			.notNull()
+			.default('visible'),
+		/** Media blurred until the viewer chooses to see it. Set by the author or a moderator. */
+		sensitive: integer('sensitive', { mode: 'boolean' }).notNull().default(false),
+		/** When a moderator removed it; the post is deleted for good a day later, unless appealed. */
+		removedAt: integer('removed_at', { mode: 'timestamp_ms' }),
 	},
 	(table) => [
 		index('post_author_created_idx').on(table.authorId, table.createdAt),
@@ -185,9 +196,13 @@ export const notification = sqliteTable(
 		actorId: text('actor_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		type: text('type', { enum: ['follow', 'like', 'reply', 'mention'] }).notNull(),
+		type: text('type', { enum: ['follow', 'like', 'reply', 'mention', 'moderation'] }).notNull(),
 		// The liked post, or the reply or mention itself. Null for a follow.
 		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
+		/** For `moderation`: what a moderator did, which says why. */
+		actionId: text('action_id').references((): AnySQLiteColumn => moderationAction.id, {
+			onDelete: 'cascade',
+		}),
 		readAt: integer('read_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
 	},

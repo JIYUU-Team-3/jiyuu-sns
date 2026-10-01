@@ -66,7 +66,11 @@ export class Draft {
 	media = $state<DraftMedia[]>([])
 	poll = $state<DraftPoll>()
 	location = $state<string>()
+	/** The author marked the media as sensitive. Set when writing; a moderator can change it later. */
+	sensitive = $state(false)
 	panel = $state<Panel>()
+	/** Editing a published post, where the sensitive mark isn't offered. */
+	editing = false
 
 	readonly trimmed = $derived(this.text.trim())
 	readonly uploading = $derived(this.media.some((item) => item.state === 'uploading'))
@@ -85,6 +89,7 @@ export class Draft {
 	/** Start an edit from what the post shows now. */
 	static editing(content: PostContent) {
 		const draft = new Draft()
+		draft.editing = true
 		draft.text = content.body
 		draft.media = content.media.map((item, i) => ({
 			...item,
@@ -138,6 +143,7 @@ export class Draft {
 			media: this.media_payload(),
 			poll: this.poll && { options: [...this.poll.options], days: this.poll.days },
 			location: this.location,
+			sensitive: this.sensitive && this.media.length > 0,
 		}
 	}
 
@@ -274,6 +280,7 @@ export class Draft {
 		this.media = []
 		this.poll = undefined
 		this.location = undefined
+		this.sensitive = false
 		this.panel = undefined
 	}
 

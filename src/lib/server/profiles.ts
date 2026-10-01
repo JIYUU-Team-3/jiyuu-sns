@@ -29,7 +29,7 @@ export async function find_profile_by_handle(
 			image: shown_image,
 			banner: profile.bannerUrl,
 			joined: sql<number>`${user.createdAt}`,
-			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0)`,
+			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0 and p.moderation = 'visible')`,
 			followers: sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`,
 			following: sql<number>`(select count(*) from follow f where f.follower_id = ${profile.userId})`,
 			followed: viewer

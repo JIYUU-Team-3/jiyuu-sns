@@ -55,6 +55,13 @@
 		checked={prefs.value.reduce_motion}
 		onchange={(on) => prefs.set('reduce_motion', on)}
 	/>
+	<SwitchRow
+		icon="shield"
+		label={m.settings_show_sensitive()}
+		sub={m.settings_show_sensitive_sub()}
+		checked={prefs.value.show_sensitive}
+		onchange={(on) => prefs.set('show_sensitive', on)}
+	/>
 </SettingsSection>
 
 <SettingsSection id="settings-language" title={m.settings_language()}>

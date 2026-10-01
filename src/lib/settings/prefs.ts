@@ -18,6 +18,8 @@ const Schema = v.object({
 	/** Calm animations even when the device doesn't ask for it. */
 	reduce_motion: v.fallback(v.boolean(), false),
 	autoplay: v.fallback(v.boolean(), true),
+	/** Show media marked sensitive without the cover that asks first. */
+	show_sensitive: v.fallback(v.boolean(), false),
 })
 
 export type Prefs = v.InferOutput<typeof Schema>

@@ -15,6 +15,7 @@ import {
 	PAGE_SIZE,
 	reply_count,
 	select_posts,
+	shown_to,
 	to_page,
 } from './posts'
 
@@ -30,6 +31,9 @@ const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const escape_like = (text: string) => text.replace(/[!%_]/g, (char) => `!${char}`)
 
 const contains = (text: string) => `%${escape_like(text)}%`
+
+/** Tags count only on posts everyone can see, so a hidden post never trends or shows in counts. */
+const tag_shown = sql`exists(select 1 from post p where p.id = ${postTag.postId} and p.moderation = 'visible')`
 const starts_with = (text: string) => `${escape_like(text)}%`
 
 /** `#svelte` searches that tag exactly; anything else searches post text. */
@@ -58,7 +62,7 @@ export async function search_posts(
 
 	const offset = Math.min(OFFSET_MAX, Math.max(0, Number(cursor) || 0))
 	const rows = await select_posts(db, viewer)
-		.where(filter)
+		.where(and(shown_to(viewer), filter))
 		.orderBy(desc(sql`${like_count} + 2 * ${reply_count}`), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
@@ -185,7 +189,7 @@ export async function search_tags(db: Db, q: string, limit = PAGE_SIZE): Promise
 	return db
 		.select({ tag: postTag.tag, posts })
 		.from(postTag)
-		.where(sql`${postTag.tag} like ${starts_with(needle)} escape '!'`)
+		.where(and(sql`${postTag.tag} like ${starts_with(needle)} escape '!'`, tag_shown))
 		.groupBy(postTag.tag)
 		.orderBy(desc(posts), postTag.tag)
 		.limit(limit)
@@ -206,7 +210,7 @@ export async function trending_tags(db: Db, limit: number): Promise<TagView[]> {
 	return db
 		.select({ tag: postTag.tag, posts })
 		.from(postTag)
-		.where(gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)))
+		.where(and(gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)), tag_shown))
 		.groupBy(postTag.tag)
 		.orderBy(desc(posts), postTag.tag)
 		.limit(limit)

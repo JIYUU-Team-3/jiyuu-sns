@@ -13,6 +13,12 @@
 </script>
 
 <MediaTray {draft} />
+{#if draft.media.length && !draft.editing}
+	<label class="sensitive">
+		<input type="checkbox" bind:checked={draft.sensitive} />
+		{m.composer_sensitive()}
+	</label>
+{/if}
 {#if draft.poll}<PollBuilder {draft} poll={draft.poll} />{/if}
 {#if draft.location}
 	<span class="place">
@@ -41,6 +47,14 @@
 {/if}
 
 <style>
+	.sensitive {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 6px 0;
+		font-size: 14px;
+		color: var(--text-2);
+	}
 	.place {
 		display: inline-flex;
 		align-items: center;

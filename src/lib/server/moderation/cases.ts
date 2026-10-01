@@ -185,7 +185,14 @@ export type ReviewView = {
 	id: string
 	body: string
 	created_at: number
-	action: { id: string; action: string; reason: string | null; expires_at: number | null }
+	action: {
+		id: string
+		action: string
+		reason: string | null
+		expires_at: number | null
+		target_kind: string
+		target_id: string
+	}
 	author: { id: string; handle: string | undefined }
 }
 
@@ -200,6 +207,8 @@ export async function open_reviews(db: Db, limit = 50): Promise<ReviewView[]> {
 			action: moderationAction.action,
 			reason: moderationAction.reason,
 			expires_at: moderationAction.expiresAt,
+			target_kind: moderationAction.targetKind,
+			target_id: moderationAction.targetId,
 			user_id: appeal.userId,
 			handle: profile.handle,
 		})
@@ -218,6 +227,8 @@ export async function open_reviews(db: Db, limit = 50): Promise<ReviewView[]> {
 			action: row.action,
 			reason: row.reason,
 			expires_at: row.expires_at?.getTime() ?? null,
+			target_kind: row.target_kind,
+			target_id: row.target_id,
 		},
 		author: { id: row.user_id, handle: row.handle ?? undefined },
 	}))

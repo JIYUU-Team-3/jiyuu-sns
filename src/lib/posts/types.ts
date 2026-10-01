@@ -45,6 +45,10 @@ export type PostView = {
 	liked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
+	/** Media blurred until the viewer opens it. */
+	sensitive: boolean
+	/** Set only for the author of a post a moderator limited or removed; nobody else sees it. */
+	moderation?: 'limited' | 'removed'
 }
 
 export type FeedTab = 'for_you' | 'following'

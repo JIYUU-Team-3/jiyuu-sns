@@ -7,8 +7,10 @@ import {
 	is_message_key,
 	is_own_message_upload,
 	is_own_post_upload,
+	is_post_key,
 } from '#lib/server/media'
 import { can_see_media, media_in_use } from '#lib/server/messages'
+import { media_shown_to } from '#lib/server/moderation/posts'
 import type { RequestHandler } from './$types'
 
 /**
@@ -18,11 +20,20 @@ import type { RequestHandler } from './$types'
 export const GET: RequestHandler = async ({ locals, params, request }) => {
 	if (!locals.user) error(401, 'Sign in to continue.')
 	if (!is_media_key(params.key)) error(404, 'Not found.')
+	const url = `/media/${params.key}`
 	if (is_message_key(params.key)) {
-		const url = `/media/${params.key}`
 		const allowed =
 			is_own_message_upload(url, locals.user.id) ||
 			(await can_see_media(locals.db, locals.user.id, url))
+		if (!allowed) error(404, 'Not found.')
+	}
+	// A post's photos and videos go with the post: a hidden post's are its author's and the
+	// moderators' only, and an upload no post uses yet is its uploader's.
+	if (is_post_key(params.key)) {
+		const allowed =
+			is_own_post_upload(url, locals.user.id) ||
+			locals.standing?.role === 'moderator' ||
+			(await media_shown_to(locals.db, url, locals.user.id))
 		if (!allowed) error(404, 'Not found.')
 	}
 
