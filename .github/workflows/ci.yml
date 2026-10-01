@@ -124,6 +124,18 @@ jobs:
           rm /tmp/install-safe-chain.sh
       - run: pnpm install --frozen-lockfile
       # The `client` vitest project runs in a real browser via @vitest/browser-playwright
+      # The browsers are kept between runs: downloading them every time took anywhere from
+      # one minute to thirteen. The key follows the Playwright version, so an upgrade fetches
+      # fresh ones.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # Skips any browser the cache already has; the system libraries are installed either way.
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec vitest --run
 
@@ -159,7 +171,8 @@ jobs:
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The tests take about five minutes; the rest is room for a slow install.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -183,6 +196,18 @@ jobs:
       # Only the key names matter here, never the values - `.env.example` has them.
       - name: Seed .env for wrangler types
         run: cp -n .env.example .env
+      # The browsers are kept between runs: downloading them every time took anywhere from
+      # one minute to thirteen. The key follows the Playwright version, so an upgrade fetches
+      # fresh ones.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-all-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # Skips any browser the cache already has; the system libraries are installed either way.
       - run: pnpm exec playwright install --with-deps
       # playwright.config.ts serves this build via `pnpm preview:ci`
       # (wrangler --local: D1 is emulated, no Cloudflare credentials needed).

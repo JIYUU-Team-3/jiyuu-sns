@@ -114,6 +114,15 @@ jobs:
       # Tests tagged `@writes` are excluded: verifying a deploy must not create
       # data (users, sessions, ...) in the production database. Tag any e2e
       # test that writes with `@writes` so it only runs against local D1.
+      # The same cache the CI unit-test job fills, so the browser is rarely downloaded here.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: E2E against the deployment
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.deploy.outputs.deployment-url }}
