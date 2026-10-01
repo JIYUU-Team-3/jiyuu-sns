@@ -18,6 +18,11 @@ Nothing here is built yet. Drafted 2026-10-01; the team decides the open questio
 - **`@jiyuu_org` already exists on production**, so reserving the handle takes nothing from anyone.
 - **No users are under 18.** Explicit sexual content stays banned anyway: this is a classroom
   network.
+- **Link hostnames in direct messages are checked** against the blocklist and the reputation
+  lookup; the message text is not.
+- **Self-harm support (a help box, special handling) is out of scope.** Telling someone else to
+  hurt themselves is still harassment and removed.
+- **Strikes as proposed** below.
 - **Removed posts are kept for 1 day**, then deleted for real with their media, unless an appeal
   is open. See [Appeals](#appeals).
 
@@ -75,10 +80,10 @@ mark it, and so can a moderator or the image check.
 
 ### Allowed
 
-Talking about one's own mental health (shown with a help-resources box rather than removed),
+Talking about one's own mental health (no special handling: self-harm support is out of scope),
 political opinions and criticism of the school or teachers, and swearing not aimed at a person.
 
-### Strikes (proposal)
+### Strikes
 
 A removal in "not allowed" is a strike. One strike is a warning, three within 90 days a 7-day
 suspension, five a permanent one. Anything in "never allowed" is an immediate suspension. A
@@ -154,7 +159,9 @@ Keep it that way.
    shows the real hostname before continuing. It takes a post id and link index, never a URL, so it
    can't become an open redirect. Add `noreferrer` to outbound links in `PostText.svelte`.
 
-Direct messages render through the same `PostText`, so blocklisted links are disabled there too.
+Direct messages get the same link checks when they are sent, on the hostname only; the message
+text is never read. They render through the same `PostText`, so blocklisted links are disabled
+there too. The privacy page says so in one sentence (Phase 3).
 
 ## AI checks
 
@@ -181,7 +188,7 @@ mostly Latin script (count Hiragana, Katakana, CJK and Khmer code points; no AI 
 | -------------------------------- | --------------------------------------------------- |
 | `safe`                           | Nothing                                             |
 | `unsafe` S4 (child exploitation) | `limited` at once, highest-priority case            |
-| `unsafe` S1, S9, S10, S11, S12   | `limited` for `new`/`restricted`, case for everyone |
+| `unsafe` S1, S9, S10, S12        | `limited` for `new`/`restricted`, case for everyone |
 | any other `unsafe`               | Case only                                           |
 
 ### Images
@@ -421,7 +428,8 @@ media returns 404 to others; a limited post is absent from feeds but opens for i
 ### Phase 3 — write-time rules, links, trust
 
 Spam rules, text cleaning for posts, server-side GIF rating, image hash list, link shape checks,
-blocklist, DoH lookup with Cache API, `noreferrer`, `/out`, trust levels and new-account limits.
+blocklist, DoH lookup with Cache API, the same link checks on direct messages and a privacy-page
+sentence about them, `noreferrer`, `/out`, trust levels and new-account limits.
 
 Tests: each rule refuses; a blocklisted domain renders as plain text in an old post; `/out` refuses
 anything not in a post; a `new` account can't post a link or start a chat with a stranger.
@@ -443,17 +451,10 @@ case.
 
 ## Open questions for the team
 
-1. **Link checks in direct messages.** When a direct message contains a link, may the server check
-   only the website's name (never the message text) against the list of known malware and
-   phishing sites, and make the link unclickable if it is on it? Recommended: yes, with a sentence
-   on the privacy page.
-2. **The help box for self-harm posts.** Posts about self-harm stay up with a "Need someone to
-   talk to?" box of support services under them. Which services, for Japan and Cambodia? Without
-   an answer the box is left out until there is one.
-3. **Strike numbers.** Proposed: each removal is a strike; 1 is a warning, 3 within 90 days a
-   7-day suspension, 5 a permanent one; the worst categories suspend at once. Stricter or looser?
+None. Everything above is decided; Phase 0 can start.
 
 ## Not in this plan
 
 Phone verification, AI checks of Japanese or Khmer text, reading direct-message text, video frame
-analysis, link previews, an automated appeals decision, and the report table and buttons (#21).
+analysis, link previews, an automated appeals decision, self-harm support, and the report table
+and buttons (#21).
