@@ -1,8 +1,9 @@
 import { sequence, type Handle } from '@sveltejs/kit/hooks'
 import { env } from 'cloudflare:workers'
 import { building } from '$app/env'
-import { createAuth } from '#lib/server/auth'
+import { createAuth, email_signup } from '#lib/server/auth'
 import { getDb } from '#lib/server/db'
+import { under_limit } from '#lib/server/rate-limit'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getTextDirection } from '#lib/paraglide/runtime'
 import { paraglideMiddleware } from '#lib/paraglide/server'
@@ -24,6 +25,48 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 		})
 	})
 
+/**
+ * Sent with every response. The Content-Security-Policy itself comes from `csp` in
+ * vite.config.ts, since SvelteKit has to add its own nonces to it.
+ */
+const SECURITY_HEADERS = {
+	'x-frame-options': 'DENY',
+	'x-content-type-options': 'nosniff',
+	'referrer-policy': 'strict-origin-when-cross-origin',
+	'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+	'strict-transport-security': 'max-age=31536000',
+}
+
+const handleSecurityHeaders: Handle = async ({ event, resolve }) => {
+	const response = await resolve(event)
+	try {
+		for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value)
+		return response
+	} catch {
+		// Some responses (a redirect built by `Response.redirect`) have headers that can't change.
+		const copy = new Response(response.body, response)
+		for (const [name, value] of Object.entries(SECURITY_HEADERS)) copy.headers.set(name, value)
+		return copy
+	}
+}
+
+/**
+ * Better Auth's endpoints are open to anyone, and several write to the database, so each
+ * address gets a limited number of calls a minute. Off on the e2e server, where every test signs
+ * up from the same address.
+ */
+const handleAuthLimit: Handle = async ({ event, resolve }) => {
+	if (
+		!email_signup &&
+		event.request.method === 'POST' &&
+		event.url.pathname.startsWith('/api/auth/') &&
+		!(await under_limit('AUTH_LIMIT', event.getClientAddress()))
+	) {
+		return new Response('Too many requests.', { status: 429 })
+	}
+	return resolve(event)
+}
+
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	// adapter-cloudflare (Kit 3) no longer populates `event.platform.env`;
 	// bindings come from the `cloudflare:workers` runtime module.
@@ -43,4 +86,9 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ event, resolve, auth, building })
 }
 
-export const handle: Handle = sequence(handleParaglide, handleBetterAuth)
+export const handle: Handle = sequence(
+	handleSecurityHeaders,
+	handleParaglide,
+	handleAuthLimit,
+	handleBetterAuth,
+)

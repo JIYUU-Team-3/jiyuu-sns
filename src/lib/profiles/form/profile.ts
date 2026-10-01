@@ -7,7 +7,11 @@ export const BIO_MAX = 160
 const HANDLE_PATTERN = /^[a-z0-9_.]{3,20}$/
 
 /** Handles kept for Jiyuu itself. Checked here until the backend owns handle availability. */
-const RESERVED_HANDLES = new Set(['admin', 'jiyuu', 'support'])
+const RESERVED_HANDLES = new Set([
+	...['admin', 'administrator', 'jiyuu', 'jiyuu_official', 'jiyuu_support', 'jiyuu.official'],
+	...['support', 'help', 'official', 'staff', 'team', 'moderator', 'mod', 'security', 'system'],
+	...['root', 'everyone', 'here'],
+])
 
 export type HandleProblem = 'format' | 'taken'
 
@@ -50,16 +54,27 @@ export async function image_errors(images: ProfileImages): Promise<ProfileErrors
 	return errors
 }
 
-/** Read the onboarding form, trimmed and clipped to each field's limit. */
+/**
+ * Control characters, and the bidi overrides and isolates that reorder the text around them: in a
+ * name they let one account be drawn as another's, or flip the text of the row it sits in.
+ * Zero-width joiners stay, since emoji and Khmer are written with them.
+ */
+const INVISIBLE = /[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu
+
+/** Text without those characters. A bio keeps its line breaks; a name is one line. */
+export const visible_text = (text: string, keep_breaks = false) =>
+	text.replace(INVISIBLE, (char) => (keep_breaks && char === '\n' ? char : ' '))
+
+/** Read the onboarding form, cleaned, trimmed and clipped to each field's limit. */
 export function read_profile(data: FormData): ProfileDraft {
-	const field = (key: string, max: number) =>
-		String(data.get(key) ?? '')
+	const field = (key: string, max: number, keep_breaks = false) =>
+		visible_text(String(data.get(key) ?? ''), keep_breaks)
 			.trim()
 			.slice(0, max)
 	return {
 		name: field('name', NAME_MAX),
 		handle: field('handle', HANDLE_MAX),
-		bio: field('bio', BIO_MAX),
+		bio: field('bio', BIO_MAX, true),
 	}
 }
 

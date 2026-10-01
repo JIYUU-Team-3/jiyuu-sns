@@ -1,19 +1,15 @@
-import { error } from '@sveltejs/kit'
 import * as v from 'valibot'
-import { command, getRequestEvent, query } from '$app/server'
+import { command, query } from '$app/server'
 import { getLocale } from '#lib/paraglide/runtime'
 import * as notifications from '#lib/server/notifications'
 import { remove_subscription, save_subscription } from '#lib/server/push'
+import { member, signed_in } from '#lib/server/session'
 import { is_push_endpoint } from '#lib/server/web-push'
 
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
 
 /** Notifications are always someone's own: no session, nothing to show. */
-function me() {
-	const { locals } = getRequestEvent()
-	if (!locals.user) error(401, 'Sign in to continue.')
-	return { db: locals.db, user_id: locals.user.id }
-}
+const me = signed_in
 
 export const get_notifications = query(
 	v.object({ tab: v.picklist(['all', 'mentions']), cursor: Cursor }),
@@ -46,7 +42,7 @@ const Base64url = (max: number) => v.pipe(v.string(), v.regex(/^[\w-]+$/), v.max
 export const save_push_subscription = command(
 	v.object({ endpoint: Endpoint, p256dh: Base64url(100), auth: Base64url(40) }),
 	async (target) => {
-		const { db, user_id } = me()
+		const { db, user_id } = await member()
 		await save_subscription(db, user_id, target, getLocale())
 	},
 )

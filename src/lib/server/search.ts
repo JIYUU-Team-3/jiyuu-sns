@@ -2,10 +2,21 @@ import { and, desc, eq, gte, inArray, ne, notExists, or, sql } from 'drizzle-orm
 import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
 import type { TagView, UserView } from '#lib/search/types'
+import { shown_image } from './account-image'
 import type { getDb } from './db'
 import { follow, post, postTag, profile, user } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
-import { after, like_count, page, PAGE_SIZE, reply_count, select_posts, to_page } from './posts'
+import {
+	after,
+	last_at_cap,
+	like_count,
+	OFFSET_MAX,
+	page,
+	PAGE_SIZE,
+	reply_count,
+	select_posts,
+	to_page,
+} from './posts'
 
 type Db = ReturnType<typeof getDb>
 
@@ -45,13 +56,16 @@ export async function search_posts(
 	if (tab === 'latest')
 		return page(db, viewer, [filter, after(cursor, 'newer_first')], 'newer_first')
 
-	const offset = Math.max(0, Number(cursor) || 0)
+	const offset = Math.min(OFFSET_MAX, Math.max(0, Number(cursor) || 0))
 	const rows = await select_posts(db, viewer)
 		.where(filter)
 		.orderBy(desc(sql`${like_count} + 2 * ${reply_count}`), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
-	return to_page(rows, viewer, () => String(offset + PAGE_SIZE))
+	return last_at_cap(
+		to_page(rows, viewer, () => String(offset + PAGE_SIZE)),
+		offset,
+	)
 }
 
 const follower_count = sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`
@@ -63,7 +77,7 @@ function select_users(db: Db, viewer: string | undefined) {
 			handle: profile.handle,
 			name: profile.displayName,
 			bio: profile.bio,
-			image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
+			image: shown_image,
 			followed: viewer
 				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
 				: sql<number>`0`,

@@ -59,17 +59,30 @@ function orientation_segment(orientation: number) {
 	return new Uint8Array([0xff, 0xe1, length >> 8, length & 0xff, ...body])
 }
 
-/** APP1 (EXIF, XMP), APP12 (camera info), APP13 (Photoshop/IPTC) and comments go. */
-const JPEG_DROPPED = new Set([0xe1, 0xec, 0xed, 0xfe])
+const COMMENT = 0xfe
+const is_app = (marker: number) => marker >= 0xe0 && marker <= 0xef
+
+/**
+ * Whether a segment is part of the picture. Application segments are where metadata lives (EXIF
+ * and XMP, camera info, Photoshop/IPTC, content credentials, whatever a vendor invents next), so
+ * only the three a decoder draws with are kept: JFIF, an ICC colour profile, and Adobe's colour
+ * transform. Comments go too. Everything else (tables, frames, scans) stays.
+ */
+function drawn(segment: Uint8Array) {
+	const marker = segment[1]
+	if (marker === COMMENT) return false
+	if (!is_app(marker)) return true
+	if (marker === 0xe0) return ascii(segment, 4, 5) === 'JFIF\0'
+	if (marker === 0xe2) return ascii(segment, 4, 12) === 'ICC_PROFILE\0'
+	if (marker === 0xee) return ascii(segment, 4, 5) === 'Adobe'
+	return false
+}
 
 const SOS = 0xda
 const EOI = 0xd9
 
 /** Markers with no length after them: TEM and the restart markers. */
 const standalone = (marker: number) => marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)
-
-/** APP2 also carries the MPF index of extra pictures after the image, which are dropped. */
-const is_mpf = (segment: Uint8Array) => segment[1] === 0xe2 && ascii(segment, 4, 4) === 'MPF\0'
 
 /**
  * Where a scan's entropy-coded data ends: the next marker that isn't stuffing (FF 00), a restart
@@ -127,7 +140,7 @@ export function strip_jpeg(bytes: Uint8Array): Uint8Array {
 		const end = segment_end(bytes, at)
 		const segment = bytes.subarray(at, end)
 		if (marker === 0xe1) orientation = Math.max(orientation, exif_orientation(segment.subarray(4)))
-		if (!JPEG_DROPPED.has(marker) && !is_mpf(segment)) kept.push(segment)
+		if (drawn(segment)) kept.push(segment)
 		at = end
 		if (marker === SOS) {
 			const data_end = scan_end(bytes, at)
@@ -141,8 +154,15 @@ export function strip_jpeg(bytes: Uint8Array): Uint8Array {
 
 // ---------- PNG ----------
 
-/** Text chunks, embedded EXIF and the last-modified time. */
-const PNG_DROPPED = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME'])
+/**
+ * The chunks an image (or an animated one) is drawn from. Any other goes: text, embedded EXIF,
+ * the last-modified time, and private chunks nobody can vouch for.
+ */
+const PNG_KEPT = new Set([
+	...['IHDR', 'PLTE', 'IDAT', 'IEND'],
+	...['tRNS', 'gAMA', 'cHRM', 'sRGB', 'iCCP', 'cICP', 'sBIT', 'bKGD', 'pHYs', 'hIST', 'sPLT'],
+	...['acTL', 'fcTL', 'fdAT'],
+])
 
 export function strip_png(bytes: Uint8Array): Uint8Array {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -154,7 +174,7 @@ export function strip_png(bytes: Uint8Array): Uint8Array {
 		const type = ascii(bytes, at + 4, 4)
 		const end = at + 12 + length
 		if (end > bytes.length) fail('bad chunk length')
-		if (!PNG_DROPPED.has(type)) kept.push(bytes.subarray(at, end))
+		if (PNG_KEPT.has(type)) kept.push(bytes.subarray(at, end))
 		at = end
 		if (type === 'IEND') break
 	}

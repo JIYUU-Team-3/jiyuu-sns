@@ -40,8 +40,22 @@
 			"bucket_name": "jiyuu-media",
 		},
 	],
+	// Rate limiters, counted per account id (or per address for AUTH_LIMIT) at each Cloudflare
+	// location; see `src/lib/server/rate-limit.ts`. `namespace_id` is any number unique to this
+	// account, and `period` is in seconds.
+	"ratelimits": [
+		// Posting, liking, following, voting: more than a person does in a minute.
+		{ "name": "WRITE_LIMIT", "namespace_id": "1701", "simple": { "limit": 60, "period": 60 } },
+		// Photos and videos. A full thread of photos is 60; nobody posts two a minute.
+		{ "name": "UPLOAD_LIMIT", "namespace_id": "1702", "simple": { "limit": 90, "period": 60 } },
+		// Search-as-you-type and the GIF and place pickers.
+		{ "name": "LOOKUP_LIMIT", "namespace_id": "1703", "simple": { "limit": 240, "period": 60 } },
+		// Better Auth's endpoints and starting a Google sign-in, per address.
+		{ "name": "AUTH_LIMIT", "namespace_id": "1704", "simple": { "limit": 30, "period": 60 } },
+	],
 	"workers_dev": true,
-	"preview_urls": true,
+	// Preview versions would run with the production database and secrets on a second URL.
+	"preview_urls": false,
 	"observability": {
 		"logs": {
 			"enabled": true,

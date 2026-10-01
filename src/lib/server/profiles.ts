@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import type { ProfileView } from '#lib/profiles/types'
+import { shown_image } from './account-image'
 import type { getDb } from './db'
 import { profile, user } from './db/schema'
 
@@ -25,7 +26,7 @@ export async function find_profile_by_handle(
 			handle: profile.handle,
 			name: profile.displayName,
 			bio: profile.bio,
-			image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
+			image: shown_image,
 			banner: profile.bannerUrl,
 			joined: sql<number>`${user.createdAt}`,
 			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0)`,

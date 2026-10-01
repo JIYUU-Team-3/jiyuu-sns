@@ -1,4 +1,4 @@
-import { waitUntil } from 'cloudflare:workers'
+import { env, waitUntil } from 'cloudflare:workers'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type {
 	NotificationPage,
@@ -6,6 +6,7 @@ import type {
 	NotificationType,
 	NotificationView,
 } from '#lib/notifications/types'
+import { shown_image } from './account-image'
 import type { getDb } from './db'
 import { notification, profile, user } from './db/schema'
 import { find_posts } from './posts'
@@ -35,7 +36,34 @@ export async function notify(db: Db, rows: NewNotification[]) {
 		})),
 	)
 	// Pushes go out after the response, so a slow push service never delays a like or a post.
-	waitUntil(push_notifications(db, events).catch((error) => console.error('Push failed', error)))
+	waitUntil(
+		not_just_pushed(events)
+			.then((fresh) => push_notifications(db, fresh))
+			.catch((error) => console.error('Push failed', error)),
+	)
+}
+
+/** How long the same like or follow stays quiet after it was pushed once. */
+const REPEAT_QUIET_SECONDS = 60 * 60
+
+/**
+ * Likes and follows can be undone and redone, and each redo is a new notification. Pushing every
+ * one would let someone buzz a phone by toggling a like, so the same like or follow is pushed
+ * once an hour at most; the list still shows it.
+ */
+async function not_just_pushed(events: NewNotification[]) {
+	const kv: KVNamespace | undefined = env.KV
+	if (!kv) return events
+	const fresh: NewNotification[] = []
+	for (const event of events) {
+		if (event.type === 'like' || event.type === 'follow') {
+			const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? ''}`
+			if (await kv.get(key)) continue
+			await kv.put(key, '1', { expirationTtl: REPEAT_QUIET_SECONDS })
+		}
+		fresh.push(event)
+	}
+	return fresh
 }
 
 /**
@@ -99,7 +127,7 @@ export async function notifications_page(
 			actor_id: user.id,
 			actor_name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 			actor_handle: profile.handle,
-			actor_image: sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`,
+			actor_image: shown_image,
 			post_body: sql<
 				string | null
 			>`(select p.body from post p where p.id = ${notification.postId})`,

@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { VAPID_PRIVATE_KEY, VAPID_SUBJECT } from '$app/env/private'
 import { VAPID_PUBLIC_KEY } from '$app/env/public'
 import type { NotificationType } from '#lib/notifications/types'
@@ -20,7 +20,13 @@ export function vapid_keys(): VapidKeys | undefined {
 	}
 }
 
-/** Remember a browser for this account. The same browser signing in as someone else moves over. */
+/** More browsers than anyone signs in on; every one costs a request per notification. */
+const SUBSCRIPTIONS_MAX = 10
+
+/**
+ * Remember a browser for this account. The same browser signing in as someone else moves over.
+ * Past `SUBSCRIPTIONS_MAX`, the account's oldest ones are forgotten.
+ */
 export async function save_subscription(
 	db: Db,
 	user_id: string,
@@ -40,6 +46,22 @@ export async function save_subscription(
 			target: pushSubscription.endpoint,
 			set: { userId: user_id, p256dh: target.p256dh, auth: target.auth, locale },
 		})
+	await db
+		.delete(pushSubscription)
+		.where(
+			and(
+				eq(pushSubscription.userId, user_id),
+				notInArray(
+					pushSubscription.endpoint,
+					db
+						.select({ endpoint: pushSubscription.endpoint })
+						.from(pushSubscription)
+						.where(eq(pushSubscription.userId, user_id))
+						.orderBy(desc(pushSubscription.createdAt))
+						.limit(SUBSCRIPTIONS_MAX),
+				),
+			),
+		)
 }
 
 export async function remove_subscription(db: Db, user_id: string, endpoint: string) {
