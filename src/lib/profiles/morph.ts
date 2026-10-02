@@ -1,4 +1,5 @@
 import { onNavigate } from '$app/navigation'
+import { reduced_motion } from '#lib/settings/motion'
 
 const PROFILE = '/(app)/u/[handle]'
 const EDIT = '/(app)/settings/profile'
@@ -15,7 +16,7 @@ function between_profile_and_edit(from?: string | null, to?: string | null) {
 export function morph_profile_edit() {
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return
-		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+		if (reduced_motion()) return
 		if (!between_profile_and_edit(navigation.from?.route.id, navigation.to?.route.id)) return
 
 		// Tells the CSS which way the avatar's gap from the banner grows or shrinks.

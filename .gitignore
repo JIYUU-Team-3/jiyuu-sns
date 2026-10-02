@@ -31,6 +31,8 @@ project.inlang/cache/
 
 node_modules
 .agent
+# Personal Claude Code instructions; the shared ones are in CLAUDE.md
+CLAUDE.local.md
 # Output
 .output
 .vercel

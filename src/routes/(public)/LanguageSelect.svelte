@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { getLocale, isLocale, locales, setLocale, type Locale } from '#lib/paraglide/runtime'
+	import { getLocale, isLocale, locales } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
-
-	const LANGUAGE_NAMES: Record<Locale, string> = { en: 'English', ja: '日本語', km: 'ខ្មែរ' }
+	import { LANGUAGE_NAMES } from '#lib/settings/languages'
+	import { switch_locale } from '#lib/settings/locale'
 
 	function change_language(event: Event & { currentTarget: HTMLSelectElement }) {
 		const { value } = event.currentTarget
-		if (isLocale(value)) setLocale(value)
+		if (isLocale(value)) switch_locale(value)
 	}
 </script>
 

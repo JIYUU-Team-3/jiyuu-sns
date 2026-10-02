@@ -26,7 +26,7 @@
 	}
 	.toast {
 		background: var(--accent-fill);
-		color: #fff;
+		color: var(--on-accent);
 		padding: 12px 16px;
 		border-radius: 8px;
 		box-shadow: var(--shadow-pop);

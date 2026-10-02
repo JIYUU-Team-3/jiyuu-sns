@@ -11,6 +11,7 @@ import type {
 	Receipt,
 } from '#lib/messages/types'
 import { direct_key, MEMBER_MAX } from '#lib/messages/rules'
+import { shown_image } from './account-image'
 import type { getDb } from './db'
 import {
 	conversation,
@@ -35,7 +36,7 @@ function decode_cursor(cursor: string | undefined) {
 }
 
 const display_name = sql<string>`coalesce(${profile.displayName}, ${user.name})`
-const avatar = sql<string | null>`coalesce(${profile.avatarUrl}, ${user.image})`
+const avatar = shown_image
 
 export async function is_member(db: Db, user_id: string, conversation_id: string) {
 	const [row] = await db

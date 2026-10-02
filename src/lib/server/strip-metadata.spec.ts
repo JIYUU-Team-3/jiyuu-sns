@@ -137,6 +137,26 @@ describe('strip_jpeg with more than one scan', () => {
 		expect(text(mpf)).not.toContain('MPF')
 		expect(text(mpf)).toContain('ICC_PROFILE')
 	})
+
+	it('drops application segments it does not draw with, whatever their number', () => {
+		const out = strip_jpeg(
+			bytes(
+				[0xff, 0xd8],
+				[...segment(0xe0, bytes('JFXX\0', 'thumbnail of the uncropped photo'))],
+				[...segment(0xe4, bytes('vendor serial 1234'))],
+				[...segment(0xeb, bytes('JP\0\0c2pa signed by Jane'))],
+				[...segment(0xee, bytes('Adobe', [0, 100, 0, 0, 0, 0, 1]))],
+				[...segment(0xef, bytes('anything else'))],
+				[...segment(0xda, bytes([0]))],
+				[0xff, 0xd9],
+			),
+		)
+		expect(text(out)).not.toContain('thumbnail')
+		expect(text(out)).not.toContain('serial')
+		expect(text(out)).not.toContain('Jane')
+		expect(text(out)).not.toContain('anything else')
+		expect(text(out)).toContain('Adobe')
+	})
 })
 
 /** A PNG chunk; the CRC isn't checked here, so it's left zero. */
@@ -163,6 +183,25 @@ describe('strip_png', () => {
 		expect(out).toContain('IHDR')
 		expect(out).toContain('IDAT')
 		expect(out).toContain('IEND')
+	})
+
+	it('drops chunks it does not know and keeps colour and animation ones', () => {
+		const png = bytes(
+			[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+			[...chunk('IHDR', [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])],
+			[...chunk('caBX', 'signed by Jane')],
+			[...chunk('prVt', 'device 1234')],
+			[...chunk('gAMA', [0, 0, 177, 143])],
+			[...chunk('acTL', [0, 0, 0, 1, 0, 0, 0, 0])],
+			[...chunk('IDAT', [1, 2, 3])],
+			[...chunk('IEND')],
+		)
+		const out = text(strip_png(png))
+		expect(out).not.toContain('Jane')
+		expect(out).not.toContain('device')
+		expect(out).toContain('gAMA')
+		expect(out).toContain('acTL')
+		expect(out).toContain('IDAT')
 	})
 })
 

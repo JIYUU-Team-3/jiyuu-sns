@@ -1,9 +1,11 @@
 import { error } from '@sveltejs/kit'
 import * as v from 'valibot'
-import { command, getRequestEvent, query } from '$app/server'
+import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { is_own_message_upload } from '#lib/server/media'
 import * as messages from '#lib/server/messages'
+import { member, signed_in } from '#lib/server/session'
+import { visible_text } from '#lib/profiles/form/profile'
 import { conversations_arg, messages_arg } from './args'
 import { GROUP_NAME_MAX, MEMBER_MAX, message_problem, REACTIONS } from './rules'
 
@@ -12,11 +14,11 @@ const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
 const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
 
-function me() {
-	const { locals } = getRequestEvent()
-	if (!locals.user) error(401, 'Sign in to continue.')
-	return { db: locals.db, user_id: locals.user.id }
-}
+/** Reading and marking as read need a session; `messages.ts` checks membership every time. */
+const me = signed_in
+
+/** Sending and reacting: a finished profile, at a chat's pace. */
+const chatter = () => member('MESSAGE_LIMIT')
 
 export const get_conversations = query(v.object({ cursor: Cursor }), ({ cursor }) => {
 	const { db, user_id } = me()
@@ -61,7 +63,7 @@ const NewMessage = v.pipe(
 )
 
 export const send_message = command(NewMessage, async ({ id, ...input }) => {
-	const { db, user_id } = me()
+	const { db, user_id } = await chatter()
 	if (input.media) {
 		const ok =
 			input.media.kind === 'gif'
@@ -90,7 +92,7 @@ export const mark_conversation_read = command(Id, async (id) => {
 export const react_to_message = command(
 	v.object({ id: Id, emoji: v.picklist(REACTIONS) }),
 	async ({ id, emoji }) => {
-		const { db, user_id } = me()
+		const { db, user_id } = await chatter()
 		const result = await messages.react(db, user_id, id, emoji)
 		if (!result) error(404, 'Message not found.')
 		await get_messages(messages_arg(result.conversation_id)).refresh()
@@ -101,10 +103,14 @@ export const react_to_message = command(
 export const start_conversation = command(
 	v.object({
 		user_ids: v.pipe(v.array(UserId), v.minLength(1), v.maxLength(MEMBER_MAX - 1)),
-		name: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(GROUP_NAME_MAX))),
+		// Cleaned like a display name, so a group can't be named to redraw the row it sits in.
+		name: v.optional(
+			v.pipe(v.string(), v.transform(visible_text), v.trim(), v.maxLength(GROUP_NAME_MAX)),
+		),
 	}),
 	async ({ user_ids, name }) => {
-		const { db, user_id } = me()
+		// Starting a chat puts it in other people's lists, so it goes at the pace of a post.
+		const { db, user_id } = await member()
 		const id = await messages.start_conversation(db, user_id, user_ids, name)
 		if (id === 'invalid') error(400, 'Invalid members.')
 		await get_conversations(conversations_arg()).refresh()
@@ -113,7 +119,7 @@ export const start_conversation = command(
 )
 
 export const leave_conversation = command(Id, async (id) => {
-	const { db, user_id } = me()
+	const { db, user_id } = await member()
 	const left = await messages.leave_conversation(db, user_id, id)
 	if (!left) error(404, 'Conversation not found.')
 	await Promise.all([

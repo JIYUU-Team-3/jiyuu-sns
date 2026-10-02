@@ -97,6 +97,21 @@ describe('text_segments', () => {
 	})
 })
 
+describe('links that hide their host', () => {
+	it('leaves a URL with user info as plain text', () => {
+		const segments = text_segments('see https://bank.example@evil.example/login now')
+		expect(segments.some((segment) => segment.href)).toBe(false)
+		expect(segments.map((segment) => segment.text).join('')).toBe(
+			'see https://bank.example@evil.example/login now',
+		)
+	})
+
+	it('still links a URL with an @ in its path', () => {
+		const [link] = text_segments('https://social.example/@mika')
+		expect(link.href).toBe('https://social.example/@mika')
+	})
+})
+
 describe('extract_tags and extract_mentions', () => {
 	it('returns each one once', () => {
 		expect(extract_tags('#a1 #A1 #b2')).toEqual(['a1', 'b2'])
