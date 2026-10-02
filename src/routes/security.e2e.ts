@@ -129,9 +129,19 @@ async function post_path(page: Page, text: string) {
 	await page.waitForLoadState('networkidle')
 	const composer = page.locator('form.inline')
 	await composer.getByLabel('Post text').fill(text)
-	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	await composer
+		.locator('input[type="file"]')
+		.setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG })
+	await expect(composer.getByRole('button', { name: 'Remove' })).toHaveCount(1)
+	const post = composer.getByRole('button', { name: 'Post', exact: true })
+	await expect(post).toBeEnabled()
+	await post.click()
 	const card = page.locator('article.post', { hasText: text })
-	return (await card.locator('a[href*="/p/"]').first().getAttribute('href')) as string
+	const photo = card.locator('img[src^="/media/posts/"]').first()
+	return {
+		path: (await card.locator('a[href*="/p/"]').first().getAttribute('href')) as string,
+		photo: (await photo.getAttribute('src')) as string,
+	}
 }
 
 async function blocks(page: Page, handle: string) {
@@ -165,11 +175,18 @@ test('a private account and a blocker keep their posts from direct requests @wri
 	}
 	const [bob, carol] = pages
 	await sign_up(page, alice)
-	const path = await post_path(page, `Closed ${id}`)
+	const loose = (await (await upload(page, PNG)).json()).url as string
+	expect((await page.request.get(loose)).ok()).toBe(true)
+	expect((await bob.request.get(loose)).status()).toBe(404)
+
+	const { path, photo } = await post_path(page, `Closed ${id}`)
 	expect((await bob.request.get(path)).status()).toBe(200)
+	expect((await bob.request.get(photo)).ok()).toBe(true)
 
 	await blocks(page, `e2e_vb_${id}`)
 	expect((await bob.request.get(path)).status()).toBe(404)
+	expect((await bob.request.get(photo)).status()).toBe(404)
+	expect((await carol.request.get(photo)).ok()).toBe(true)
 
 	await page.goto('/settings/privacy')
 	await page.waitForLoadState('networkidle')
@@ -179,7 +196,9 @@ test('a private account and a blocker keep their posts from direct requests @wri
 		'true',
 	)
 	expect((await carol.request.get(path)).status()).toBe(404)
+	expect((await carol.request.get(photo)).status()).toBe(404)
 	expect((await page.request.get(path)).status()).toBe(200)
+	expect((await page.request.get(photo)).ok()).toBe(true)
 
 	for (const other of pages) await other.context().close()
 })

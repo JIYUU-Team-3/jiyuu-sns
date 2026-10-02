@@ -642,6 +642,18 @@ export async function unused_uploads(db: Db, urls: string[]) {
 	return urls.filter((url) => !used_urls.has(url))
 }
 
+export async function can_see_post_media(db: Db, viewer: string, url: string) {
+	const owner = url.split('/')[3] ?? ''
+	const [row] = await db
+		.select({ id: post.id })
+		.from(post)
+		.innerJoin(postMedia, eq(postMedia.postId, post.id))
+		.leftJoin(profile, eq(profile.userId, post.authorId))
+		.where(and(eq(post.authorId, owner), eq(postMedia.url, url), visible_posts(viewer)))
+		.limit(1)
+	return !!row
+}
+
 /**
  * Like or unlike. Repeating either is a no-op, so double clicks and retries are safe, and liking
  * a post deleted a moment ago quietly does nothing instead of tripping the foreign key.
