@@ -48,6 +48,9 @@ test('a moderator suspends an account, reads its review request and lifts it @wr
 	const request = page.locator('article', { hasText: `I only shared my notes ${id}` })
 	await expect(request).toBeVisible()
 	await request.getByRole('button', { name: 'Lift suspension' }).click()
+	// Nothing happens until the decision is confirmed.
+	await expect(page.getByRole('dialog', { name: 'Lift this suspension?' })).toBeVisible()
+	await page.getByRole('dialog').getByRole('button', { name: 'Lift suspension' }).click()
 	await expect(request).toHaveCount(0)
 
 	await other.goto('/')
@@ -139,6 +142,7 @@ test('a removed post is gone for others; its author can ask for a review, which 
 	await page.goto('/mod')
 	const request = page.locator('article', { hasText: `It was my own photo ${id}` })
 	await request.getByRole('button', { name: 'Restore post' }).click()
+	await page.getByRole('dialog').getByRole('button', { name: 'Restore post' }).click()
 	await expect(request).toHaveCount(0)
 	expect((await reader.goto(`/p/${posted.id}`))?.status()).toBe(200)
 	expect((await reader.request.get(posted.photo)).ok()).toBe(true)
@@ -156,6 +160,12 @@ test('media marked sensitive waits behind a cover @writes', async ({ page, brows
 
 	await reader.goto(`/p/${posted.id}`)
 	await expect(reader.getByText('Sensitive content.')).toBeVisible()
+	await expect(reader.locator('main img[src^="/media/posts/"]')).toHaveCount(0)
+	// The only way to see it is to turn the setting off.
+	await reader.getByRole('link', { name: 'Change in Settings' }).click()
+	await reader.getByRole('switch', { name: 'Hide sensitive media' }).click()
+	// With it off, each post still asks first, until that is turned off too.
+	await reader.goto(`/p/${posted.id}`)
 	await expect(reader.locator('main img[src^="/media/posts/"]')).toHaveCount(0)
 	await reader.getByRole('button', { name: 'Show', exact: true }).click()
 	await expect(reader.locator('main img[src^="/media/posts/"]').first()).toBeVisible()

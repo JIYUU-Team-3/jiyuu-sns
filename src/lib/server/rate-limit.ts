@@ -10,6 +10,7 @@ export type Limiter =
 	| 'AUTH_LIMIT'
 	| 'MOD_LIMIT'
 	| 'LINK_LOOKUP_LIMIT'
+	| 'MEDIA_CHECK_LIMIT'
 
 type Binding = { limit(options: { key: string }): Promise<{ success: boolean }> }
 

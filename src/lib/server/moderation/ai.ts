@@ -10,6 +10,13 @@ export const MODELS = {
 	image: { id: '@cf/meta/llama-3.2-11b-vision-instruct', input: 0.0485, output: 0.676 },
 } as const
 
+/**
+ * Neurons a day for each kind of check. Workers AI's free allocation is 10,000 a day on the Free
+ * plan, after which calls fail until 00:00 UTC; 1,000 are left for `pnpm ai:measure` and for
+ * development. Set from Phase 0's measurements; see docs/MODERATION.md.
+ */
+export const DAILY_NEURONS = { text: 5500, image: 2500, report: 1000 } as const
+
 /** Workers AI bills 1,000 neurons for $0.011. */
 const DOLLARS_PER_NEURON = 0.011 / 1000
 

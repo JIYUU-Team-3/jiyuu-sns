@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
-import { ai_enabled } from '#lib/server/moderation/ai-client'
+import { check_deps } from '#lib/server/moderation/after-write'
 import { CRON_TOKEN, run_hourly } from '#lib/server/moderation/hourly'
 import type { RequestHandler } from './$types'
 
@@ -13,6 +13,6 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (typeof token !== 'string' || request.headers.get('x-cron-token') !== token) {
 		error(404, 'Not found.')
 	}
-	const summary = await run_hourly(locals.db, { bucket: env.MEDIA, enabled: ai_enabled() })
+	const summary = await run_hourly(locals.db, { ...check_deps(), kv: env.KV })
 	return json(summary)
 }

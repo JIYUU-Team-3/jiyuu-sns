@@ -82,7 +82,13 @@ async function act_on_review(
 		if (upheld) {
 			await uphold_removal_review(db, moderator_id, decided.target_id, decided.action_id)
 		} else {
-			return refuse_removal_review(db, decided.target_id, decided.action_id)
+			return refuse_removal_review(
+				db,
+				moderator_id,
+				decided.user_id,
+				decided.target_id,
+				decided.action_id,
+			)
 		}
 	}
 	return []

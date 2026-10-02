@@ -25,6 +25,7 @@ import {
 } from './db/schema'
 import { shown_image } from './account-image'
 import { blocked_hosts_in } from './moderation/links'
+import { is_moderator } from './moderation/standing'
 import { TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
 
@@ -106,6 +107,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			author_name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 			author_handle: profile.handle,
 			author_image: shown_image,
+			author_moderator: is_moderator(user.id),
 			parent_handle: parent_profile.handle,
 			parent_author_id: parent.authorId,
 			continued,
@@ -161,6 +163,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 			name: row.author_name,
 			handle: row.author_handle ?? undefined,
 			image: row.author_image ?? undefined,
+			moderator: row.author_moderator ? true : undefined,
 		},
 		reply_to: row.reply_to_id
 			? {

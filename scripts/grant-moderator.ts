@@ -5,7 +5,7 @@
  *
  *   pnpm db:grant-moderator jiyuu_org --local            the local D1
  *   pnpm db:grant-moderator jiyuu_org --remote           production
- *   pnpm db:grant-moderator jiyuu_org --remote --revoke  take the role away
+ *   pnpm db:revoke-moderator jiyuu_org --remote          take the role away
  */
 import { literal, run } from './d1.ts'
 

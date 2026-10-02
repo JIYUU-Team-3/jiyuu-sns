@@ -62,7 +62,11 @@ export async function post_for_review(db: Db, id: string) {
 	return { ...row, media, history }
 }
 
-/** Tell an author what a moderator did to their post. Not pushed: it's news, not a ping. */
+/**
+ * Tell an author what a moderator did to their post. Not pushed: it's news, not a ping. A post has
+ * one such notice at a time: the newest replaces the last, so a post that is limited, then removed,
+ * then restored doesn't leave three.
+ */
 async function tell_author(
 	db: Db,
 	author_id: string,
@@ -70,14 +74,49 @@ async function tell_author(
 	action_id: string,
 	post_id: string,
 ) {
-	await db.insert(notification).values({
-		userId: author_id,
-		// An automatic action has no moderator; the row needs an actor, and the author is never shown.
-		actorId: actor_id ?? author_id,
-		type: 'moderation',
-		postId: post_id,
-		actionId: action_id,
-	})
+	await db.batch([
+		db
+			.delete(notification)
+			.where(
+				and(
+					eq(notification.userId, author_id),
+					eq(notification.type, 'moderation'),
+					eq(notification.postId, post_id),
+				),
+			),
+		db.insert(notification).values({
+			userId: author_id,
+			// An automatic action has no moderator; the row needs an actor, and the author is never shown.
+			actorId: actor_id ?? author_id,
+			type: 'moderation',
+			postId: post_id,
+			actionId: action_id,
+		}),
+	])
+}
+
+/**
+ * Tell an author their review was refused. The post is deleted by then, and its earlier notice
+ * with it, so this one points at the removal alone; `notifications_page` reads the refusal from
+ * the review filed against it.
+ */
+async function tell_review_refused(
+	db: Db,
+	author_id: string,
+	moderator_id: string,
+	action_id: string,
+) {
+	await db.batch([
+		db
+			.delete(notification)
+			.where(and(eq(notification.userId, author_id), eq(notification.actionId, action_id))),
+		db.insert(notification).values({
+			userId: author_id,
+			actorId: moderator_id,
+			type: 'moderation',
+			actionId: action_id,
+		}),
+	])
 }
 
 /**
@@ -328,12 +367,20 @@ export async function uphold_removal_review(
 }
 
 /**
- * Delete a removed post now that its review is refused, if that removal is still the one in force.
- * Returns the uploads to delete from R2.
+ * Delete a removed post now that its review is refused, if that removal is still the one in force,
+ * and tell its author either way. Returns the uploads to delete from R2.
  */
-export async function refuse_removal_review(db: Db, post_id: string, action_id: string) {
-	if ((await current_removal(db, post_id)) !== action_id) return []
-	return purge_post(db, post_id)
+export async function refuse_removal_review(
+	db: Db,
+	moderator_id: string,
+	author_id: string,
+	post_id: string,
+	action_id: string,
+) {
+	const unused =
+		(await current_removal(db, post_id)) === action_id ? await purge_post(db, post_id) : []
+	await tell_review_refused(db, author_id, moderator_id, action_id)
+	return unused
 }
 
 /** The removal in force on a post, if it's removed. */

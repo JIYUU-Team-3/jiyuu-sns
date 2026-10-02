@@ -22,8 +22,13 @@ Built as planned, with these differences, each for a reason found while building
 - **Bios aren't checked for links**, because bios aren't drawn as links.
 - **The "leaving Jiyuu" page covers accounts under a month old**, since new accounts (under three
   days) can't post links at all.
-- **Images over 1 MB aren't sent to the vision model**: encoding one costs CPU the Free plan
-  doesn't have. They're left to reports.
+- **Images over 1 MB aren't sent to the vision model as they are**: encoding one costs CPU the
+  Free plan doesn't have. The `IMAGES` binding makes a small JPEG of a larger one just for the
+  check (5,000 a month on the Free plan, then it refuses and the image is left to reports).
+- **Photos are checked while the post is written**, not only after: the composer asks
+  `/media/check` once an upload finishes, warns the author when the photo is sensitive, and
+  publishing marks the post either way. The answer is kept in `media_check`, so the check after
+  publishing doesn't ask again.
 - **Turnstile isn't added.** The plan made it optional, after seeing the score in use.
 
 ### Turning it on in production
@@ -277,6 +282,7 @@ a fresh local database.
   the local build without the real account.
 
 More moderators later need no code change: run the script for another handle.
+`pnpm db:revoke-moderator <handle> --local | --remote` takes the role away again.
 
 ### Suspension
 
@@ -339,9 +345,14 @@ action writes a `moderation_action` row in the same batch, with the reason.
 
 ### Appeals
 
-The author gets a `moderation` notification naming the rule and the action. One appeal per action,
-answered in the same queue; a different moderator decides it when there is one. Upheld appeals
-restore the post and remove the strike.
+The author gets a `moderation` notification naming the rule and the action. A post has one such
+notification at a time: each new action replaces the last. One appeal per action, answered in the
+same queue; a different moderator decides it when there is one. Upheld appeals restore the post
+and remove the strike. Either decision is told to the author: a restore as any restore is, a
+refusal as its own notification, since the post and its earlier notification are deleted with it.
+
+While a request is open, its author sees where it stands (`ReviewStatus.svelte`) on the post or
+on `/suspended`: sent, with a moderator, and the two ways it can be decided.
 
 A removed post can be appealed for **1 day**. The hourly job deletes removed posts (and their R2
 media) once that day has passed with no appeal, or once an appeal on them is refused. While an

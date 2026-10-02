@@ -7,6 +7,7 @@
 	import { mod_account_href, mod_post_href } from '#lib/moderation/links'
 	import { is_rule } from '#lib/moderation/rules'
 	import { profile_href } from '#lib/profiles/links'
+	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import PageBar from '../PageBar.svelte'
 	import type { PageProps } from './$types'
@@ -31,6 +32,21 @@
 		if (Array.isArray(links) && links.length) parts.push(`links: ${links.join(', ')}`)
 		if (typeof flags.score === 'number') parts.push(`behaviour score ${flags.score}`)
 		return parts.filter(Boolean).join(' · ')
+	}
+
+	/** A review decision waiting for the moderator to confirm it: it can't be taken back here. */
+	let pending = $state<{ title: string; body: string; cta: string; submit: () => void }>()
+
+	/** Hold a decision button's submit until it's confirmed. Without scripts it submits at once. */
+	function confirm_first(event: MouseEvent, title: string, body: string) {
+		event.preventDefault()
+		const button = event.currentTarget as HTMLButtonElement
+		pending = {
+			title,
+			body,
+			cta: button.textContent.trim(),
+			submit: () => button.form?.requestSubmit(button),
+		}
 	}
 
 	const KIND: Record<'post' | 'profile' | 'message', () => string> = {
@@ -65,17 +81,40 @@
 			<form method="post" action="?/decide" use:enhance>
 				<input type="hidden" name="review" value={review.id} />
 				{#if review.action.action === 'remove'}
-					<button class="btn btn-primary sm" name="decision" value="uphold"
+					<button
+						class="btn btn-primary sm"
+						name="decision"
+						value="uphold"
+						onclick={(event) =>
+							confirm_first(event, m.mod_confirm_restore_title(), m.mod_confirm_restore_body())}
 						>{m.mod_review_restore()}</button
 					>
-					<button class="btn btn-outline sm" name="decision" value="refuse"
-						>{m.mod_review_keep_removed()}</button
+					<button
+						class="btn btn-outline sm"
+						name="decision"
+						value="refuse"
+						onclick={(event) =>
+							confirm_first(
+								event,
+								m.mod_confirm_keep_removed_title(),
+								m.mod_confirm_keep_removed_body(),
+							)}>{m.mod_review_keep_removed()}</button
 					>
 				{:else}
-					<button class="btn btn-primary sm" name="decision" value="uphold"
+					<button
+						class="btn btn-primary sm"
+						name="decision"
+						value="uphold"
+						onclick={(event) =>
+							confirm_first(event, m.mod_confirm_uphold_title(), m.mod_confirm_uphold_body())}
 						>{m.mod_review_uphold()}</button
 					>
-					<button class="btn btn-outline sm" name="decision" value="refuse"
+					<button
+						class="btn btn-outline sm"
+						name="decision"
+						value="refuse"
+						onclick={(event) =>
+							confirm_first(event, m.mod_confirm_refuse_title(), m.mod_confirm_refuse_body())}
 						>{m.mod_review_refuse()}</button
 					>
 				{/if}
@@ -120,6 +159,19 @@
 		<EmptyState title={m.mod_cases_empty_title()} body={m.mod_cases_empty_body()} />
 	{/each}
 </section>
+
+{#if pending}
+	<ConfirmDialog
+		title={pending.title}
+		body={pending.body}
+		cta={pending.cta}
+		onconfirm={() => {
+			pending?.submit()
+			pending = undefined
+		}}
+		oncancel={() => (pending = undefined)}
+	/>
+{/if}
 
 <style>
 	section {

@@ -10,6 +10,9 @@ const KEY_PATTERN =
 
 export const is_media_key = (key: string) => KEY_PATTERN.test(key)
 
+/** The URL an R2 key is served at. */
+export const media_url = (key: string) => PREFIX + key
+
 /** The R2 key behind one of our URLs; undefined for anything else, such as a Google photo. */
 export function media_key(url: string | null | undefined): string | undefined {
 	if (!url?.startsWith(PREFIX)) return undefined

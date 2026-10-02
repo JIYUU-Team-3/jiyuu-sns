@@ -1,7 +1,9 @@
-import { and, desc, eq, gt, like, lt, notInArray, or } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, like, lt, notInArray, or } from 'drizzle-orm'
 import type { getDb } from '../db'
-import { post } from '../db/schema'
-import { delete_media } from '../media'
+import { chunks } from '../db/chunks'
+import { mediaCheck, post } from '../db/schema'
+import { delete_media, media_url } from '../media'
+import { unused_uploads } from '../posts'
 import { raise_case } from './cases'
 import { check_post, type CheckDeps } from './checks'
 import { block_domain, blocked_hosts, links_in, reputation } from './links'
@@ -23,18 +25,57 @@ export const HOURLY = {
 	link_posts: 300,
 	link_hosts: 50,
 	link_window: 7 * 24 * HOUR,
+	/** How long an upload's check is kept; many are for photos that never made it into a post. */
+	upload_check_window: 30 * 24 * HOUR,
+	/** Post uploads looked at for ones no post uses, and how old one must be: a draft can sit open. */
+	sweep_objects: 500,
+	sweep_grace: 24 * HOUR,
 } as const
 
-export type HourlyDeps = CheckDeps & { lookup?: typeof fetch }
+export type HourlyDeps = CheckDeps & {
+	lookup?: typeof fetch
+	/** Remembers where the upload sweep stopped; without it every run starts from the first file. */
+	kv?: KVNamespace
+}
+
+const SWEEP_CURSOR = 'sweep:post-uploads'
+
+/**
+ * Delete post uploads that no post uses a day after they were made: the composer deletes what a
+ * draft throws away, but not when the tab is closed or the request fails. One page of the bucket a
+ * run, carrying on where the last run stopped, so a run's cost doesn't grow with the bucket.
+ */
+async function sweep_uploads(db: Db, deps: HourlyDeps, now: number) {
+	const cursor = (await deps.kv?.get(SWEEP_CURSOR)) ?? undefined
+	const options = { prefix: 'posts/', limit: HOURLY.sweep_objects }
+	// A cursor R2 no longer takes starts the sweep over rather than stopping it for good.
+	const page = await deps.bucket.list({ ...options, cursor }).catch(() => deps.bucket.list(options))
+	const old = page.objects
+		.filter((object) => object.uploaded.getTime() < now - HOURLY.sweep_grace)
+		.map((object) => media_url(object.key))
+	const unused: string[] = []
+	for (const part of chunks(old)) unused.push(...(await unused_uploads(db, part)))
+	await delete_media(deps.bucket, unused)
+	for (const part of chunks(unused)) {
+		await db.delete(mediaCheck).where(inArray(mediaCheck.url, part))
+	}
+	if (page.truncated) await deps.kv?.put(SWEEP_CURSOR, page.cursor)
+	else await deps.kv?.delete(SWEEP_CURSOR)
+	return unused.length
+}
 
 /**
  * The hourly job, run by the Worker's Cron Trigger: deletes removed posts whose day has passed,
  * retries checks that couldn't run, asks again about hosts in recent posts, since a domain can turn
- * bad after it was posted, and scores the accounts active lately. Returns what it did, for the log.
+ * bad after it was posted, scores the accounts active lately, and deletes uploads no post ever
+ * used. Returns what it did, for the log.
  */
 export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 	const { purged, unused } = await purge_removed_posts(db, now)
 	await delete_media(deps.bucket, unused)
+	await db
+		.delete(mediaCheck)
+		.where(lt(mediaCheck.createdAt, new Date(now - HOURLY.upload_check_window)))
 
 	const pending = await db
 		.select({ id: post.id })
@@ -92,7 +133,8 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 		}
 	}
 	const scores = await run_scores(db, now)
-	return { purged, retried: pending.length, hosts: hosts.length, blocked, ...scores }
+	const swept = await sweep_uploads(db, deps, now)
+	return { purged, retried: pending.length, hosts: hosts.length, blocked, swept, ...scores }
 }
 
 /**

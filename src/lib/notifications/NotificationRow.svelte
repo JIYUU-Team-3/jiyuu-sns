@@ -26,6 +26,7 @@
 		const notice = item.moderation
 		if (!notice) return ''
 		if (notice.action === 'restore') return m.notifications_moderation_restore()
+		if (notice.review_refused) return m.notifications_moderation_review_refused()
 		const rule = notice.reason ? rule_label(notice.reason) : undefined
 		if (notice.action === 'remove')
 			return rule
@@ -128,6 +129,10 @@
 	.n-text {
 		margin: 8px 0 0;
 		overflow-wrap: anywhere;
+	}
+	/* No avatar above the text here, so its first line sits level with the icon instead. */
+	.n-ico.moderation + .n-body .n-text {
+		margin-top: 4px;
 	}
 	.nm {
 		font-weight: 700;

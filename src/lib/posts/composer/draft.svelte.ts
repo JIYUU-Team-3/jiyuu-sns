@@ -12,6 +12,7 @@ import { is_upload, type Gif, type Media, type MediaKind } from '../types'
 import type { CropBox } from './crop-box'
 import {
 	discard_upload,
+	is_sensitive_upload,
 	measure,
 	probe_video,
 	upload_kind,
@@ -43,6 +44,8 @@ export type DraftMedia = {
 	crop?: CropBox
 	/** Which upload is current, so a slow earlier one can't land after a re-crop. */
 	upload?: string
+	/** The automatic check found this photo sensitive, so the post will be marked whatever is ticked. */
+	flagged?: boolean
 }
 
 export type DraftPoll = { options: string[]; days: PollDays }
@@ -78,6 +81,7 @@ export class Draft {
 	readonly problem = $derived(
 		draft_problem({ body: this.trimmed, media: this.media, poll: this.poll }),
 	)
+	readonly flagged = $derived(this.media.some((item) => item.flagged))
 	readonly ready = $derived(!this.uploading && !this.failed && !this.problem)
 	/** Anything worth asking about before it's thrown away. */
 	readonly dirty = $derived(
@@ -143,7 +147,7 @@ export class Draft {
 			media: this.media_payload(),
 			poll: this.poll && { options: [...this.poll.options], days: this.poll.days },
 			location: this.location,
-			sensitive: this.sensitive && this.media.length > 0,
+			sensitive: (this.sensitive || this.flagged) && this.media.length > 0,
 		}
 	}
 
@@ -201,7 +205,7 @@ export class Draft {
 		const item = this.#find(key)
 		if (!item || item.existing) return
 		this.#release(item)
-		Object.assign(item, { crop, url: undefined })
+		Object.assign(item, { crop, url: undefined, flagged: false })
 		void this.#upload(key, cropped)
 	}
 
@@ -220,6 +224,13 @@ export class Draft {
 			const current = this.#find(key)
 			if (current?.upload !== upload) return discard_upload(url)
 			Object.assign(current, size, { url, state: 'ready' })
+			// Publishing doesn't wait for this; the server marks the post either way.
+			if (item.kind === 'image' && (await is_sensitive_upload(url))) {
+				const checked = this.#find(key)
+				if (checked?.upload !== upload) return
+				checked.flagged = true
+				this.sensitive = true
+			}
 		} catch {
 			const current = this.#find(key)
 			if (current?.upload === upload) current.state = 'failed'

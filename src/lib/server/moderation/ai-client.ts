@@ -37,6 +37,10 @@ export async function run_model(
 	}
 	// 4006: "you have used up your daily free allocation of 10,000 neurons".
 	if (body.errors?.some((error) => error.code === 4006)) throw new QuotaError()
-	if (!response.ok || !body.success) throw new Error(`Workers AI ${response.status}`)
+	if (!response.ok || !body.success) {
+		// Cloudflare's own words, such as a model licence nobody accepted yet, for the log.
+		const reasons = body.errors?.map((error) => `${error.code}: ${error.message}`).join('; ')
+		throw new Error(`Workers AI ${response.status}${reasons ? ` (${reasons})` : ''}`)
+	}
 	return body.result ?? {}
 }

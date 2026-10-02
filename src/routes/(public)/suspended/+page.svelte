@@ -5,6 +5,7 @@
 	import { format_long_date } from '#lib/format-date'
 	import { REVIEW_REQUEST_MAX } from '#lib/moderation/rules'
 	import { rule_label } from '#lib/moderation/labels'
+	import ReviewStatus from '#lib/moderation/ReviewStatus.svelte'
 	import DocPage from '../DocPage.svelte'
 	import RichText from '../RichText.svelte'
 	import { EXTERNAL_HREFS, localized } from '../links'
@@ -31,10 +32,12 @@
 	<p><a href={localized('/guidelines')}>{m.suspended_guidelines()}</a></p>
 
 	<h2>{m.suspended_review_heading()}</h2>
-	{#if review === 'open'}
-		<p class="status" role="status">{m.suspended_review_open()}</p>
-	{:else if review === 'refused'}
-		<p class="status">{m.suspended_review_refused()}</p>
+	{#if review}
+		<ReviewStatus {review} kind="suspension" />
+		<p class="status" role="status">
+			{review === 'open' ? m.suspended_review_open() : ''}
+			{review === 'refused' ? m.suspended_review_refused() : ''}
+		</p>
 	{:else}
 		<p>{m.suspended_review_hint()}</p>
 		<form method="post" action="?/review" use:enhance>

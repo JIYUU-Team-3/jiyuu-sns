@@ -61,6 +61,16 @@ export async function upload_media(file: File): Promise<string> {
 	return url
 }
 
+/** Whether the automatic check found an uploaded photo sensitive. Best effort: no answer is no. */
+export async function is_sensitive_upload(url: string) {
+	const body = new FormData()
+	body.set('url', url)
+	const response = await fetch('/media/check', { method: 'POST', body }).catch(() => undefined)
+	if (!response?.ok) return false
+	const { sensitive } = (await response.json()) as { sensitive: boolean }
+	return sensitive
+}
+
 /** Drop an upload that never made it into a post. Best effort: a leftover file is harmless. */
 export function discard_upload(url: string) {
 	fetch(url, { method: 'DELETE' }).catch(() => {})

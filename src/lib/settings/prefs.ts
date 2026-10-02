@@ -18,8 +18,10 @@ const Schema = v.object({
 	/** Calm animations even when the device doesn't ask for it. */
 	reduce_motion: v.fallback(v.boolean(), false),
 	autoplay: v.fallback(v.boolean(), true),
-	/** Show media marked sensitive without the cover that asks first. */
+	/** Show media marked sensitive. Off by default: Settings offers it as "Hide sensitive media", on. */
 	show_sensitive: v.fallback(v.boolean(), false),
+	/** Once sensitive media is shown at all: keep each post's behind a cover until it's asked for. */
+	cover_sensitive: v.fallback(v.boolean(), true),
 })
 
 export type Prefs = v.InferOutput<typeof Schema>

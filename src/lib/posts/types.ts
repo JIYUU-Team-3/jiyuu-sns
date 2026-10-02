@@ -5,6 +5,8 @@ export type Author = {
 	/** Undefined for an account that hasn't picked a handle yet. */
 	handle?: string
 	image?: string
+	/** Moderates Jiyuu, which a shield beside the name shows. */
+	moderator?: boolean
 }
 
 export type MediaKind = 'image' | 'gif' | 'video'

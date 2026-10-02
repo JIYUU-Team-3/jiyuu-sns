@@ -12,7 +12,9 @@ import {
 } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
 import { author_page, feed_page, find_post, replies_page, remove_post, set_like } from '../posts'
-import { search_posts, trending_tags } from '../search'
+import { find_profile_by_handle } from '../profiles'
+import { search_people, search_posts, trending_tags } from '../search'
+import { notifications_page } from '../notifications'
 import { find_standing } from './standing'
 import {
 	media_shown_to,
@@ -246,6 +248,20 @@ describe('purge_removed_posts', () => {
 	})
 })
 
+describe('a moderator’s shield', () => {
+	it('marks a moderator on their posts, profile and search row, and nobody else', async () => {
+		await add_post('m1', 'mod', 'from the moderator')
+		expect((await find_post(db, 'alice', 'm1'))?.author.moderator).toBe(true)
+		expect((await find_post(db, 'bob', 'p1'))?.author.moderator).toBeUndefined()
+		expect((await find_profile_by_handle(db, 'alice', 'mod'))?.moderator).toBe(true)
+		expect((await find_profile_by_handle(db, 'mod', 'alice'))?.moderator).toBeUndefined()
+		expect((await search_people(db, 'alice', 'mod'))[0]).toMatchObject({
+			handle: 'mod',
+			moderator: true,
+		})
+	})
+})
+
 describe('deciding a removal review', () => {
 	it('acts on the removal it was about, never a newer one', async () => {
 		const old = (await remove())!.action_id
@@ -253,12 +269,34 @@ describe('deciding a removal review', () => {
 		const current = (await remove())!.action_id
 
 		// The old removal was already undone: upholding or refusing it changes nothing.
-		expect(await refuse_removal_review(db, 'p1', old)).toEqual([])
+		expect(await refuse_removal_review(db, 'mod', 'alice', 'p1', old)).toEqual([])
 		await uphold_removal_review(db, 'mod', 'p1', old)
 		expect((await find_post(db, 'alice', 'p1'))?.moderation).toBe('removed')
 
 		await uphold_removal_review(db, 'mod', 'p1', current)
 		expect((await find_post(db, 'bob', 'p1'))?.moderation).toBeUndefined()
+	})
+
+	it('leaves one notice on a post, whatever was done to it since', async () => {
+		await moderate_post(db, { moderator_id: null, post_id: 'p1', action: 'limit' })
+		await remove()
+		await moderate_post(db, { moderator_id: 'mod', post_id: 'p1', action: 'restore' })
+		const notes = await notifications_page(db, 'alice', 'all', undefined)
+		expect(notes.items.map((item) => item.moderation?.action)).toEqual(['restore'])
+	})
+
+	it('tells the author when a review is refused, though the post is deleted', async () => {
+		const removal = (await remove())!.action_id
+		await request_post_review(db, 'alice', 'p1', 'please')
+		await db.update(appeal).set({ status: 'refused' })
+		await refuse_removal_review(db, 'mod', 'alice', 'p1', removal)
+		expect(await db.select().from(post).where(eq(post.id, 'p1'))).toEqual([])
+		const notes = await notifications_page(db, 'alice', 'all', undefined)
+		expect(notes.items).toHaveLength(1)
+		expect(notes.items[0]).toMatchObject({
+			post_id: undefined,
+			moderation: { action: 'remove', reason: 'spam', review_refused: true },
+		})
 	})
 
 	it('keeps a post whose review was upheld out of the purge', async () => {

@@ -18,8 +18,11 @@ export type NotificationView = {
 	snippet?: string
 	/** The reply or the mentioning post, shown as a card. */
 	post?: PostView
-	/** For `moderation`: what a moderator did to the viewer's post, and under which rule. */
-	moderation?: { action: 'remove' | 'limit' | 'restore'; reason?: Rule }
+	/**
+	 * For `moderation`: what a moderator did to the viewer's post, and under which rule.
+	 * `review_refused` when the viewer asked for a review of a removal and it was kept.
+	 */
+	moderation?: { action: 'remove' | 'limit' | 'restore'; reason?: Rule; review_refused?: boolean }
 }
 
 export type NotificationPage = {

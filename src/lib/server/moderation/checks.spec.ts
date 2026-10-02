@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { aiUsage, moderationCase, post, postMedia, user } from '../db/schema'
+import { aiUsage, mediaCheck, moderationCase, post, postMedia, user } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
-import { check_post, type CheckDeps } from './checks'
+import { check_post, check_upload, sensitive_uploads, type CheckDeps } from './checks'
 
 let db: TestDb
 const DAY = 24 * 60 * 60 * 1000
@@ -171,5 +171,71 @@ describe('check_post', () => {
 				'report',
 			),
 		).toBe('checked')
+	})
+})
+
+describe('check_upload', () => {
+	const url = '/media/posts/newbie/a.png'
+	const explicit = '{"nudity":2,"violence":0,"gore":0}'
+
+	it('says whether a new upload is sensitive, and asks about it only once', async () => {
+		const ai = workers_ai('safe', explicit)
+		expect(await check_upload(db, deps(ai), 'newbie', url)).toBe(true)
+		expect(await check_upload(db, deps(ai), 'newbie', url)).toBe(true)
+		expect(ai).toHaveBeenCalledOnce()
+		expect([...(await sensitive_uploads(db, [url, '/media/posts/newbie/b.png']))]).toEqual([url])
+	})
+
+	it('stays quiet while Workers AI is off or fails, and keeps nothing', async () => {
+		expect(await check_upload(db, { bucket, enabled: false }, 'newbie', url)).toBe(false)
+		expect(await check_upload(db, deps(workers_ai('', undefined, 500)), 'newbie', url)).toBe(false)
+		expect(await db.select().from(mediaCheck)).toEqual([])
+	})
+
+	it('passes over a trusted account’s upload, which the post’s check then leaves alone', async () => {
+		const ai = workers_ai('safe', explicit)
+		const own = '/media/posts/regular/a.png'
+		expect(
+			await check_upload(
+				db,
+				deps(ai, () => 0.9),
+				'regular',
+				own,
+			),
+		).toBe(false)
+		await add_post('p', 'regular', '', true)
+		expect(await check_post(db, deps(ai), 'p')).toBe('skipped')
+		expect(ai).not.toHaveBeenCalled()
+		// A report still looks at it.
+		expect(await check_post(db, deps(ai), 'p', 'report')).toBe('checked')
+		expect(ai).toHaveBeenCalledOnce()
+	})
+
+	it('lets the post’s check act on the stored answer without asking again', async () => {
+		const ai = workers_ai('safe', '{"nudity":3,"violence":0,"gore":0}')
+		await check_upload(db, deps(ai), 'newbie', url)
+		await add_post('p', 'newbie', '', true)
+		expect(await check_post(db, deps(ai), 'p')).toBe('checked')
+		expect(ai).toHaveBeenCalledOnce()
+		expect(await state('p')).toMatchObject({ sensitive: true, moderation: 'limited' })
+	})
+
+	it('sends a small copy of an image too big to send whole, and skips it with no resizer', async () => {
+		const big = {
+			get: async () => ({ size: 3 * 1024 * 1024, body: new ReadableStream() }),
+		} as unknown as R2Bucket
+		const small = new Response(new Uint8Array([255, 216, 255]))
+		const output = vi.fn(async () => ({ response: () => small }))
+		const images = {
+			input: () => ({ transform: () => ({ output }) }),
+		} as unknown as ImagesBinding
+		const ai = workers_ai('safe', explicit)
+		const sent = { bucket: big, enabled: true, fetcher: ai }
+		expect(await check_upload(db, sent, 'newbie', url)).toBe(false)
+		expect(ai).not.toHaveBeenCalled()
+		expect(await check_upload(db, { ...sent, images }, 'newbie', url)).toBe(true)
+		expect(output).toHaveBeenCalledWith({ format: 'image/jpeg' })
+		const [, request] = vi.mocked(ai).mock.calls[0]
+		expect(String(request?.body)).toContain('data:image/jpeg;base64,/9j/')
 	})
 })

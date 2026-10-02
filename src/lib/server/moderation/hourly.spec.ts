@@ -1,11 +1,15 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
-import { blockedDomain, moderationCase, post } from '../db/schema'
+import { blockedDomain, mediaCheck, moderationCase, post, postMedia } from '../db/schema'
 import { add_account, test_db } from '../db/test-d1'
 import { run_hourly } from './hourly'
 import { moderate_post, REMOVED_KEPT_MS } from './posts'
 
-const bucket = { delete: vi.fn(async () => {}), get: async () => null } as unknown as R2Bucket
+const bucket = {
+	delete: vi.fn(async () => {}),
+	get: async () => null,
+	list: async () => ({ objects: [], truncated: false }),
+} as unknown as R2Bucket
 
 /** Cloudflare's resolver, reporting `bad` as malware. */
 const resolver = (bad: string) =>
@@ -61,5 +65,55 @@ describe('run_hourly', () => {
 			.from(moderationCase)
 			.where(eq(moderationCase.targetId, 'link'))
 		expect(flagged).toMatchObject({ reason: 'malicious_link', status: 'open' })
+	})
+})
+
+describe('the upload sweep', () => {
+	const HOUR = 60 * 60 * 1000
+	const now = Date.now()
+	const file = (key: string, hours_old: number) => ({
+		key,
+		uploaded: new Date(now - hours_old * HOUR),
+	})
+
+	it('deletes day-old post uploads no post uses, and carries on where it stopped', async () => {
+		const db = test_db()
+		await add_account(db, 'alice')
+		await db.insert(post).values({ id: 'p', authorId: 'alice', body: 'with a photo' })
+		await db.insert(postMedia).values({
+			postId: 'p',
+			position: 0,
+			kind: 'image',
+			url: '/media/posts/alice/used.jpg',
+			width: 1,
+			height: 1,
+		})
+		await db.insert(mediaCheck).values({ url: '/media/posts/alice/left.jpg', userId: 'alice' })
+
+		const deleted = vi.fn(async () => {})
+		const list = vi.fn(async () => ({
+			objects: [
+				file('posts/alice/used.jpg', 48),
+				file('posts/alice/left.jpg', 48),
+				// Still inside the day a draft may be open for.
+				file('posts/alice/fresh.jpg', 2),
+			],
+			truncated: true,
+			cursor: 'next-page',
+		}))
+		const stored = new Map<string, string>([['sweep:post-uploads', 'this-page']])
+		const kv = {
+			get: async (key: string) => stored.get(key) ?? null,
+			put: async (key: string, value: string) => void stored.set(key, value),
+			delete: async (key: string) => void stored.delete(key),
+		} as unknown as KVNamespace
+		const swept_bucket = { delete: deleted, get: async () => null, list } as unknown as R2Bucket
+
+		const summary = await run_hourly(db, { bucket: swept_bucket, enabled: false, kv }, now)
+		expect(summary.swept).toBe(1)
+		expect(list).toHaveBeenCalledWith({ prefix: 'posts/', limit: 500, cursor: 'this-page' })
+		expect(deleted).toHaveBeenCalledWith(['posts/alice/left.jpg'])
+		expect(await db.select().from(mediaCheck)).toEqual([])
+		expect(stored.get('sweep:post-uploads')).toBe('next-page')
 	})
 })

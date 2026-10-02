@@ -3,6 +3,7 @@ import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
 import type { TagView, UserView } from '#lib/search/types'
 import { shown_image } from './account-image'
+import { is_moderator } from './moderation/standing'
 import type { getDb } from './db'
 import { follow, post, postTag, profile, user } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
@@ -82,6 +83,7 @@ function select_users(db: Db, viewer: string | undefined) {
 			name: profile.displayName,
 			bio: profile.bio,
 			image: shown_image,
+			moderator: is_moderator(profile.userId),
 			followed: viewer
 				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
 				: sql<number>`0`,
@@ -96,6 +98,7 @@ type UserRow = Awaited<ReturnType<ReturnType<typeof select_users>['execute']>>[n
 const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
 	...row,
 	image: row.image ?? undefined,
+	moderator: row.moderator ? true : undefined,
 	followed: !!row.followed,
 	mine: row.id === viewer,
 })

@@ -3,6 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { rule_label } from './labels'
+	import ReviewStatus from './ReviewStatus.svelte'
 	import { REVIEW_REQUEST_MAX, type Rule } from './rules'
 
 	/** What a moderator did to the viewer's own post, and the way to ask for a review. */
@@ -43,10 +44,12 @@
 	{#if notice.note}<p>{m.suspended_note({ note: notice.note })}</p>{/if}
 
 	{#if notice.action === 'remove'}
-		{#if review === 'open'}
-			<p class="status" role="status">{m.suspended_review_open()}</p>
-		{:else if review === 'refused'}
-			<p class="status">{m.post_notice_refused()}</p>
+		{#if review}
+			<ReviewStatus {review} kind="post" />
+			<p class="status" role="status">
+				{review === 'open' ? m.suspended_review_open() : ''}
+				{review === 'refused' ? m.post_notice_refused() : ''}
+			</p>
 		{:else if open && until}
 			<form method="post" action="?/review" use:enhance>
 				<label for="post-review">{m.post_notice_review({ until })}</label>

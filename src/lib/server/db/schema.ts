@@ -465,6 +465,22 @@ export const blockedMediaHash = sqliteTable('blocked_media_hash', {
 	createdAt: created_at(),
 })
 
+/**
+ * What the vision model said about a post photo while its post was being written, so the composer
+ * can warn its author and publishing doesn't ask again. The scores are null when the image was
+ * passed over by trust sampling; see `check_upload`.
+ */
+export const mediaCheck = sqliteTable('media_check', {
+	url: text('url').primaryKey(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	nudity: integer('nudity'),
+	violence: integer('violence'),
+	gore: integer('gore'),
+	createdAt: created_at(),
+})
+
 /** Neurons the automatic checks spent each UTC day, by kind, against `server/moderation/budget.ts`. */
 export const aiUsage = sqliteTable('ai_usage', {
 	/** `YYYY-MM-DD`, UTC, as Workers AI counts its free allocation. */

@@ -10,6 +10,7 @@
 	import { toast } from '#lib/ui/toasts.svelte'
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href } from './links'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { ProfileView } from './types'
 
 	let { profile }: { profile: ProfileView } = $props()
@@ -47,7 +48,10 @@
 			{/if}
 		</span>
 	</div>
-	<h2 class="name">{profile.name}</h2>
+	<h2 class="name">
+		{profile.name}
+		{#if profile.moderator}<ModeratorBadge />{/if}
+	</h2>
 	<div class="handle">
 		@{profile.handle}
 		{#if profile.follows_you && !profile.mine}

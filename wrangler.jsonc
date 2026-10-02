@@ -42,6 +42,9 @@
 			"bucket_name": "jiyuu-media",
 		},
 	],
+	// Makes the small copy of a large photo that the automatic checks send to the vision model;
+	// see `shrink` in `src/lib/server/moderation/checks.ts`. Local dev runs an offline version.
+	"images": { "binding": "IMAGES" },
 	// Rate limiters, counted per account id (or per address for AUTH_LIMIT) at each Cloudflare
 	// location; see `src/lib/server/rate-limit.ts`. `namespace_id` is any number unique to this
 	// account, and `period` is in seconds.
@@ -63,6 +66,12 @@
 			"name": "LINK_LOOKUP_LIMIT",
 			"namespace_id": "1707",
 			"simple": { "limit": 30, "period": 60 },
+		},
+		// The composer asking whether a photo it just uploaded is sensitive: once per upload.
+		{
+			"name": "MEDIA_CHECK_LIMIT",
+			"namespace_id": "1708",
+			"simple": { "limit": 90, "period": 60 },
 		},
 	],
 	// The hourly moderation job (scripts/wrap-worker.js). The Free plan allows 5 per account.

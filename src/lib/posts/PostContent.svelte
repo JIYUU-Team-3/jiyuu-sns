@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js'
+	import { settings_href } from '#lib/settings/links'
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { out_href, search_href } from './links'
@@ -22,11 +23,15 @@
 	} = $props()
 
 	const content = $derived(post_content(post))
-	/** Sensitive media waits behind a cover until the viewer asks for it, unless they always do. */
+	/**
+	 * Sensitive media stays behind a cover until the viewer turns "Hide sensitive media" off in
+	 * Settings. After that it either shows at once or waits for a click on each post, as they chose
+	 * there. Its own author always sees it.
+	 */
 	let revealed = $state(false)
-	const covered = $derived(
-		post.sensitive && content.media.length > 0 && !revealed && !prefs.value.show_sensitive,
-	)
+	const sensitive = $derived(post.sensitive && content.media.length > 0 && !post.mine)
+	const hidden = $derived(sensitive && !prefs.value.show_sensitive)
+	const covered = $derived(hidden || (sensitive && prefs.value.cover_sensitive && !revealed))
 </script>
 
 {#if post.moderation}
@@ -46,12 +51,17 @@
 	</div>
 {/if}
 {#if covered}
-	<!-- Nothing loads until the viewer chooses to see it. -->
+	<!-- Nothing loads until the viewer may, and chooses to, see it. -->
 	<div class="cover">
-		<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_body()}</p>
-		<button type="button" class="btn btn-outline sm" onclick={() => (revealed = true)}
-			>{m.post_sensitive_show()}</button
-		>
+		{#if hidden}
+			<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_body()}</p>
+			<a class="btn btn-outline sm" href={settings_href()}>{m.post_sensitive_settings()}</a>
+		{:else}
+			<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_marked()}</p>
+			<button type="button" class="btn btn-outline sm" onclick={() => (revealed = true)}
+				>{m.post_sensitive_show()}</button
+			>
+		{/if}
 	</div>
 {:else}
 	<PostMedia media={content.media} {focus} {onswipe} />

@@ -1,15 +1,12 @@
 import { eq, sql } from 'drizzle-orm'
 import type { getDb } from '../db'
 import { aiUsage } from '../db/schema'
+import { DAILY_NEURONS } from './ai'
 
 type Db = ReturnType<typeof getDb>
 
-/**
- * Neurons a day for each kind of check. Workers AI's free allocation is 10,000 a day on the Free
- * plan, after which calls fail until 00:00 UTC; 1,000 are left for `pnpm ai:measure` and for
- * development. Set from Phase 0's measurements; see docs/MODERATION.md.
- */
-export const DAILY_NEURONS = { text: 5500, image: 2500, report: 1000 } as const
+// Kept beside the models, in a file plain Node can load, so `pnpm ai:measure` reports against it.
+export { DAILY_NEURONS }
 export type BudgetKind = keyof typeof DAILY_NEURONS
 
 /**

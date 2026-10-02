@@ -55,6 +55,25 @@ test('an account that skipped onboarding cannot upload @writes', async ({ page }
 	expect((await upload(page, PNG, '/media/messages')).status()).toBe(403)
 })
 
+test('the sensitive check answers only about a signed-in person’s own photo @writes', async ({
+	page,
+	playwright,
+}) => {
+	await sign_up(page, `e2e_c_${unique()}`)
+	const { url } = (await (await upload(page, PNG)).json()) as { url: string }
+	const check = (target: string, request = page.request) =>
+		request.post('/media/check', { headers: from_site(page), multipart: { url: target } })
+
+	// The automatic checks are off here, so a photo is never found sensitive.
+	expect(await (await check(url)).json()).toEqual({ sensitive: false })
+	expect((await check(url.replace(/posts\/[\w-]+\//, 'posts/someone-else/'))).status()).toBe(400)
+	expect((await check('https://example.com/a.png')).status()).toBe(400)
+
+	const anonymous = await playwright.request.newContext({ baseURL: from_site(page).origin })
+	expect((await check(url, anonymous)).status()).toBe(401)
+	await anonymous.dispose()
+})
+
 test('a chat and its photos are closed to people who are not in it @writes', async ({
 	page,
 	browser,

@@ -6,6 +6,7 @@ import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
 import { check_posts_later } from '#lib/server/moderation/after-write'
+import { sensitive_uploads } from '#lib/server/moderation/checks'
 import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
 import { trust_level } from '#lib/server/moderation/trust'
 import { member, signed_in } from '#lib/server/session'
@@ -135,7 +136,15 @@ function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 
 async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	const { db, user_id } = await author()
-	const prepared = inputs.map((input) => prepare(input, user_id))
+	const drafts = inputs.map((input) => prepare(input, user_id))
+	// A photo found sensitive while it was being written goes behind the cover whatever was ticked.
+	const flagged = await sensitive_uploads(
+		db,
+		drafts.flatMap((draft) => draft.media.map((media) => media.url)),
+	)
+	const prepared = drafts.map((draft) =>
+		draft.media.some((media) => flagged.has(media.url)) ? { ...draft, sensitive: true } : draft,
+	)
 	const trust = await trust_level(db, user_id)
 	const { risky } = await check_new_posts(db, user_id, trust, prepared)
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
