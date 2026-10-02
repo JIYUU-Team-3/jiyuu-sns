@@ -31,6 +31,8 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		await sign_up(page, sender)
 		await sign_up(recipient_page, recipient)
 		await sign_up(await outsider_context.newPage(), `e2e_dmx_${id}`)
+		// New accounts can only start a chat with someone who follows them.
+		await follow(recipient_page, sender)
 		await page.goto(`/u/${recipient}`)
 		await page.waitForLoadState('networkidle')
 		await page.getByRole('button', { name: `Message @${recipient}` }).click()

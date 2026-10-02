@@ -495,6 +495,9 @@ test('a blocked person can no longer message the blocker @writes', async ({ page
 	const bob = await (await browser.newContext()).newPage()
 	await sign_up(bob, `e2e_xb_${id}`)
 	await sign_up(page, alice)
+	// A new account can only message its followers, and a block ends a follow; an established
+	// one is held back by the block alone, which is what this checks.
+	settle_account(`e2e_xb_${id}`)
 
 	await bob.goto(`/u/${alice}`)
 	await bob.waitForLoadState('networkidle')
