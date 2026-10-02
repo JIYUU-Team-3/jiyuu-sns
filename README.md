@@ -41,6 +41,15 @@ Push notifications stay off while the VAPID keys are empty. Generate a pair with
 
 `wrangler types` bakes the keys from `.env` into `worker-configuration.d.ts`, so a `.env` must exist (placeholder values are fine) before `check` or `build`. That file is generated and git-ignored; every script that typechecks regenerates it.
 
+### Local sign-in
+
+For local development without Google sign-in, set `DEV_AUTH_BYPASS="1"` and
+`ORIGIN="http://127.0.0.1:5173"`, then start `pnpm dev --host 127.0.0.1`. Requests without a
+session use the local `@local_dev` account and its saved profile. Existing sessions still take
+precedence. Turn the flag off and restart to test sign-in, sign-out or signed-out access. The
+bypass only accepts loopback HTTP on the Vite dev server; production builds always require a
+real session.
+
 ### Cloudflare bindings
 
 Bindings are declared in [`wrangler.jsonc`](wrangler.jsonc) and read at runtime from `cloudflare:workers` (`import { env } from 'cloudflare:workers'`). Adapter-cloudflare for Kit 3 no longer populates `event.platform.env`. [`src/hooks.server.ts`](src/hooks.server.ts) throws if `DB` is missing, so the app has to run under Vite with the Cloudflare adapter or under wrangler.

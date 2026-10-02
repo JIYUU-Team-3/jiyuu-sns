@@ -14,6 +14,12 @@ Everything the browser sends is untrusted, including the arguments of remote fun
 
 ## Rules for new code
 
+Local development can explicitly opt into `DEV_AUTH_BYPASS=1`. The hook only substitutes the
+local developer account when `$app/env.dev` is true and the request origin is loopback HTTP.
+Production builds ignore the flag, and a real session takes precedence. Ownership, profile and
+DM membership checks still use the account's real local database id. Leave this flag off for
+security and authentication tests.
+
 These are the ones that have already been broken once.
 
 1. **A layout guard protects pages, not data.** Remote functions (`*.remote.ts`) and `+server.ts`

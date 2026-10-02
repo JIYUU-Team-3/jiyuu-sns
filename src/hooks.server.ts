@@ -1,8 +1,10 @@
 import { sequence, type Handle } from '@sveltejs/kit/hooks'
 import { env } from 'cloudflare:workers'
-import { building } from '$app/env'
+import { building, dev } from '$app/env'
+import { DEV_AUTH_BYPASS } from '$app/env/private'
 import { createAuth, email_signup } from '#lib/server/auth'
 import { getDb } from '#lib/server/db'
+import { allow_local_auth, local_developer } from '#lib/server/local-auth'
 import { under_limit } from '#lib/server/rate-limit'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getTextDirection } from '#lib/paraglide/runtime'
@@ -99,6 +101,8 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session
 		event.locals.user = session.user
+	} else if (allow_local_auth(dev, DEV_AUTH_BYPASS, event.url)) {
+		event.locals.user = await local_developer(event.locals.db)
 	}
 
 	return svelteKitHandler({ event, resolve, auth, building })
