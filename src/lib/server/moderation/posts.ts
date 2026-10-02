@@ -117,7 +117,8 @@ export async function moderate_post(
 	const unchanged =
 		(input.action === 'sensitive' && target.sensitive) ||
 		(input.action === 'unsensitive' && !target.sensitive) ||
-		(input.action === 'limit' && target.moderation === 'limited') ||
+		// A limit is weaker than a removal: a late automatic check mustn't undo one.
+		(input.action === 'limit' && target.moderation !== 'visible') ||
 		(input.action === 'remove' && target.moderation === 'removed') ||
 		(input.action === 'restore' && target.moderation === 'visible')
 	if (unchanged) return undefined

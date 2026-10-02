@@ -64,6 +64,19 @@ const remove = (extra: { strike?: boolean; reason?: 'spam' | 'threat' } = {}) =>
 	})
 
 describe('a removed post', () => {
+	it('stays removed when a late automatic check would only limit it', async () => {
+		await remove()
+		expect(
+			await moderate_post(db, {
+				moderator_id: null,
+				post_id: 'p1',
+				action: 'limit',
+				reason: 'spam',
+			}),
+		).toBeUndefined()
+		expect((await find_post(db, 'alice', 'p1'))?.moderation).toBe('removed')
+	})
+
 	it('is gone for everyone but its author', async () => {
 		await remove()
 		expect(await find_post(db, 'bob', 'p1')).toBeUndefined()
