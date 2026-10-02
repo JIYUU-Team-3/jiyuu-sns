@@ -23,10 +23,12 @@
 		replying,
 		oncancelreply,
 		onsend,
+		ontyping,
 	}: {
 		replying?: MessageView
 		oncancelreply: () => void
 		onsend: (message: OutgoingMessage) => Promise<boolean>
+		ontyping?: (typing: boolean) => void
 	} = $props()
 
 	let body = $state('')
@@ -47,6 +49,10 @@
 
 	$effect(() => {
 		if (replying) field?.focus()
+	})
+
+	$effect(() => {
+		ontyping?.(!!body.trim())
 	})
 
 	function clear_attachment(discard: boolean) {

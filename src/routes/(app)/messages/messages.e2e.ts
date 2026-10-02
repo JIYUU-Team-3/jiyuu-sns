@@ -136,3 +136,57 @@ test('a message turns delivered once a push reaches the other person @writes', a
 
 	await bob_context.close()
 })
+
+test('typing shows live, a sent message arrives at once, and the socket is members-only @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_lta_${id}`
+	const hello = `Live ${id}`
+
+	const bob_page = await (await browser.newContext()).newPage()
+	const carol_page = await (await browser.newContext()).newPage()
+	await sign_up(bob_page, `e2e_ltb_${id}`)
+	await sign_up(carol_page, `e2e_ltc_${id}`)
+	await sign_up(page, alice)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	const chat = new URL(bob_page.url()).pathname
+	const conversation = chat.split('/').pop() as string
+
+	const ticket_call = page.waitForRequest((request) => request.url().includes('/live_ticket'))
+	await page.goto(chat)
+	const ticket_request = await ticket_call
+
+	const field = page.getByLabel('Message', { exact: true })
+	const bubble = bob_page.locator('.typing')
+	await expect(async () => {
+		await field.pressSequentially('x')
+		await expect(bubble).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 20_000 })
+
+	await field.fill(hello)
+	await field.press('Enter')
+	await expect(bob_page.locator('.msg', { hasText: hello })).toBeVisible({ timeout: 3_000 })
+	await expect(bubble).toBeHidden()
+
+	const origin = new URL(page.url()).origin
+	const live = (headers: Record<string, string>, ticket = 'junk') =>
+		page.request.get(`/live/${conversation}?ticket=${ticket}`, { headers })
+	expect((await live({ origin })).status()).toBe(426)
+	expect((await live({ origin, upgrade: 'websocket' })).status()).toBe(401)
+	expect((await live({ origin: 'https://evil.example', upgrade: 'websocket' })).status()).toBe(403)
+
+	const stolen = await carol_page.request.post(ticket_request.url(), {
+		headers: { origin, 'content-type': ticket_request.headers()['content-type'] },
+		data: ticket_request.postData() ?? '',
+	})
+	expect(await stolen.json()).toMatchObject({ type: 'error', error: { status: 404 } })
+
+	await bob_page.context().close()
+	await carol_page.context().close()
+})

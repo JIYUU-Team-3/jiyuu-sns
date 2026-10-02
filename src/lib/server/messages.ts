@@ -417,7 +417,7 @@ export async function mark_read(db: Db, me: string, conversation_id: string) {
 }
 
 export async function mark_delivered(db: Db, me: string) {
-	await db
+	const rows = await db
 		.update(conversationMember)
 		.set({ lastDeliveredAt: new Date() })
 		.where(
@@ -430,6 +430,8 @@ export async function mark_delivered(db: Db, me: string) {
 				)`,
 			),
 		)
+		.returning({ id: conversationMember.conversationId })
+	return rows.map((row) => row.id)
 }
 
 export async function unread_count(db: Db, me: string) {
