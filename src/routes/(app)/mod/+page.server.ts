@@ -51,17 +51,23 @@ export const actions: Actions = {
 		if (!id) return fail(404, { missing: true })
 		const decided = await decide_review(db, user_id, id, upheld)
 		if (!decided) return fail(404, { missing: true })
+		let unused: string[]
 		try {
-			await act_on_review(db, user_id, decided, upheld)
+			unused = await act_on_review(db, user_id, decided, upheld)
 		} catch (error) {
 			// The decision only stands once it's carried out; otherwise it goes back in the queue.
 			await reopen_review(db, user_id, id)
 			throw error
 		}
+		// After the decision stands: the post is gone either way, so a retry couldn't help here.
+		await delete_media(env.MEDIA, unused)
 	},
 }
 
-/** Carry out a review decision on the action it was about, never on a newer one. */
+/**
+ * Carry out a review decision on the action it was about, never on a newer one. Returns the
+ * uploads a refused removal left unused, for the caller to delete from R2.
+ */
 async function act_on_review(
 	db: ReturnType<typeof require_moderator>['db'],
 	moderator_id: string,
@@ -76,8 +82,8 @@ async function act_on_review(
 		if (upheld) {
 			await uphold_removal_review(db, moderator_id, decided.target_id, decided.action_id)
 		} else {
-			const unused = await refuse_removal_review(db, decided.target_id, decided.action_id)
-			await delete_media(env.MEDIA, unused)
+			return refuse_removal_review(db, decided.target_id, decided.action_id)
 		}
 	}
+	return []
 }
