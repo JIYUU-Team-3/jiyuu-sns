@@ -8,6 +8,7 @@ import {
 	open_cases,
 	open_reviews,
 	raise_case,
+	reopen_review,
 } from './cases'
 import { request_review, suspend } from './standing'
 
@@ -119,5 +120,24 @@ describe('review requests', () => {
 		})
 		expect(await decide_review(db, 'mod', review.id, false)).toBeUndefined()
 		expect(await open_reviews(db)).toEqual([])
+	})
+
+	it('go back in the queue when acting on the decision failed, for the same moderator only', async () => {
+		await add_account(db, 'other')
+		const action = (await suspend(db, {
+			moderator_id: 'mod',
+			user_id: 'alice',
+			reason: 'spam',
+			days: 7,
+		}))!
+		await request_review(db, 'alice', action, 'Please')
+		const [review] = await open_reviews(db)
+		await decide_review(db, 'mod', review.id, true)
+
+		await reopen_review(db, 'other', review.id)
+		expect(await open_reviews(db)).toEqual([])
+		await reopen_review(db, 'mod', review.id)
+		expect(await open_reviews(db)).toMatchObject([{ id: review.id }])
+		expect(await decide_review(db, 'mod', review.id, true)).toMatchObject({ action: 'suspend' })
 	})
 })

@@ -156,7 +156,7 @@ export async function uphold_suspension_review(
 	action_id: string,
 ) {
 	const now = new Date()
-	await db.batch([
+	const [freed] = await db.batch([
 		db
 			.update(accountStanding)
 			.set({
@@ -168,20 +168,23 @@ export async function uphold_suspension_review(
 			})
 			.where(
 				and(eq(accountStanding.userId, user_id), eq(accountStanding.suspendActionId, action_id)),
-			),
+			)
+			.returning({ id: accountStanding.userId }),
 		db
 			.update(moderationAction)
 			.set({ reversedAt: now })
 			.where(and(eq(moderationAction.id, action_id), isNull(moderationAction.reversedAt))),
-		db.insert(moderationAction).values({
-			moderatorId: moderator_id,
-			action: 'unsuspend',
-			targetKind: 'account',
-			targetId: user_id,
-			targetUserId: user_id,
-			note: 'Review upheld',
-		}),
 	])
+	// The history says "unsuspended" only when the account was; a newer suspension stays in force.
+	if (!freed.length) return
+	await db.insert(moderationAction).values({
+		moderatorId: moderator_id,
+		action: 'unsuspend',
+		targetKind: 'account',
+		targetId: user_id,
+		targetUserId: user_id,
+		note: 'Review upheld',
+	})
 }
 
 /** Strikes not reversed: inside the window, and in all. */

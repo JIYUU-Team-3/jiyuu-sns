@@ -6,7 +6,13 @@ import {
 	refuse_removal_review,
 	uphold_removal_review,
 } from '#lib/server/moderation/posts'
-import { decide_review, dismiss_case, open_cases, open_reviews } from '#lib/server/moderation/cases'
+import {
+	decide_review,
+	dismiss_case,
+	open_cases,
+	open_reviews,
+	reopen_review,
+} from '#lib/server/moderation/cases'
 import { require_moderator } from '#lib/server/moderation/guard'
 import { uphold_suspension_review } from '#lib/server/moderation/standing'
 import { read_form } from '#lib/server/form'
@@ -45,18 +51,33 @@ export const actions: Actions = {
 		if (!id) return fail(404, { missing: true })
 		const decided = await decide_review(db, user_id, id, upheld)
 		if (!decided) return fail(404, { missing: true })
-		// Each decision acts on the action the review was about, never on a newer one.
-		if (decided.action === 'suspend' && upheld) {
-			await uphold_suspension_review(db, user_id, decided.user_id, decided.action_id)
-		}
-		if (decided.action === 'remove' && decided.target_kind === 'post') {
-			// Upheld: the post comes back and the strike goes. Refused: it's deleted now, not tomorrow.
-			if (upheld) {
-				await uphold_removal_review(db, user_id, decided.target_id, decided.action_id)
-			} else {
-				const unused = await refuse_removal_review(db, decided.target_id, decided.action_id)
-				await delete_media(env.MEDIA, unused)
-			}
+		try {
+			await act_on_review(db, user_id, decided, upheld)
+		} catch (error) {
+			// The decision only stands once it's carried out; otherwise it goes back in the queue.
+			await reopen_review(db, user_id, id)
+			throw error
 		}
 	},
+}
+
+/** Carry out a review decision on the action it was about, never on a newer one. */
+async function act_on_review(
+	db: ReturnType<typeof require_moderator>['db'],
+	moderator_id: string,
+	decided: NonNullable<Awaited<ReturnType<typeof decide_review>>>,
+	upheld: boolean,
+) {
+	if (decided.action === 'suspend' && upheld) {
+		await uphold_suspension_review(db, moderator_id, decided.user_id, decided.action_id)
+	}
+	if (decided.action === 'remove' && decided.target_kind === 'post') {
+		// Upheld: the post comes back and the strike goes. Refused: it's deleted now, not tomorrow.
+		if (upheld) {
+			await uphold_removal_review(db, moderator_id, decided.target_id, decided.action_id)
+		} else {
+			const unused = await refuse_removal_review(db, decided.target_id, decided.action_id)
+			await delete_media(env.MEDIA, unused)
+		}
+	}
 }

@@ -263,3 +263,20 @@ export async function decide_review(
 		.limit(1)
 	return action && { ...action, user_id: decided.user_id, action_id: decided.action_id }
 }
+
+/**
+ * Put a decided review back in the queue, when acting on the decision failed, so a moderator can
+ * decide it again. Only the moderator's own decision is undone.
+ */
+export async function reopen_review(db: Db, moderator_id: string, appeal_id: string) {
+	await db
+		.update(appeal)
+		.set({ status: 'open', decidedBy: null, decidedAt: null })
+		.where(
+			and(
+				eq(appeal.id, appeal_id),
+				eq(appeal.decidedBy, moderator_id),
+				inArray(appeal.status, ['upheld', 'refused']),
+			),
+		)
+}

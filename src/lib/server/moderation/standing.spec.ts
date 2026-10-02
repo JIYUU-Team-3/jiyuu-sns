@@ -156,8 +156,20 @@ describe('uphold_suspension_review', () => {
 		}))!
 		await uphold_suspension_review(db, 'mod', 'alice', first)
 		expect((await find_standing(db, 'alice')).suspension?.action_id).toBe(second)
+		// The older one is reversed, but the account wasn't freed, so no unsuspend is recorded.
+		const after_first = await db
+			.select()
+			.from(moderationAction)
+			.where(eq(moderationAction.targetUserId, 'alice'))
+		expect(after_first.filter((row) => row.action === 'unsuspend')).toEqual([])
+		expect(after_first.find((row) => row.id === first)?.reversedAt).not.toBeNull()
 
 		await uphold_suspension_review(db, 'mod', 'alice', second)
 		expect((await find_standing(db, 'alice')).suspension).toBeUndefined()
+		const unsuspended = await db
+			.select()
+			.from(moderationAction)
+			.where(eq(moderationAction.action, 'unsuspend'))
+		expect(unsuspended).toHaveLength(1)
 	})
 })
