@@ -68,7 +68,18 @@
 		const input = event.currentTarget as HTMLInputElement
 		const file = input.files?.[0]
 		input.value = ''
+		if (file) await attach(file)
+	}
+
+	/** A pasted screenshot or copied image is attached like a picked one; pasted text is left alone. */
+	function onpaste(event: ClipboardEvent) {
+		const file = event.clipboardData?.files[0]
 		if (!file) return
+		event.preventDefault()
+		void attach(file)
+	}
+
+	async function attach(file: File) {
 		const problem = await image_problem(file, 'message')
 		if (problem === 'type') return toast.show(m.onboarding_image_type())
 		if (problem === 'size') return toast.show(m.dm_photo_size())
@@ -187,7 +198,8 @@
 			aria-label={m.dm_label()}
 			bind:value={body}
 			bind:this={field}
-			{onkeydown}></textarea>
+			{onkeydown}
+			{onpaste}></textarea>
 		<button class="icon-btn accent" aria-label={m.dm_send()} disabled={!can_send}>
 			<Icon name="send" />
 		</button>

@@ -15,6 +15,7 @@
 	import MediaTray from './composer/MediaTray.svelte'
 	import { Thread } from './composer/thread.svelte'
 	import Tools from './composer/Tools.svelte'
+	import { pick_files } from './composer/pick'
 	import { format_age } from './format'
 	import { post_href } from './links'
 	import { create_post, create_thread, edit_post } from './posts.remote'
@@ -135,6 +136,14 @@
 		}
 	}
 
+	/** A pasted screenshot or copied image is attached like a picked one; pasted text is left alone. */
+	function onpaste(event: ClipboardEvent, post: Draft) {
+		const files = [...(event.clipboardData?.files ?? [])]
+		if (!attachments || !files.length) return
+		event.preventDefault()
+		void pick_files(post, files)
+	}
+
 	onMount(() => (hydrated = true))
 </script>
 
@@ -147,6 +156,7 @@
 		autofocus={variant === 'modal' && i === thread.focus}
 		self={me.id}
 		{onkeydown}
+		onpaste={(event) => onpaste(event, post)}
 	/>
 	{#if attachments}
 		<Attachments draft={post} oninsert={(text) => editors[i].insert(text)} />

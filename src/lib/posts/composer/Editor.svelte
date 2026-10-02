@@ -17,6 +17,7 @@
 		name,
 		self,
 		onkeydown,
+		onpaste,
 	}: {
 		value?: string
 		placeholder: string
@@ -27,6 +28,7 @@
 		/** The writer's account id, left out of mention suggestions. */
 		self?: string
 		onkeydown?: (event: KeyboardEvent) => void
+		onpaste?: (event: ClipboardEvent) => void
 	} = $props()
 
 	const uid = $props.id()
@@ -202,6 +204,7 @@
 				sync_caret()
 			}}
 			onblur={() => (focused = false)}
+			{onpaste}
 			onkeydown={keydown}></textarea>
 		{#if picks.length && popover}
 			<!-- Options react to mousedown so the textarea keeps focus (and the caret) first. -->
