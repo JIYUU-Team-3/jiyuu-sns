@@ -24,19 +24,23 @@ test('a signed-out caller is refused what a signed-in reader gets @writes', asyn
 	page,
 	playwright,
 }) => {
+	// Home asks who has posted since it loaded as soon as it's on screen.
+	const news = page.waitForRequest((request) => request.url().includes('/get_new_posts'))
 	await sign_up(page, `e2e_s_${unique()}`)
 	// The first page comes with its data; switching tabs makes the browser ask for a feed.
 	const feed = page.waitForRequest((request) => request.url().includes('/get_feed'))
 	await page.getByRole('tab', { name: 'Following' }).click()
-	const url = (await feed).url()
-
-	// Remote functions answer 200 and carry the real status in the body.
-	const mine = await (await page.request.get(url)).json()
-	expect(mine.type).toBe('result')
+	const urls = [(await feed).url(), (await news).url()]
 
 	const anonymous = await playwright.request.newContext()
-	const refused = await (await anonymous.get(url)).json()
-	expect(refused).toMatchObject({ type: 'error', error: { status: 401 } })
+	for (const url of urls) {
+		// Remote functions answer 200 and carry the real status in the body.
+		const mine = await (await page.request.get(url)).json()
+		expect(mine.type).toBe('result')
+
+		const refused = await (await anonymous.get(url)).json()
+		expect(refused).toMatchObject({ type: 'error', error: { status: 401 } })
+	}
 	await anonymous.dispose()
 })
 
@@ -201,6 +205,32 @@ test('a private account and a blocker keep their posts from direct requests @wri
 	expect((await page.request.get(photo)).ok()).toBe(true)
 
 	for (const other of pages) await other.context().close()
+})
+
+test('the posted pill leaves out someone the reader blocked @writes', async ({ page, browser }) => {
+	const id = unique()
+	const bob = `e2e_ub_${id}`
+	// Home asks who has posted since it loaded as soon as it's on screen.
+	const news = page.waitForRequest((request) => request.url().includes('/get_new_posts'))
+	await sign_up(page, `e2e_ua_${id}`)
+	const url = (await news).url()
+
+	const bob_page = await (await browser.newContext()).newPage()
+	await sign_up(bob_page, bob)
+	const composer = bob_page.locator('form.inline')
+	await composer.getByLabel('Post text').fill(`Pill ${id}`)
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	await expect(bob_page.getByText('Your post was sent.')).toBeVisible()
+	await bob_page.context().close()
+
+	const before = await (await page.request.get(url)).json()
+	expect(before.type).toBe('result')
+	expect(before.data).toContain(bob)
+
+	await blocks(page, bob)
+	const after = await (await page.request.get(url)).json()
+	expect(after.type).toBe('result')
+	expect(after.data).not.toContain(bob)
 })
 
 test('the server refuses a reply the author did not allow @writes', async ({ page, browser }) => {

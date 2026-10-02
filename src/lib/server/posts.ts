@@ -5,6 +5,8 @@ import { post_problem, type PollDays } from '#lib/posts/rules'
 import { may_reply, type ReplyAudience } from '#lib/safety/rules'
 import {
 	is_upload,
+	type Author,
+	type FeedPage,
 	type FeedTab,
 	type Media,
 	type PollView,
@@ -37,6 +39,12 @@ export const PAGE_SIZE = 20
  * made-up cursor can't ask for the millionth page; nobody scrolls this deep.
  */
 export const OFFSET_MAX = 2000
+
+/** How many of the people behind new posts are named, for the avatars on Home's pill. */
+const NEW_AUTHORS_MAX = 3
+
+/** How far back a check for new posts looks, so a made-up `since` can't scan the whole table. */
+const NEW_POSTS_WINDOW = 24 * 60 * 60 * 1000
 
 /** How many of a post's mentions are notified, so one post can't ping a crowd. */
 const MENTIONS_NOTIFIED_MAX = 10
@@ -231,7 +239,7 @@ async function ranked_page(
 	db: Db,
 	viewer: string | undefined,
 	cursor: string | undefined,
-): Promise<PostPage> {
+): Promise<FeedPage> {
 	const { as_of, offset } = decode_rank_cursor(cursor) ?? { as_of: Date.now(), offset: 0 }
 	const followed = viewer
 		? sql`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${post.authorId})`
@@ -250,10 +258,11 @@ async function ranked_page(
 		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
-	return last_at_cap(
+	const result = last_at_cap(
 		to_page(rows, viewer, () => `${as_of}:${offset + PAGE_SIZE}`),
 		offset,
 	)
+	return { ...result, as_of }
 }
 
 /** An offset page, with no next page once that would start past `OFFSET_MAX`. */
@@ -261,13 +270,14 @@ export function last_at_cap(result: PostPage, offset: number): PostPage {
 	return offset + PAGE_SIZE > OFFSET_MAX ? { ...result, next: undefined } : result
 }
 
-export function feed_page(
+export async function feed_page(
 	db: Db,
 	viewer: string | undefined,
 	tab: FeedTab,
 	cursor: string | undefined,
-) {
+): Promise<FeedPage> {
 	if (tab === 'for_you') return ranked_page(db, viewer, cursor)
+	const as_of = Date.now()
 	const audience = viewer
 		? or(
 				eq(post.authorId, viewer),
@@ -277,12 +287,64 @@ export function feed_page(
 				),
 			)
 		: undefined
-	return page(
+	const result = await page(
 		db,
 		viewer,
-		[eq(post.isReply, false), audience, unmuted_posts(viewer), after(cursor, 'newer_first')],
+		[
+			eq(post.isReply, false),
+			audience,
+			unmuted_posts(viewer),
+			// Nothing past `as_of`, so a post is either on this page or new, never both.
+			lte(post.createdAt, new Date(as_of)),
+			after(cursor, 'newer_first'),
+		],
 		'newer_first',
 	)
+	return { ...result, as_of }
+}
+
+/**
+ * Who else has posted to the viewer's timeline since `since`, for the "posted" pill: at most
+ * `NEW_AUTHORS_MAX` people, the ones the viewer follows first, then whoever posted last. Empty
+ * when nobody has.
+ */
+export async function new_post_authors(
+	db: Db,
+	viewer: string,
+	tab: FeedTab,
+	since: number,
+): Promise<Author[]> {
+	const followed = sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${user.id})`
+	const from = new Date(Math.max(since, Date.now() - NEW_POSTS_WINDOW))
+	const rows = await db
+		.select({
+			id: user.id,
+			name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
+			handle: profile.handle,
+			image: shown_image,
+		})
+		.from(post)
+		.innerJoin(user, eq(user.id, post.authorId))
+		.leftJoin(profile, eq(profile.userId, post.authorId))
+		.where(
+			and(
+				visible_posts(viewer),
+				unmuted_posts(viewer),
+				eq(post.isReply, false),
+				gt(post.createdAt, from),
+				ne(post.authorId, viewer),
+				tab === 'following' ? sql`${followed}` : undefined,
+			),
+		)
+		.groupBy(user.id)
+		.orderBy(desc(followed), desc(sql`max(${post.createdAt})`))
+		.limit(NEW_AUTHORS_MAX)
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		handle: row.handle ?? undefined,
+		image: row.image ?? undefined,
+	}))
 }
 
 /** Direct replies to a post, oldest first so a conversation reads top to bottom. */

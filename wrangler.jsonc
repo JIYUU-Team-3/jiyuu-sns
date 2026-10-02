@@ -25,6 +25,10 @@
 	// Bound to the existing `sns_kv` namespace. Reachable at runtime as `env.KV`
 	// via `cloudflare:workers`, same as the D1 binding above; `wrangler types`
 	// picks it up automatically.
+	"durable_objects": {
+		"bindings": [{ "name": "CHAT", "class_name": "ChatRoom" }],
+	},
+	"migrations": [{ "tag": "chat-room", "new_sqlite_classes": ["ChatRoom"] }],
 	"kv_namespaces": [
 		{
 			"binding": "KV",

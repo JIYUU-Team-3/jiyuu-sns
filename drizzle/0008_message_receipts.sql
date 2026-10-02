@@ -1,0 +1,1 @@
+ALTER TABLE `conversation_member` ADD `last_delivered_at` integer;

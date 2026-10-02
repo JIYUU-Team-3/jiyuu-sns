@@ -56,26 +56,27 @@ These are the ones that have already been broken once.
 
 ## Where each defence lives
 
-| Threat                                    | Defence                                                                                         | Where                                         |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Reading posts/profiles without a session  | `signed_in()` on every query; redirects in page loads                                           | `session.ts`, `*.remote.ts`                   |
-| Fake or squatted accounts                 | Google sign-in only; email accounts need a flag that only works on loopback                     | `auth.ts` (`email_signup`)                    |
-| Posting without a profile                 | `member()`                                                                                      | `session.ts`, `routes/media/+server.ts`       |
-| Cross-site requests                       | SvelteKit's origin check (forms and remote calls); SameSite session cookie                      | framework default — don't turn `csrf` off     |
-| Script injection                          | No `{@html}` on user text; CSP with nonces, `script-src 'self'`                                 | `vite.config.ts`                              |
-| Clickjacking                              | `frame-ancestors 'none'`, `X-Frame-Options: DENY`                                               | `vite.config.ts`, `hooks.server.ts`           |
-| Tracking readers through media            | Avatar host allowlist, GIF host allowlist, CSP `img-src`, `no-referrer`                         | `account-image.ts`, `gifs.ts`                 |
-| Hostile uploads                           | Type from the bytes, no SVG, metadata stripped, `nosniff`, size and rate caps                   | `media.ts`, `strip-*.ts`, `form.ts`           |
-| Attaching someone else's upload           | `is_own_post_upload`                                                                            | `server/media.ts`                             |
-| Server-side request forgery via push      | Push endpoints limited to known push services                                                   | `web-push.ts` (`is_push_endpoint`)            |
-| Abuse and scraping                        | Rate limits; mention, subscription and offset caps; hourly push de-duplication                  | `rate-limit.ts`, `posts.ts`, `push.ts`        |
-| Impersonation                             | Reserved handles; control and bidi characters stripped from names and bios                      | `profiles/form/profile.ts`                    |
-| Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                    | `posts/text.ts`                               |
-| Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader | `server/messages.ts`, `routes/media/[...key]` |
-| Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report    | `server/safety.ts`, `server/follows.ts`       |
-| Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval | `server/safety.ts`, `server/posts.ts`         |
-| Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                    | `server/posts.ts` (`insert_thread`)           |
-| Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                            | `.github/workflows/`                          |
+| Threat                                    | Defence                                                                                                                                     | Where                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Reading posts/profiles without a session  | `signed_in()` on every query; redirects in page loads                                                                                       | `session.ts`, `*.remote.ts`                                      |
+| Fake or squatted accounts                 | Google sign-in only; email accounts need a flag that only works on loopback                                                                 | `auth.ts` (`email_signup`)                                       |
+| Posting without a profile                 | `member()`                                                                                                                                  | `session.ts`, `routes/media/+server.ts`                          |
+| Cross-site requests                       | SvelteKit's origin check (forms and remote calls); SameSite session cookie                                                                  | framework default — don't turn `csrf` off                        |
+| Script injection                          | No `{@html}` on user text; CSP with nonces, `script-src 'self'`                                                                             | `vite.config.ts`                                                 |
+| Clickjacking                              | `frame-ancestors 'none'`, `X-Frame-Options: DENY`                                                                                           | `vite.config.ts`, `hooks.server.ts`                              |
+| Tracking readers through media            | Avatar host allowlist, GIF host allowlist, CSP `img-src`, `no-referrer`                                                                     | `account-image.ts`, `gifs.ts`                                    |
+| Hostile uploads                           | Type from the bytes, no SVG, metadata stripped, `nosniff`, size and rate caps                                                               | `media.ts`, `strip-*.ts`, `form.ts`                              |
+| Attaching someone else's upload           | `is_own_post_upload`                                                                                                                        | `server/media.ts`                                                |
+| Server-side request forgery via push      | Push endpoints limited to known push services                                                                                               | `web-push.ts` (`is_push_endpoint`)                               |
+| Abuse and scraping                        | Rate limits; mention, subscription and offset caps; hourly push de-duplication                                                              | `rate-limit.ts`, `posts.ts`, `push.ts`                           |
+| Impersonation                             | Reserved handles; control and bidi characters stripped from names and bios                                                                  | `profiles/form/profile.ts`                                       |
+| Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                                                                | `posts/text.ts`                                                  |
+| Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader                                             | `server/messages.ts`, `routes/media/[...key]`                    |
+| Listening in on someone else's chat       | Live sockets need a signed one-minute ticket made after a membership check, a same-site Origin; caps on sockets, frame size and typing rate | `server/live.ts`, `server/live-ticket.ts`, `server/chat-room.ts` |
+| Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report                                                | `server/safety.ts`, `server/follows.ts`                          |
+| Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval                                             | `server/safety.ts`, `server/posts.ts`                            |
+| Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                                                                | `server/posts.ts` (`insert_thread`)                              |
+| Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                                                                        | `.github/workflows/`                                             |
 
 ## Known gaps, most important first
 

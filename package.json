@@ -6,7 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "wrangler types && vite build",
+		"build": "wrangler types && vite build && node scripts/wrap-worker.js",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
 		"preview:ci": "wrangler dev --port 4173 --ip 127.0.0.1 --env-file .env --env-file .env.e2e",
 		"prepare": "svelte-kit sync || echo ''",

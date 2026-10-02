@@ -8,9 +8,29 @@
  * the server exactly as it would without a service worker.
  */
 
+import { acknowledge, deliver } from '#lib/messages/delivery'
+
 const sw = self as unknown as ServiceWorkerGlobalScope
 
-type PushMessage = { title: string; body?: string; url: string; tag: string }
+const DELIVERED_SYNC = 'delivered'
+
+type SyncEvent = ExtendableEvent & { tag: string }
+type SyncRegistration = ServiceWorkerRegistration & {
+	sync?: { register(tag: string): Promise<void> }
+}
+
+const post_delivered = () => fetch('/messages/delivered', { method: 'POST' })
+
+const delivered = () =>
+	deliver({
+		post: post_delivered,
+		wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+		later: async () => {
+			await (sw.registration as SyncRegistration).sync?.register(DELIVERED_SYNC)
+		},
+	})
+
+type PushMessage = { title: string; body?: string; url: string; tag: string; delivered?: boolean }
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(sw.skipWaiting())
@@ -31,20 +51,38 @@ sw.addEventListener('push', (event) => {
 
 	event.waitUntil(
 		(async () => {
-			await sw.registration.showNotification(message.title, {
-				body: message.body,
-				tag: message.tag,
-				// A like replacing an earlier one on the same post still alerts.
-				renotify: true,
-				icon: '/icon-192.png',
-				badge: '/badge-72.png',
-				data: { url: message.url },
-			} as NotificationOptions)
+			const delivering = message.delivered ? delivered() : undefined
+			const windows = await sw.clients.matchAll({ type: 'window' })
+			const path = new URL(message.url, sw.location.origin).pathname
+			const reading = windows.some(
+				(client) => client.focused && new URL(client.url).pathname === path,
+			)
+			if (!reading)
+				await sw.registration.showNotification(message.title, {
+					body: message.body,
+					tag: message.tag,
+					// A like replacing an earlier one on the same post still alerts.
+					renotify: true,
+					icon: '/icon-192.png',
+					badge: '/badge-72.png',
+					data: { url: message.url },
+				} as NotificationOptions)
 			// Open tabs update their unread badge now instead of at the next minute's check.
-			for (const client of await sw.clients.matchAll({ type: 'window' })) {
-				client.postMessage({ type: 'notification' })
+			for (const client of windows) {
+				client.postMessage({ type: message.delivered ? 'message' : 'notification' })
 			}
+			await delivering
 		})(),
+	)
+})
+
+sw.addEventListener('sync', (event) => {
+	const sync = event as SyncEvent
+	if (sync.tag !== DELIVERED_SYNC) return
+	sync.waitUntil(
+		acknowledge(post_delivered).then((done) => {
+			if (!done) throw new Error('Not delivered yet.')
+		}),
 	)
 })
 
