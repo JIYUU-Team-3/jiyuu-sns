@@ -16,7 +16,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const post = UUID.test(params.id)
 		? await find_post(locals.db, locals.user.id, params.id)
 		: undefined
-	if (!post) error(404, 'Post not found.')
+	if (!post) {
+		// A moderator following a hidden post's link gets the moderator's view of it.
+		if (locals.standing?.role === 'moderator' && UUID.test(params.id)) {
+			redirect(303, localizeHref(`/mod/p/${params.id}`))
+		}
+		error(404, 'Post not found.')
+	}
 	// Only the author is ever shown a hidden post, so only they get the moderator's reasons.
 	const notice = post.moderation ? await post_notice(locals.db, locals.user.id, post.id) : undefined
 	return { notice }

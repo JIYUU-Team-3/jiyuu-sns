@@ -120,6 +120,9 @@ test('a removed post is gone for others; its author can ask for a review, which 
 		await reader.waitForLoadState('networkidle')
 		await expect(reader.locator('article.post', { hasText: text })).toHaveCount(0)
 	}
+	// A moderator following the post's own link lands on its moderator view instead of a 404.
+	await page.goto(`/p/${posted.id}`)
+	await expect(page).toHaveURL(new RegExp(`/mod/p/${posted.id}$`))
 
 	// The author is told, sees why, and asks for a review.
 	await author.goto('/notifications')
