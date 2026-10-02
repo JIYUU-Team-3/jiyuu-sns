@@ -608,16 +608,16 @@ async function has_votes(db: Db, post_id: string) {
 /**
  * Delete the author's own post. Returns what it replied to, so that post's reply count can be
  * refreshed, and its photo and video URLs, so their files can be removed; undefined when the post isn't
- * theirs or doesn't exist.
+ * theirs or doesn't exist. `only_if` narrows the delete itself, so a check can't go stale before it.
  */
-export async function remove_post(db: Db, author_id: string, id: string) {
+export async function remove_post(db: Db, author_id: string, id: string, only_if?: SQL) {
 	const uploads = await db
 		.select({ url: postMedia.url })
 		.from(postMedia)
 		.where(and(eq(postMedia.postId, id), ne(postMedia.kind, 'gif')))
 	const [removed] = await db
 		.delete(post)
-		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
+		.where(and(eq(post.id, id), eq(post.authorId, author_id), only_if))
 		.returning({ reply_to_id: post.replyToId })
 	if (!removed) return undefined
 	return { reply_to_id: removed.reply_to_id ?? undefined, uploads: uploads.map((u) => u.url) }

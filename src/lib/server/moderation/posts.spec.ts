@@ -10,7 +10,7 @@ import {
 	postTag,
 } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
-import { author_page, feed_page, find_post, replies_page, set_like } from '../posts'
+import { author_page, feed_page, find_post, replies_page, remove_post, set_like } from '../posts'
 import { search_posts, trending_tags } from '../search'
 import { find_standing } from './standing'
 import {
@@ -187,6 +187,14 @@ describe('purge_removed_posts', () => {
 		const result = await purge_removed_posts(db, now + REMOVED_KEPT_MS + 1000)
 		expect(result).toEqual({ purged: 1, unused: ['/media/posts/alice/a.jpg'] })
 		expect(await db.select().from(post)).toEqual([])
+	})
+
+	it('re-checks at the delete, so a post restored after it was picked stays', async () => {
+		await remove()
+		await moderate_post(db, { moderator_id: 'mod', post_id: 'p1', action: 'restore' })
+		// The purge picked p1 while it was removed; by its delete the post is visible again.
+		expect(await remove_post(db, 'alice', 'p1', eq(post.moderation, 'removed'))).toBeUndefined()
+		expect(await db.select({ id: post.id }).from(post)).toEqual([{ id: 'p1' }])
 	})
 
 	it('leaves visible and limited posts alone', async () => {

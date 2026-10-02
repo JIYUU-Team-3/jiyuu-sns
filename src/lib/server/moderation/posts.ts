@@ -272,24 +272,27 @@ export async function purge_removed_posts(db: Db, now = Date.now(), limit = 100)
 				inArray(appeal.status, ['open', 'upheld']),
 			),
 		)
+	const purgeable = and(
+		eq(post.moderation, 'removed'),
+		lt(post.removedAt, new Date(now - REMOVED_KEPT_MS)),
+		notExists(pending),
+	)
 	const due = await db
 		.select({ id: post.id, author_id: post.authorId })
 		.from(post)
-		.where(
-			and(
-				eq(post.moderation, 'removed'),
-				lt(post.removedAt, new Date(now - REMOVED_KEPT_MS)),
-				notExists(pending),
-			),
-		)
+		.where(purgeable)
 		.limit(limit)
 	// One post at a time: a post holds at most a few uploads, well inside D1's parameter limit.
+	// The delete checks again, so a post restored or appealed since the select stays.
 	const unused: string[] = []
+	let purged = 0
 	for (const row of due) {
-		const removed = await remove_post(db, row.author_id, row.id)
-		if (removed) unused.push(...(await unused_uploads(db, removed.uploads)))
+		const removed = await remove_post(db, row.author_id, row.id, purgeable)
+		if (!removed) continue
+		purged += 1
+		unused.push(...(await unused_uploads(db, removed.uploads)))
 	}
-	return { purged: due.length, unused }
+	return { purged, unused }
 }
 
 /**
@@ -349,7 +352,8 @@ export async function purge_post(db: Db, post_id: string) {
 		.where(and(eq(post.id, post_id), eq(post.moderation, 'removed')))
 		.limit(1)
 	if (!row) return []
-	const removed = await remove_post(db, row.author_id, post_id)
+	// Still removed at the moment of the delete: a post restored meanwhile stays.
+	const removed = await remove_post(db, row.author_id, post_id, eq(post.moderation, 'removed'))
 	return removed ? unused_uploads(db, removed.uploads) : []
 }
 
