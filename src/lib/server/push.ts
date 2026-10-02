@@ -6,6 +6,7 @@ import { m } from '#lib/paraglide/messages.js'
 import { isLocale, localizeHref, type Locale } from '#lib/paraglide/runtime'
 import type { getDb } from './db'
 import { post, profile, pushSubscription, user } from './db/schema'
+import { visible_posts } from './safety'
 import { send_push, type PushTarget, type VapidKeys } from './web-push'
 
 type Db = ReturnType<typeof getDb>
@@ -90,6 +91,27 @@ const TITLES = {
 	follow_request: m.push_follow_request,
 } as const
 
+async function readable(db: Db, events: Event[]) {
+	const wanted = new Map<string, Set<string>>()
+	for (const event of events) {
+		if (!event.post_id) continue
+		const ids = wanted.get(event.user_id) ?? new Set()
+		wanted.set(event.user_id, ids.add(event.post_id))
+	}
+	const seen = new Set<string>()
+	await Promise.all(
+		[...wanted].map(async ([viewer, ids]) => {
+			const rows = await db
+				.select({ id: post.id })
+				.from(post)
+				.leftJoin(profile, eq(profile.userId, post.authorId))
+				.where(and(inArray(post.id, [...ids]), visible_posts(viewer)))
+			for (const row of rows) seen.add(`${viewer}:${row.id}`)
+		}),
+	)
+	return events.filter((event) => !event.post_id || seen.has(`${event.user_id}:${event.post_id}`))
+}
+
 const snippet = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…` : text)
 
 /**
@@ -97,16 +119,20 @@ const snippet = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…
  * that browser's language. Failures never reach the person who acted; expired subscriptions are
  * dropped.
  */
-export async function push_notifications(db: Db, events: Event[]) {
+export async function push_notifications(db: Db, all: Event[]) {
 	const keys = vapid_keys()
-	if (!keys || !events.length) return
+	if (!keys || !all.length) return
 
-	const recipients = [...new Set(events.map((event) => event.user_id))]
 	const subscriptions = await db
 		.select()
 		.from(pushSubscription)
-		.where(inArray(pushSubscription.userId, recipients))
+		.where(inArray(pushSubscription.userId, [...new Set(all.map((event) => event.user_id))]))
 	if (!subscriptions.length) return
+	const events = await readable(
+		db,
+		all.filter((event) => subscriptions.some((row) => row.userId === event.user_id)),
+	)
+	if (!events.length) return
 
 	const actor_ids = [...new Set(events.map((event) => event.actor_id))]
 	const actors = new Map(
