@@ -1,9 +1,11 @@
 import { error } from '@sveltejs/kit'
+import { waitUntil } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { is_own_message_upload } from '#lib/server/media'
 import * as messages from '#lib/server/messages'
+import { push_direct_message } from '#lib/server/push'
 import { member, signed_in } from '#lib/server/session'
 import { visible_text } from '#lib/profiles/form/profile'
 import { conversations_arg, messages_arg } from './args'
@@ -20,8 +22,9 @@ const me = signed_in
 /** Sending and reacting: a finished profile, at a chat's pace. */
 const chatter = () => member('MESSAGE_LIMIT')
 
-export const get_conversations = query(v.object({ cursor: Cursor }), ({ cursor }) => {
+export const get_conversations = query(v.object({ cursor: Cursor }), async ({ cursor }) => {
 	const { db, user_id } = me()
+	if (!cursor) await messages.mark_delivered(db, user_id)
 	return messages.conversations_page(db, user_id, cursor)
 })
 
@@ -39,8 +42,9 @@ export const get_messages = query(v.object({ id: Id, cursor: Cursor }), async ({
 	return page
 })
 
-export const get_unread_messages = query(() => {
+export const get_unread_messages = query(async () => {
 	const { db, user_id } = me()
+	await messages.mark_delivered(db, user_id)
 	return messages.unread_count(db, user_id)
 })
 
@@ -72,6 +76,14 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 	}
 	const sent = await messages.send_message(db, user_id, id, input)
 	if (sent === 'not_found') error(404, 'Conversation not found.')
+	waitUntil(
+		push_direct_message(db, {
+			conversation_id: id,
+			sender_id: user_id,
+			body: input.body,
+			photo: !!input.media,
+		}).catch((error) => console.error('Push failed', error)),
+	)
 	await Promise.all([
 		get_messages(messages_arg(id)).refresh(),
 		get_conversations(conversations_arg()).refresh(),

@@ -26,7 +26,13 @@
 		react_to_message,
 		send_message,
 	} from './messages.remote'
-	import { conversation_title, is_reaction, same_day, toggle_reaction } from './rules'
+	import {
+		conversation_title,
+		is_reaction,
+		receipt_status,
+		same_day,
+		toggle_reaction,
+	} from './rules'
 	import type { MessageView, OutgoingMessage, Reaction } from './types'
 
 	let { id }: { id: string } = $props()
@@ -71,6 +77,20 @@
 		...items.map((message) => ({ message, pending: false })),
 		...pending.map((message) => ({ message, pending: true })),
 	])
+
+	const receipt = $derived.by(() => {
+		const newest = rows.at(-1)
+		if (!newest || newest.pending || !newest.message.mine) return undefined
+		const { status, seen_by } = receipt_status(newest.message.created_at, latest.receipts)
+		if (status === 'sent') return m.dm_sent()
+		if (status === 'delivered') return m.dm_delivered()
+		if (!convo.group) return m.dm_seen()
+		if (seen_by.length === latest.receipts.length) return m.dm_seen_by_all()
+		const names = convo.members
+			.filter((member) => seen_by.includes(member.id))
+			.map((member) => member.name)
+		return m.dm_seen_by({ names: names.join(', ') })
+	})
 
 	const joined = (a: MessageView | undefined, b: MessageView | undefined) =>
 		!!a &&
@@ -294,6 +314,7 @@
 				first={!joined(previous, row.message)}
 				last={!joined(row.message, following)}
 				pending={row.pending}
+				receipt={i === rows.length - 1 ? receipt : undefined}
 				onreply={() => (replying = row.message)}
 				onreact={(emoji) => react(row.message, emoji)}
 				onjump={jump}

@@ -4,6 +4,7 @@ import {
 	direct_key,
 	MESSAGE_MAX,
 	message_problem,
+	receipt_status,
 	same_day,
 	toggle_reaction,
 } from './rules'
@@ -59,5 +60,31 @@ describe('toggle_reaction', () => {
 			{ emoji: '😂', count: 1, mine: true },
 		])
 		expect(toggle_reaction(switched, '😂')).toEqual(start)
+	})
+})
+
+describe('receipt_status', () => {
+	it('moves from sent to delivered to seen', () => {
+		expect(receipt_status(10, [{ user_id: 'a', read_at: 5, delivered_at: 5 }])).toEqual({
+			status: 'sent',
+			seen_by: [],
+		})
+		expect(receipt_status(10, [{ user_id: 'a', read_at: 5, delivered_at: 12 }]).status).toBe(
+			'delivered',
+		)
+		expect(receipt_status(10, [{ user_id: 'a', read_at: 10 }])).toEqual({
+			status: 'seen',
+			seen_by: ['a'],
+		})
+	})
+
+	it('needs everyone in a group for delivered, anyone for seen', () => {
+		const late = { user_id: 'b', delivered_at: 1 }
+		expect(receipt_status(10, [{ user_id: 'a', delivered_at: 20 }, late]).status).toBe('sent')
+		expect(receipt_status(10, [{ user_id: 'a', read_at: 20 }, late]).seen_by).toEqual(['a'])
+	})
+
+	it('stays sent with nobody left to receive it', () => {
+		expect(receipt_status(10, []).status).toBe('sent')
 	})
 })
