@@ -8,6 +8,7 @@ import type {
 	MessagePage,
 	MessageView,
 	Reaction,
+	Receipt,
 } from '#lib/messages/types'
 import { direct_key, MEMBER_MAX } from '#lib/messages/rules'
 import type { getDb } from './db'
@@ -252,11 +253,14 @@ export async function messages_page(
 		.limit(MESSAGE_PAGE + 1)
 
 	const shown = rows.slice(0, MESSAGE_PAGE)
-	const reactions = await reactions_for(
-		db,
-		me,
-		shown.map((row) => row.id),
-	)
+	const [reactions, receipts] = await Promise.all([
+		reactions_for(
+			db,
+			me,
+			shown.map((row) => row.id),
+		),
+		at ? [] : receipts_for(db, me, conversation_id),
+	])
 
 	const items = shown.map((row): MessageView => ({
 		id: row.id,
@@ -284,9 +288,31 @@ export async function messages_page(
 	const last = shown.at(-1)
 	return {
 		items,
+		receipts,
 		next:
 			rows.length > MESSAGE_PAGE && last ? `${last.created_at.getTime()}:${last.id}` : undefined,
 	}
+}
+
+async function receipts_for(db: Db, me: string, conversation_id: string): Promise<Receipt[]> {
+	const rows = await db
+		.select({
+			user_id: conversationMember.userId,
+			read_at: conversationMember.lastReadAt,
+			delivered_at: conversationMember.lastDeliveredAt,
+		})
+		.from(conversationMember)
+		.where(
+			and(
+				eq(conversationMember.conversationId, conversation_id),
+				ne(conversationMember.userId, me),
+			),
+		)
+	return rows.map((row) => ({
+		user_id: row.user_id,
+		read_at: row.read_at?.getTime(),
+		delivered_at: row.delivered_at?.getTime(),
+	}))
 }
 
 function to_media(row: {
@@ -365,7 +391,7 @@ export async function send_message(
 		db.update(conversation).set({ lastMessageAt: now }).where(eq(conversation.id, conversation_id)),
 		db
 			.update(conversationMember)
-			.set({ lastReadAt: now })
+			.set({ lastReadAt: now, lastDeliveredAt: now })
 			.where(
 				and(
 					eq(conversationMember.conversationId, conversation_id),
@@ -377,13 +403,30 @@ export async function send_message(
 }
 
 export async function mark_read(db: Db, me: string, conversation_id: string) {
+	const now = new Date()
 	await db
 		.update(conversationMember)
-		.set({ lastReadAt: new Date() })
+		.set({ lastReadAt: now, lastDeliveredAt: now })
 		.where(
 			and(
 				eq(conversationMember.conversationId, conversation_id),
 				eq(conversationMember.userId, me),
+			),
+		)
+}
+
+export async function mark_delivered(db: Db, me: string) {
+	await db
+		.update(conversationMember)
+		.set({ lastDeliveredAt: new Date() })
+		.where(
+			and(
+				eq(conversationMember.userId, me),
+				sql`exists (
+					select 1 from ${conversation}
+					where ${conversation.id} = ${conversationMember.conversationId}
+						and ${conversation.lastMessageAt} > coalesce(${conversationMember.lastDeliveredAt}, 0)
+				)`,
 			),
 		)
 }

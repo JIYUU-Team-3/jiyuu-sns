@@ -37,8 +37,9 @@ export const get_messages = query(v.object({ id: Id, cursor: Cursor }), async ({
 	return page
 })
 
-export const get_unread_messages = query(() => {
+export const get_unread_messages = query(async () => {
 	const { db, user_id } = me()
+	await messages.mark_delivered(db, user_id)
 	return messages.unread_count(db, user_id)
 })
 

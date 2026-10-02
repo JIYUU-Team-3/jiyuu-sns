@@ -33,6 +33,9 @@ test('message someone, react and reply, and the badge clears once read @writes',
 	const message = page.locator('.msg', { hasText: hello })
 	await expect(message).toBeVisible()
 	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
+	await expect(bob_page.locator('.msg', { hasText: hello }).getByText('Seen')).toBeVisible({
+		timeout: 15_000,
+	})
 
 	await message.hover()
 	await message.getByRole('button', { name: 'React', exact: true }).click()
@@ -50,6 +53,7 @@ test('message someone, react and reply, and the badge clears once read @writes',
 	const bob_reply = bob_page.locator('.msg', { hasText: answer })
 	await expect(bob_reply).toBeVisible({ timeout: 15_000 })
 	await expect(bob_reply.getByText('Replying to you')).toBeVisible()
+	await expect(reply.getByText('Seen')).toBeVisible({ timeout: 15_000 })
 	await expect(
 		bob_page.locator('.msg', { hasText: hello }).getByRole('button', { name: /👍 1/ }),
 	).toBeVisible()
