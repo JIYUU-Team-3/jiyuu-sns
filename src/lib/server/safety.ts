@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, desc, eq, inArray, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { MUTED_TERMS_MAX, type ReportReason } from '#lib/safety/rules'
 import type { Account, SafetyLists } from '#lib/safety/types'
 import { shown_image } from './account-image'
@@ -179,14 +179,29 @@ export async function safety_lists(db: Db, me: string): Promise<SafetyLists> {
 	}
 }
 
+const approve_requests = (db: Db, where: SQL | undefined) =>
+	db
+		.insert(follow)
+		.select(
+			db
+				.select({
+					followerId: followRequest.requesterId,
+					followingId: followRequest.targetId,
+					createdAt: sql<Date>`cast(unixepoch('subsecond') * 1000 as integer)`.as('created_at'),
+				})
+				.from(followRequest)
+				.where(where),
+		)
+		.onConflictDoNothing()
+
 export async function answer_request(db: Db, me: string, handle: string, approve: boolean) {
 	const them = await account_id(db, me, handle)
 	if (!them) return false
-	const removed = await db
+	const remove = db
 		.delete(followRequest)
 		.where(and(eq(followRequest.requesterId, them), eq(followRequest.targetId, me)))
 		.returning({ id: followRequest.requesterId })
-	await db
+	const clear = db
 		.delete(notification)
 		.where(
 			and(
@@ -195,19 +210,39 @@ export async function answer_request(db: Db, me: string, handle: string, approve
 				eq(notification.type, 'follow_request'),
 			),
 		)
-	if (removed.length && approve) {
-		await db.insert(follow).values({ followerId: them, followingId: me }).onConflictDoNothing()
-	}
+	const removed = approve
+		? (
+				await db.batch([
+					approve_requests(
+						db,
+						and(
+							eq(followRequest.requesterId, them),
+							eq(followRequest.targetId, me),
+							sql`not ${blocked_between(them, me)}`,
+						),
+					),
+					remove,
+					clear,
+				])
+			)[1]
+		: (await db.batch([remove, clear]))[0]
 	return removed.length > 0
 }
 
 export async function set_private(db: Db, me: string, on: boolean) {
-	await db.update(profile).set({ isPrivate: on }).where(eq(profile.userId, me))
-	if (on) return
+	const update = db.update(profile).set({ isPrivate: on }).where(eq(profile.userId, me))
+	if (on) {
+		await update
+		return
+	}
 	await db.batch([
-		db.run(
-			sql`insert or ignore into follow (follower_id, following_id)
-				select requester_id, target_id from follow_request where target_id = ${me}`,
+		update,
+		approve_requests(
+			db,
+			and(
+				eq(followRequest.targetId, me),
+				sql`not ${blocked_between(followRequest.requesterId, followRequest.targetId)}`,
+			),
 		),
 		db.delete(followRequest).where(eq(followRequest.targetId, me)),
 		db

@@ -6,6 +6,10 @@ import { blocked_between } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
+const allowed = (follower_id: string, target_id: string, is_private: boolean) =>
+	sql`exists(select 1 from profile where user_id = ${target_id} and is_private = ${is_private ? 1 : 0})
+		and not ${blocked_between(follower_id, target_id)}`
+
 export async function set_follow(db: Db, follower_id: string, handle: string, on: boolean) {
 	if (on) {
 		const [target] = await db
@@ -22,7 +26,8 @@ export async function set_follow(db: Db, follower_id: string, handle: string, on
 			const asked = await db.all<{ target_id: string }>(
 				sql`insert or ignore into follow_request (requester_id, target_id)
 					select ${follower_id}, ${target.id}
-					where not exists(select 1 from follow where follower_id = ${follower_id} and following_id = ${target.id})
+					where ${allowed(follower_id, target.id, true)}
+					and not exists(select 1 from follow where follower_id = ${follower_id} and following_id = ${target.id})
 					returning target_id`,
 			)
 			await notify(
@@ -37,7 +42,10 @@ export async function set_follow(db: Db, follower_id: string, handle: string, on
 		}
 		// Only a follow that is actually new is announced; a repeated one inserts nothing.
 		const added = await db.all<{ following_id: string }>(
-			sql`insert or ignore into follow (follower_id, following_id) values (${follower_id}, ${target.id}) returning following_id`,
+			sql`insert or ignore into follow (follower_id, following_id)
+				select ${follower_id}, ${target.id}
+				where ${allowed(follower_id, target.id, false)}
+				returning following_id`,
 		)
 		await notify(
 			db,

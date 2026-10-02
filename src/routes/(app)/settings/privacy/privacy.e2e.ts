@@ -119,7 +119,27 @@ test('a private account shows its posts only to approved followers @writes', asy
 
 	await open_profile(bob_page, alice)
 	await expect(bob_page.getByText(`Only for friends ${id}`)).toBeVisible()
+
+	const carol_page = await person(browser, `e2e_qc_${id}`)
+	await open_profile(carol_page, alice)
+	await carol_page
+		.locator('main')
+		.getByRole('button', { name: `Follow @${alice}` })
+		.click()
+	await expect(
+		carol_page.locator('main').getByRole('button', { name: `Cancel follow request to @${alice}` }),
+	).toBeVisible()
+	await page.goto('/settings/privacy')
+	await page.waitForLoadState('networkidle')
+	await toggle.click()
+	await expect(toggle).toHaveAttribute('aria-checked', 'false')
+	await open_profile(carol_page, alice)
+	await expect(
+		carol_page.locator('main').getByRole('button', { name: `Unfollow @${alice}` }),
+	).toBeVisible()
+
 	await bob_page.context().close()
+	await carol_page.context().close()
 })
 
 test('only people a post mentions can reply to it @writes', async ({ page, browser }) => {

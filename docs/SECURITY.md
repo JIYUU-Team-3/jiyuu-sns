@@ -47,7 +47,12 @@ These are the ones that have already been broken once.
 13. **Every post query filters with `visible_posts(viewer)`** from `src/lib/server/safety.ts`, so
     blocks and private accounts hold. `page()`, `find_post` and `find_posts` already do; a new
     `select_posts` call outside them must add it. Timelines and search also add
-    `unmuted_posts(viewer)`, and people lists add `visible_people(viewer)`.
+    `unmuted_posts(viewer)`, and people lists add `visible_people(viewer)`. The same goes for
+    anything else that shows a post: push previews and post photos and videos check it too.
+14. **A follow or request is only written if the SQL that writes it checks privacy and blocks.**
+    Don't read the state first and insert afterwards; a block or a privacy change can land in
+    between. Raw `db.run(sql…)` with parameters fails inside `db.batch` on D1, so use the query
+    builder there.
 
 ## Where each defence lives
 
@@ -68,7 +73,7 @@ These are the ones that have already been broken once.
 | Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                    | `posts/text.ts`                               |
 | Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader | `server/messages.ts`, `routes/media/[...key]` |
 | Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report    | `server/safety.ts`, `server/follows.ts`       |
-| Reading a private account's posts         | `visible_posts` in every post query; follows need the owner's approval                          | `server/safety.ts`, `server/posts.ts`         |
+| Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval | `server/safety.ts`, `server/posts.ts`         |
 | Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                    | `server/posts.ts` (`insert_thread`)           |
 | Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                            | `.github/workflows/`                          |
 
