@@ -72,6 +72,7 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 	}
 	const sent = await messages.send_message(db, user_id, id, input)
 	if (sent === 'not_found') error(404, 'Conversation not found.')
+	if (sent === 'blocked') error(403, 'blocked')
 	await Promise.all([
 		get_messages(messages_arg(id)).refresh(),
 		get_conversations(conversations_arg()).refresh(),

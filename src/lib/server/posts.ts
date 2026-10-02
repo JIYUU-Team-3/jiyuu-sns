@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql, type SQL } from 
 import { alias } from 'drizzle-orm/sqlite-core'
 import { extract_mentions, extract_tags } from '#lib/posts/text'
 import { post_problem, type PollDays } from '#lib/posts/rules'
+import { may_reply, type ReplyAudience } from '#lib/safety/rules'
 import {
 	is_upload,
 	type FeedTab,
@@ -25,6 +26,7 @@ import {
 } from './db/schema'
 import { shown_image } from './account-image'
 import { notify, retract } from './notifications'
+import { unmuted_posts, visible_posts } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
@@ -81,6 +83,13 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			edited_at: post.editedAt,
 			reply_to_id: post.replyToId,
 			location: post.location,
+			reply_audience: post.replyAudience,
+			viewer_handle: viewer
+				? sql<string | null>`(select h.handle from profile h where h.user_id = ${viewer})`
+				: sql<string | null>`null`,
+			followed_by_author: viewer
+				? sql<number>`exists(select 1 from follow f where f.follower_id = ${post.authorId} and f.following_id = ${viewer})`
+				: sql<number>`0`,
 			media: media_json,
 			poll_ends_at: poll.endsAt,
 			poll_options: poll_json,
@@ -134,6 +143,7 @@ function to_poll(row: Row): PollView | undefined {
 }
 
 function to_view(row: Row, viewer: string | undefined): PostView {
+	const mine = row.author_id === viewer
 	return {
 		id: row.id,
 		body: row.body,
@@ -159,7 +169,13 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		replies: row.replies,
 		likes: row.likes,
 		liked: !!row.liked,
-		mine: row.author_id === viewer,
+		mine,
+		reply_audience: row.reply_audience,
+		can_reply: may_reply(row.reply_audience, {
+			mine,
+			followed_by_author: !!row.followed_by_author,
+			mentioned: !!row.viewer_handle && extract_mentions(row.body).includes(row.viewer_handle),
+		}),
 	}
 }
 
@@ -198,7 +214,7 @@ export async function page(
 ): Promise<PostPage> {
 	const order = direction === 'newer_first' ? desc : asc
 	const rows = await select_posts(db, viewer)
-		.where(and(...where))
+		.where(and(visible_posts(viewer), ...where))
 		.orderBy(order(post.createdAt), order(post.id))
 		// One extra row says whether another page exists without a count query.
 		.limit(PAGE_SIZE + 1)
@@ -223,7 +239,14 @@ async function ranked_page(
 	const age = sql`((${as_of} - ${post.createdAt}) / 3600000.0 + 2)`
 	const score = sql`(1.0 + ${like_count} + 2 * ${reply_count} + 3 * ${followed}) / (${age} * ${age})`
 	const rows = await select_posts(db, viewer)
-		.where(and(eq(post.isReply, false), lte(post.createdAt, new Date(as_of))))
+		.where(
+			and(
+				visible_posts(viewer),
+				unmuted_posts(viewer),
+				eq(post.isReply, false),
+				lte(post.createdAt, new Date(as_of)),
+			),
+		)
 		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
@@ -257,7 +280,7 @@ export function feed_page(
 	return page(
 		db,
 		viewer,
-		[eq(post.isReply, false), audience, after(cursor, 'newer_first')],
+		[eq(post.isReply, false), audience, unmuted_posts(viewer), after(cursor, 'newer_first')],
 		'newer_first',
 	)
 }
@@ -272,7 +295,7 @@ export function replies_page(
 	return page(
 		db,
 		viewer,
-		[eq(post.replyToId, post_id), after(cursor, 'older_first')],
+		[eq(post.replyToId, post_id), unmuted_posts(viewer), after(cursor, 'older_first')],
 		'older_first',
 	)
 }
@@ -311,10 +334,10 @@ export async function conversation(db: Db, viewer: string | undefined, id: strin
 	) select id from down where depth > 0)`
 	const [up, down] = await Promise.all([
 		select_posts(db, viewer)
-			.where(inArray(post.id, above))
+			.where(and(visible_posts(viewer), inArray(post.id, above)))
 			.orderBy(asc(post.createdAt), asc(post.id)),
 		select_posts(db, viewer)
-			.where(inArray(post.id, below))
+			.where(and(visible_posts(viewer), inArray(post.id, below)))
 			.orderBy(asc(post.createdAt), asc(post.id)),
 	])
 	return {
@@ -324,14 +347,27 @@ export async function conversation(db: Db, viewer: string | undefined, id: strin
 }
 
 export async function find_post(db: Db, viewer: string | undefined, id: string) {
-	const [row] = await select_posts(db, viewer).where(eq(post.id, id)).limit(1)
+	const [row] = await select_posts(db, viewer)
+		.where(and(visible_posts(viewer), eq(post.id, id)))
+		.limit(1)
 	return row ? to_view(row, viewer) : undefined
 }
 
 /** Several posts by id, in no particular order; missing ones are left out. */
-export async function find_posts(db: Db, viewer: string | undefined, ids: string[]) {
+export async function find_posts(
+	db: Db,
+	viewer: string | undefined,
+	ids: string[],
+	hide_muted = false,
+) {
 	if (!ids.length) return []
-	const rows = await select_posts(db, viewer).where(inArray(post.id, ids))
+	const rows = await select_posts(db, viewer).where(
+		and(
+			visible_posts(viewer),
+			hide_muted ? unmuted_posts(viewer) : undefined,
+			inArray(post.id, ids),
+		),
+	)
 	return rows.map((row) => to_view(row, viewer))
 }
 
@@ -433,9 +469,10 @@ export async function insert_post(
 	author_id: string,
 	input: NewPost,
 	reply_to_id: string | undefined,
+	audience: ReplyAudience = 'everyone',
 ) {
-	const ids = await insert_thread(db, author_id, [input], reply_to_id)
-	return ids?.[0]
+	const ids = await insert_thread(db, author_id, [input], reply_to_id, audience)
+	return Array.isArray(ids) ? ids[0] : ids
 }
 
 export async function insert_thread(
@@ -443,16 +480,14 @@ export async function insert_thread(
 	author_id: string,
 	inputs: NewPost[],
 	reply_to_id: string | undefined,
+	audience: ReplyAudience = 'everyone',
 ) {
 	let parent_author: string | undefined
 	if (reply_to_id) {
-		const [target] = await db
-			.select({ author_id: post.authorId })
-			.from(post)
-			.where(eq(post.id, reply_to_id))
-			.limit(1)
+		const target = await find_post(db, author_id, reply_to_id)
 		if (!target) return undefined
-		parent_author = target.author_id
+		if (!target.can_reply) return 'closed'
+		parent_author = target.author.id
 	}
 	const ids = inputs.map(() => crypto.randomUUID())
 	const now = Date.now()
@@ -468,6 +503,7 @@ export async function insert_thread(
 				location: input.location ?? null,
 				replyToId: parent_id ?? null,
 				isReply: !!parent_id,
+				replyAudience: audience,
 				createdAt: created_at,
 			}),
 			...attachment_inserts(db, ids[i], input),
@@ -610,12 +646,18 @@ export async function unused_uploads(db: Db, urls: string[]) {
  * Like or unlike. Repeating either is a no-op, so double clicks and retries are safe, and liking
  * a post deleted a moment ago quietly does nothing instead of tripping the foreign key.
  */
-export async function set_like(db: Db, user_id: string, post_id: string, on: boolean) {
+async function seen_author(db: Db, viewer: string, post_id: string) {
 	const [target] = await db
 		.select({ author_id: post.authorId })
 		.from(post)
-		.where(eq(post.id, post_id))
+		.leftJoin(profile, eq(profile.userId, post.authorId))
+		.where(and(visible_posts(viewer), eq(post.id, post_id)))
 		.limit(1)
+	return target
+}
+
+export async function set_like(db: Db, user_id: string, post_id: string, on: boolean) {
+	const target = await seen_author(db, user_id, post_id)
 	if (!target) return
 	const note = { user_id: target.author_id, actor_id: user_id, type: 'like' as const, post_id }
 	if (on) {
@@ -635,6 +677,7 @@ export async function set_like(db: Db, user_id: string, post_id: string, on: boo
  * nothing; the refreshed post shows what actually counted.
  */
 export async function vote(db: Db, user_id: string, post_id: string, position: number) {
+	if (!(await seen_author(db, user_id, post_id))) return
 	await db.run(sql`insert or ignore into poll_vote (post_id, user_id, position)
 		select o.post_id, ${user_id}, o.position from poll_option o
 		join poll p on p.post_id = o.post_id

@@ -38,6 +38,19 @@ export async function find_profile_by_handle(
 			follows_you: viewer
 				? sql<number>`exists(select 1 from follow f where f.follower_id = ${profile.userId} and f.following_id = ${viewer})`
 				: sql<number>`0`,
+			private: profile.isPrivate,
+			requested: viewer
+				? sql<number>`exists(select 1 from follow_request r where r.requester_id = ${viewer} and r.target_id = ${profile.userId})`
+				: sql<number>`0`,
+			blocked: viewer
+				? sql<number>`exists(select 1 from block b where b.blocker_id = ${viewer} and b.blocked_id = ${profile.userId})`
+				: sql<number>`0`,
+			blocks_you: viewer
+				? sql<number>`exists(select 1 from block b where b.blocker_id = ${profile.userId} and b.blocked_id = ${viewer})`
+				: sql<number>`0`,
+			muted: viewer
+				? sql<number>`exists(select 1 from mute m where m.muter_id = ${viewer} and m.muted_id = ${profile.userId})`
+				: sql<number>`0`,
 		})
 		.from(profile)
 		.innerJoin(user, eq(user.id, profile.userId))
@@ -50,6 +63,10 @@ export async function find_profile_by_handle(
 		banner: row.banner ?? undefined,
 		followed: !!row.followed,
 		follows_you: !!row.follows_you,
+		requested: !!row.requested,
+		blocked: !!row.blocked,
+		blocks_you: !!row.blocks_you,
+		muted: !!row.muted,
 		mine: row.id === viewer,
 	}
 }

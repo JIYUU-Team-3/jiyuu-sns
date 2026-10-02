@@ -87,6 +87,7 @@ const TITLES = {
 	follow: m.push_follow,
 	reply: m.push_reply,
 	mention: m.push_mention,
+	follow_request: m.push_follow_request,
 } as const
 
 const snippet = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…` : text)
@@ -140,11 +141,13 @@ export async function push_notifications(db: Db, events: Event[]) {
 			if (!actor) return []
 			const body = event.post_id ? posts.get(event.post_id) : undefined
 			const path =
-				event.type === 'follow'
-					? actor.handle
-						? `/u/${encodeURIComponent(actor.handle)}`
-						: '/notifications'
-					: `/p/${encodeURIComponent(event.post_id ?? '')}`
+				event.type === 'follow_request'
+					? '/settings/privacy'
+					: event.type === 'follow'
+						? actor.handle
+							? `/u/${encodeURIComponent(actor.handle)}`
+							: '/notifications'
+						: `/p/${encodeURIComponent(event.post_id ?? '')}`
 			return subscriptions
 				.filter((subscription) => subscription.userId === event.user_id)
 				.map(async (subscription) => {

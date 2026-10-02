@@ -6,6 +6,7 @@ import { shown_image } from './account-image'
 import type { getDb } from './db'
 import { follow, post, postTag, profile, user } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
+import { unmuted_posts, visible_people, visible_posts } from './safety'
 import {
 	after,
 	last_at_cap,
@@ -52,13 +53,13 @@ export async function search_posts(
 	tab: 'top' | 'latest',
 	cursor: string | undefined,
 ): Promise<PostPage> {
-	const filter = post_filter(db, q)
+	const filter = and(post_filter(db, q), unmuted_posts(viewer))
 	if (tab === 'latest')
 		return page(db, viewer, [filter, after(cursor, 'newer_first')], 'newer_first')
 
 	const offset = Math.min(OFFSET_MAX, Math.max(0, Number(cursor) || 0))
 	const rows = await select_posts(db, viewer)
-		.where(filter)
+		.where(and(visible_posts(viewer), filter))
 		.orderBy(desc(sql`${like_count} + 2 * ${reply_count}`), desc(post.createdAt), desc(post.id))
 		.limit(PAGE_SIZE + 1)
 		.offset(offset)
@@ -81,6 +82,10 @@ function select_users(db: Db, viewer: string | undefined) {
 			followed: viewer
 				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
 				: sql<number>`0`,
+			private: profile.isPrivate,
+			requested: viewer
+				? sql<number>`exists(select 1 from follow_request r where r.requester_id = ${viewer} and r.target_id = ${profile.userId})`
+				: sql<number>`0`,
 		})
 		.from(profile)
 		.innerJoin(user, eq(user.id, profile.userId))
@@ -93,6 +98,7 @@ const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
 	...row,
 	image: row.image ?? undefined,
 	followed: !!row.followed,
+	requested: !!row.requested,
 	mine: row.id === viewer,
 })
 
@@ -129,9 +135,12 @@ export async function search_people(
 	if (!needle) return []
 	const rows = await select_users(db, viewer)
 		.where(
-			or(
-				sql`${profile.handle} like ${contains(needle.toLowerCase())} escape '!'`,
-				sql`${profile.displayName} like ${contains(needle)} escape '!'`,
+			and(
+				visible_people(viewer),
+				or(
+					sql`${profile.handle} like ${contains(needle.toLowerCase())} escape '!'`,
+					sql`${profile.displayName} like ${contains(needle)} escape '!'`,
+				),
 			),
 		)
 		.orderBy(closeness(needle), sql`length(${profile.handle})`, desc(follower_count))
@@ -172,7 +181,9 @@ async function near_misses(
 		.slice(0, limit)
 		.map((match) => match.id)
 	if (!ranked.length) return []
-	const rows = await select_users(db, viewer).where(inArray(profile.userId, ranked))
+	const rows = await select_users(db, viewer).where(
+		and(visible_people(viewer), inArray(profile.userId, ranked)),
+	)
 	const by_id = new Map(rows.map((row) => [row.id, to_user(row, viewer)]))
 	return ranked.flatMap((id) => by_id.get(id) ?? [])
 }
@@ -201,12 +212,19 @@ export async function suggestions(db: Db, viewer: string | undefined, q: string)
 }
 
 /** The most used tags of the last week. */
-export async function trending_tags(db: Db, limit: number): Promise<TagView[]> {
+export async function trending_tags(db: Db, limit: number, viewer?: string): Promise<TagView[]> {
 	const posts = sql<number>`count(*)`
 	return db
 		.select({ tag: postTag.tag, posts })
 		.from(postTag)
-		.where(gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)))
+		.where(
+			and(
+				gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)),
+				viewer
+					? sql`not exists(select 1 from muted_term t where t.user_id = ${viewer} and t.term = '#' || ${postTag.tag})`
+					: undefined,
+			),
+		)
 		.groupBy(postTag.tag)
 		.orderBy(desc(posts), postTag.tag)
 		.limit(limit)
@@ -218,6 +236,7 @@ export async function who_to_follow(db: Db, viewer: string, limit: number) {
 		.where(
 			and(
 				ne(profile.userId, viewer),
+				visible_people(viewer),
 				notExists(
 					db
 						.select({ one: sql`1` })
