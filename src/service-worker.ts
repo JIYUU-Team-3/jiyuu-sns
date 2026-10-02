@@ -10,7 +10,7 @@
 
 const sw = self as unknown as ServiceWorkerGlobalScope
 
-type PushMessage = { title: string; body?: string; url: string; tag: string }
+type PushMessage = { title: string; body?: string; url: string; tag: string; delivered?: boolean }
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(sw.skipWaiting())
@@ -31,18 +31,27 @@ sw.addEventListener('push', (event) => {
 
 	event.waitUntil(
 		(async () => {
-			await sw.registration.showNotification(message.title, {
-				body: message.body,
-				tag: message.tag,
-				// A like replacing an earlier one on the same post still alerts.
-				renotify: true,
-				icon: '/icon-192.png',
-				badge: '/badge-72.png',
-				data: { url: message.url },
-			} as NotificationOptions)
+			const windows = await sw.clients.matchAll({ type: 'window' })
+			if (message.delivered) {
+				await fetch('/messages/delivered', { method: 'POST' }).catch(() => {})
+			}
+			const path = new URL(message.url, sw.location.origin).pathname
+			const reading = windows.some(
+				(client) => client.focused && new URL(client.url).pathname === path,
+			)
+			if (!reading)
+				await sw.registration.showNotification(message.title, {
+					body: message.body,
+					tag: message.tag,
+					// A like replacing an earlier one on the same post still alerts.
+					renotify: true,
+					icon: '/icon-192.png',
+					badge: '/badge-72.png',
+					data: { url: message.url },
+				} as NotificationOptions)
 			// Open tabs update their unread badge now instead of at the next minute's check.
-			for (const client of await sw.clients.matchAll({ type: 'window' })) {
-				client.postMessage({ type: 'notification' })
+			for (const client of windows) {
+				client.postMessage({ type: message.delivered ? 'message' : 'notification' })
 			}
 		})(),
 	)

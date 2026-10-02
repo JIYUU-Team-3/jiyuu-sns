@@ -44,16 +44,20 @@
 		const timer = setInterval(() => {
 			if (document.visibilityState === 'visible') refresh()
 		}, 60_000)
-		const dm_timer = setInterval(() => {
+		const refresh_dms = () => {
 			if (document.visibilityState === 'visible') get_unread_messages().refresh()
-		}, 30_000)
+		}
+		const dm_timer = setInterval(refresh_dms, 10_000)
+		document.addEventListener('visibilitychange', refresh_dms)
 		const onmessage = (event: MessageEvent) => {
 			if (event.data?.type === 'notification') refresh()
+			if (event.data?.type === 'message') get_unread_messages().refresh()
 		}
 		navigator.serviceWorker?.addEventListener('message', onmessage)
 		return () => {
 			clearInterval(timer)
 			clearInterval(dm_timer)
+			document.removeEventListener('visibilitychange', refresh_dms)
 			navigator.serviceWorker?.removeEventListener('message', onmessage)
 		}
 	})
