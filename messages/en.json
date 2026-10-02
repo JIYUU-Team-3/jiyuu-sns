@@ -52,7 +52,7 @@
 	"feed_empty_body": "Nothing here yet. Say something and it will show up for everyone.",
 	"feed_following_empty_title": "Your timeline is quiet",
 	"feed_following_empty_body": "Posts from you and the people you follow show up here.",
-	"feed_load_more": "Show more posts",
+	"feed_posted": "posted",
 	"feed_error": "Posts couldn’t be loaded.",
 	"feed_retry": "Try again",
 	"feed_loading": "Loading posts",
