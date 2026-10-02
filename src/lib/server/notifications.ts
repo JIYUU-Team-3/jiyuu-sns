@@ -11,6 +11,7 @@ import type { getDb } from './db'
 import { notification, profile, user } from './db/schema'
 import { find_posts } from './posts'
 import { push_notifications } from './push'
+import { actor_shown, silenced } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
@@ -25,7 +26,9 @@ type NewNotification = {
 
 /** Record notifications, skipping any about your own action, and push them to their browsers. */
 export async function notify(db: Db, rows: NewNotification[]) {
-	const events = rows.filter((row) => row.user_id !== row.actor_id)
+	const others = rows.filter((row) => row.user_id !== row.actor_id)
+	const quiet = await silenced(db, others)
+	const events = others.filter((row) => !quiet.has(`${row.user_id}:${row.actor_id}`))
 	if (!events.length) return
 	await db.insert(notification).values(
 		events.map((row) => ({
@@ -86,7 +89,11 @@ export async function retract(db: Db, row: NewNotification) {
 /** Unread notifications, counted up to 100 so a busy account never scans its whole history. */
 export async function unread_count(db: Db, user_id: string) {
 	const [row] = await db.all<{ n: number }>(
-		sql`select count(*) as n from (select 1 from notification where user_id = ${user_id} and read_at is null limit 100)`,
+		sql`select count(*) as n from (
+			select 1 from notification n where n.user_id = ${user_id} and n.read_at is null
+			and not exists(select 1 from mute m where m.muter_id = ${user_id} and m.muted_id = n.actor_id)
+			limit 100
+		)`,
 	)
 	return row?.n ?? 0
 }
@@ -138,6 +145,7 @@ export async function notifications_page(
 		.where(
 			and(
 				eq(notification.userId, user_id),
+				actor_shown(user_id),
 				tab === 'mentions' ? inArray(notification.type, ['reply', 'mention']) : undefined,
 				at
 					? or(
@@ -154,7 +162,7 @@ export async function notifications_page(
 	const post_ids = shown.flatMap((row) =>
 		(row.type === 'reply' || row.type === 'mention') && row.post_id ? [row.post_id] : [],
 	)
-	const posts = new Map((await find_posts(db, user_id, post_ids)).map((p) => [p.id, p]))
+	const posts = new Map((await find_posts(db, user_id, post_ids, true)).map((p) => [p.id, p]))
 
 	const items = shown.flatMap((row): NotificationView[] => {
 		const post = row.post_id ? posts.get(row.post_id) : undefined

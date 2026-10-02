@@ -1,3 +1,5 @@
+import type { ReplyAudience } from '#lib/safety/rules'
+
 export type Author = {
 	id: string
 	/** Display name, falling back to the account name until onboarding saves a profile. */
@@ -54,6 +56,8 @@ export type PostView = {
 	liked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
+	reply_audience: ReplyAudience
+	can_reply: boolean
 }
 
 export type FeedTab = 'for_you' | 'following'
@@ -62,6 +66,12 @@ export type PostPage = {
 	posts: PostView[]
 	/** Pass back as `cursor` for the next page; undefined on the last one. */
 	next?: string
+}
+
+/** A page of Home's timeline. */
+export type FeedPage = PostPage & {
+	/** When the server read the timeline, in its own milliseconds; later posts are "new". */
+	as_of: number
 }
 
 type Size = { url: string; width: number; height: number }

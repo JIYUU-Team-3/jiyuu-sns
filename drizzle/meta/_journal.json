@@ -61,15 +61,22 @@
     {
       "idx": 8,
       "version": "6",
-      "when": 1790876421150,
-      "tag": "0008_blushing_guardian",
+      "when": 1790908760585,
+      "tag": "0008_message_receipts",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "6",
-      "when": 1790920014628,
-      "tag": "0009_overconfident_prism",
+      "when": 1790923621123,
+      "tag": "0009_privacy_and_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790939587815,
+      "tag": "0010_paste_attachments",
       "breakpoints": true
     }
   ]

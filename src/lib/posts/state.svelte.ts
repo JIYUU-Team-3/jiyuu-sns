@@ -30,6 +30,8 @@ export const composer = {
  */
 export const deleted_posts = new SvelteSet<string>()
 
+export const hidden_authors = new SvelteSet<string>()
+
 export type PostContent = { body: string; media: Media[] }
 
 /** New text and photo order for posts edited in this tab, shown until their lists refetch. */
@@ -48,7 +50,7 @@ let own_posts = $state<PostView[]>([])
  * top, since For You ranks by engagement and would otherwise bury a post with none yet.
  */
 export const timeline = {
-	/** Changes on every publish; Home keys its list on it to start over from the first page. */
+	/** Changes on every publish or reload; Home keys its list on it to start over from the first page. */
 	get version() {
 		return timeline_version
 	},
@@ -58,6 +60,10 @@ export const timeline = {
 	},
 	published(post: PostView) {
 		own_posts = [post, ...own_posts]
+		timeline_version++
+	},
+	/** Start over from the first page, for posts that arrived since it was loaded. */
+	reload() {
 		timeline_version++
 	},
 }

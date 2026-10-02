@@ -1,10 +1,16 @@
 import { error } from '@sveltejs/kit'
-import { env } from 'cloudflare:workers'
+import { env, waitUntil } from 'cloudflare:workers'
+import { BETTER_AUTH_SECRET } from '$app/env/private'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { is_message_file_url, is_own_message_upload, media_key } from '#lib/server/media'
+import type { Nudge } from '#lib/server/chat-room'
+import { mark_delivered_live, nudge } from '#lib/server/live'
+import { sign_ticket } from '#lib/server/live-ticket'
 import * as messages from '#lib/server/messages'
+import { push_direct_message } from '#lib/server/push'
+import { limit } from '#lib/server/rate-limit'
 import { member, signed_in } from '#lib/server/session'
 import { visible_text } from '#lib/profiles/form/profile'
 import { conversations_arg, messages_arg } from './args'
@@ -22,8 +28,9 @@ const me = signed_in
 /** Sending and reacting: a finished profile, at a chat's pace. */
 const chatter = () => member('MESSAGE_LIMIT')
 
-export const get_conversations = query(v.object({ cursor: Cursor }), ({ cursor }) => {
+export const get_conversations = query(v.object({ cursor: Cursor }), async ({ cursor }) => {
 	const { db, user_id } = me()
+	if (!cursor) await delivered(db, user_id)
 	return messages.conversations_page(db, user_id, cursor)
 })
 
@@ -41,8 +48,9 @@ export const get_messages = query(v.object({ id: Id, cursor: Cursor }), async ({
 	return page
 })
 
-export const get_unread_messages = query(() => {
+export const get_unread_messages = query(async () => {
 	const { db, user_id } = me()
+	await delivered(db, user_id)
 	return messages.unread_count(db, user_id)
 })
 
@@ -91,6 +99,16 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 	}
 	const sent = await messages.send_message(db, user_id, id, input)
 	if (sent === 'not_found') error(404, 'Conversation not found.')
+	if (sent === 'blocked') error(403, 'blocked')
+	waitUntil(live(id, { kind: 'refresh' }))
+	waitUntil(
+		push_direct_message(db, {
+			conversation_id: id,
+			sender_id: user_id,
+			body: input.body,
+			photo: !!input.media,
+		}).catch((error) => console.error('Push failed', error)),
+	)
 	await Promise.all([
 		get_messages(messages_arg(id)).refresh(),
 		get_conversations(conversations_arg()).refresh(),
@@ -101,6 +119,7 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 export const mark_conversation_read = command(Id, async (id) => {
 	const { db, user_id } = me()
 	await messages.mark_read(db, user_id, id)
+	waitUntil(live(id, { kind: 'refresh' }))
 	await Promise.all([
 		get_unread_messages().refresh(),
 		get_conversations(conversations_arg()).refresh(),
@@ -140,8 +159,24 @@ export const leave_conversation = command(Id, async (id) => {
 	const { db, user_id } = await member()
 	const left = await messages.leave_conversation(db, user_id, id)
 	if (!left) error(404, 'Conversation not found.')
+	waitUntil(live(id, { kind: 'kick', user_id }))
 	await Promise.all([
 		get_conversations(conversations_arg()).refresh(),
 		get_unread_messages().refresh(),
 	])
 })
+
+export const live_ticket = command(Id, async (id) => {
+	const { db, user_id } = me()
+	await limit('LOOKUP_LIMIT', user_id)
+	if (!(await messages.is_member(db, user_id, id))) error(404, 'Conversation not found.')
+	return sign_ticket(BETTER_AUTH_SECRET, user_id, id)
+})
+
+const live = (id: string, message: Nudge) =>
+	nudge(chat(), id, message).catch((error) => console.error('Live update failed', error))
+
+const delivered = (db: Parameters<typeof messages.mark_delivered>[0], user_id: string) =>
+	mark_delivered_live(chat(), () => messages.mark_delivered(db, user_id))
+
+const chat = () => (import.meta.env.DEV ? undefined : env.CHAT)

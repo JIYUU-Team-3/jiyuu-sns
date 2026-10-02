@@ -8,6 +8,7 @@
 	import { toast } from '#lib/ui/toasts.svelte'
 	import CharCounter from './CharCounter.svelte'
 	import Attachments from './composer/Attachments.svelte'
+	import AudiencePicker from './composer/AudiencePicker.svelte'
 	import type { Draft } from './composer/draft.svelte'
 	import Editor from './composer/Editor.svelte'
 	import MediaTray from './composer/MediaTray.svelte'
@@ -52,6 +53,7 @@
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
 	const attachments = $derived(!editing)
+	const audience = $derived(!editing && !reply_to)
 
 	const editors: Editor[] = []
 	let busy = $state(false)
@@ -79,9 +81,10 @@
 
 	async function publish() {
 		const thread_post = many
+		const reply_audience = audience ? thread.audience : undefined
 		const post = thread_post
-			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id })
-			: await create_post({ ...draft.payload(), reply_to: reply_to?.id })
+			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id, reply_audience })
+			: await create_post({ ...draft.payload(), reply_to: reply_to?.id, reply_audience })
 		thread.clear()
 		if (!reply_to) timeline.published(post)
 		const message = reply_to
@@ -230,6 +233,9 @@
 					{/if}
 				</div>
 			{/each}
+			{#if audience}
+				<div class="audience"><AudiencePicker bind:value={thread.audience} /></div>
+			{/if}
 			{#if editing}
 				<div class="editing-note"><Icon name="pencil" size="xs" />{m.composer_editing_note()}</div>
 			{/if}
@@ -263,6 +269,9 @@
 		{/if}
 		<div class="col">
 			{@render editor_field(draft, 0)}
+			{#if variant === 'inline' && audience && draft.dirty}
+				<div class="audience inline-audience"><AudiencePicker bind:value={thread.audience} /></div>
+			{/if}
 			{#if variant === 'inline' || variant === 'reply'}
 				<div class="row-end">
 					<Tools {draft} />
@@ -366,6 +375,12 @@
 	.add-thread:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+	.audience {
+		padding: 8px 0 0 52px;
+	}
+	.inline-audience {
+		padding: 4px 0 0;
 	}
 	.editing-note {
 		display: flex;

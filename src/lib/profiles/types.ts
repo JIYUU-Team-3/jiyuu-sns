@@ -13,6 +13,11 @@ export type ProfileView = Author & {
 	following: number
 	followed: boolean
 	follows_you: boolean
+	private: boolean
+	requested: boolean
+	blocked: boolean
+	blocks_you: boolean
+	muted: boolean
 	/** Whether this is the viewer's own profile. */
 	mine: boolean
 }

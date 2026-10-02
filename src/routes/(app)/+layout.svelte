@@ -40,20 +40,33 @@
 	// New notifications arrive while the tab is open; check once a minute when it's visible.
 	// With push on, the service worker also says the moment one arrives.
 	onMount(() => {
-		const refresh = () => get_unread_count().refresh()
+		const refresh = () => {
+			get_unread_count()
+				.refresh()
+				.catch(() => {})
+		}
+		const refresh_unread_dms = () => {
+			get_unread_messages()
+				.refresh()
+				.catch(() => {})
+		}
 		const timer = setInterval(() => {
 			if (document.visibilityState === 'visible') refresh()
 		}, 60_000)
-		const dm_timer = setInterval(() => {
-			if (document.visibilityState === 'visible') get_unread_messages().refresh()
-		}, 30_000)
+		const refresh_dms = () => {
+			if (document.visibilityState === 'visible') refresh_unread_dms()
+		}
+		const dm_timer = setInterval(refresh_dms, 10_000)
+		document.addEventListener('visibilitychange', refresh_dms)
 		const onmessage = (event: MessageEvent) => {
 			if (event.data?.type === 'notification') refresh()
+			if (event.data?.type === 'message') refresh_unread_dms()
 		}
 		navigator.serviceWorker?.addEventListener('message', onmessage)
 		return () => {
 			clearInterval(timer)
 			clearInterval(dm_timer)
+			document.removeEventListener('visibilitychange', refresh_dms)
 			navigator.serviceWorker?.removeEventListener('message', onmessage)
 		}
 	})

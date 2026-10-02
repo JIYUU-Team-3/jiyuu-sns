@@ -89,3 +89,5 @@ export function is_own_message_upload(url: string, user_id: string) {
 }
 
 export const is_message_key = (key: string) => key.startsWith('messages/')
+
+export const is_post_key = (key: string) => key.startsWith('posts/')

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ba24221c-31fd-437c-9006-6b9e2a94f622",
+  "id": "2d48ff39-acb6-47fa-a0af-2e5831b5821a",
   "prevId": "d0c83e67-4c89-4fb1-a7bd-2d8595e01bcf",
   "tables": {
     "conversation": {
@@ -106,6 +106,13 @@
         },
         "last_read_at": {
           "name": "last_read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivered_at": {
+          "name": "last_delivered_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -306,20 +313,6 @@
         },
         "media_height": {
           "name": "media_height",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "media_name": {
-          "name": "media_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "media_size": {
-          "name": "media_size",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

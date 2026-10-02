@@ -32,11 +32,11 @@
 		height: 52px;
 		color: var(--text-2);
 		font-weight: 500;
-		transition: background-color 0.15s;
+		transition: color 0.15s;
 		position: relative;
 	}
 	.tab:hover {
-		background: var(--bg-2);
+		color: var(--text);
 	}
 	.tab[aria-selected='true'] {
 		color: var(--text);

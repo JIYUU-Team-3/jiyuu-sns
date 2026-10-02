@@ -1,9 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte'
 	import type { RemoteQuery } from '$app/server'
-	import { m } from '#lib/paraglide/messages.js'
 	import PostCard from './PostCard.svelte'
-	import { deleted_posts } from './state.svelte'
+	import { deleted_posts, hidden_authors } from './state.svelte'
 	import type { PostPage, PostView } from './types'
 
 	let {
@@ -26,8 +25,26 @@
 
 	const page = $derived(await query)
 	const posts = $derived(
-		page.posts.filter((post: PostView) => !deleted_posts.has(post.id) && !hide?.has(post.id)),
+		page.posts.filter(
+			(post: PostView) =>
+				!deleted_posts.has(post.id) && !hide?.has(post.id) && !hidden_authors.has(post.author.id),
+		),
 	)
+
+	/** How far below the screen the next page starts loading, so it's there before the reader is. */
+	const AHEAD = '800px'
+
+	/** Attachment for the end of the list: asks for the next page as the reader nears it. */
+	const load_next = (cursor: string) => (end: HTMLElement) => {
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) onmore(cursor)
+			},
+			{ rootMargin: `0px 0px ${AHEAD}` },
+		)
+		observer.observe(end)
+		return () => observer.disconnect()
+	}
 </script>
 
 {#each posts as post (post.id)}
@@ -39,21 +56,11 @@
 {/if}
 
 {#if last && page.next}
-	{@const next = page.next}
-	<button type="button" class="more" onclick={() => onmore(next)}>{m.feed_load_more()}</button>
+	<div class="end" {@attach load_next(page.next)}></div>
 {/if}
 
 <style>
-	.more {
-		display: block;
-		width: 100%;
-		padding: 16px;
-		color: var(--accent-text);
-		text-align: center;
-		border-bottom: 1px solid var(--line);
-		transition: background-color 0.15s;
-	}
-	.more:hover {
-		background: var(--bg-2);
+	.end {
+		height: 1px;
 	}
 </style>

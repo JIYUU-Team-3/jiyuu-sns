@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
+import { REPLY_AUDIENCES, type ReplyAudience } from '#lib/safety/rules'
 import { delete_media } from '#lib/server/media'
 import { checked_post_media } from '#lib/server/post-attachments'
 import { POST_UPLOAD_MAX_BYTES } from '#lib/media'
@@ -70,14 +71,17 @@ const PostInput = v.pipe(
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
+const Audience = v.optional(v.picklist(REPLY_AUDIENCES), 'everyone')
+
 const NewPost = v.pipe(
-	v.object({ ...PostFields, reply_to: v.optional(Id) }),
+	v.object({ ...PostFields, reply_to: v.optional(Id), reply_audience: Audience }),
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
 const NewThread = v.object({
 	posts: v.pipe(v.array(PostInput), v.minLength(2), v.maxLength(THREAD_MAX)),
 	reply_to: v.optional(Id),
+	reply_audience: Audience,
 })
 
 /** Posts are for signed-in people only, so reading them needs a session too. */
@@ -89,6 +93,15 @@ const author = member
 export const get_feed = query(
 	v.object({ tab: v.picklist(['for_you', 'following']), cursor: Cursor }),
 	({ tab, cursor }) => posts.feed_page(getRequestEvent().locals.db, viewer(), tab, cursor),
+)
+
+/** Who has posted to the viewer's timeline since they loaded it at `since`. */
+export const get_new_posts = query(
+	v.object({
+		tab: v.picklist(['for_you', 'following']),
+		since: v.pipe(v.number(), v.integer(), v.minValue(0)),
+	}),
+	({ tab, since }) => posts.new_post_authors(getRequestEvent().locals.db, viewer(), tab, since),
 )
 
 export const get_post = query(Id, async (id) => {
@@ -123,11 +136,16 @@ async function prepare({ poll, location, ...rest }: PostPayload, user_id: string
 	}
 }
 
-async function publish(inputs: PostPayload[], reply_to: string | undefined) {
+async function publish(
+	inputs: PostPayload[],
+	reply_to: string | undefined,
+	audience: ReplyAudience,
+) {
 	const { db, user_id } = await author()
 	const prepared = await Promise.all(inputs.map((input) => prepare(input, user_id)))
-	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
+	const ids = await posts.insert_thread(db, user_id, prepared, reply_to, audience)
 	if (!ids) error(404, 'The post you replied to was deleted.')
+	if (ids === 'closed') error(403, 'replies_closed')
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -148,10 +166,12 @@ async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	return post
 }
 
-export const create_post = command(NewPost, ({ reply_to, ...input }) => publish([input], reply_to))
+export const create_post = command(NewPost, ({ reply_to, reply_audience, ...input }) =>
+	publish([input], reply_to, reply_audience),
+)
 
-export const create_thread = command(NewThread, ({ posts: inputs, reply_to }) =>
-	publish(inputs, reply_to),
+export const create_thread = command(NewThread, ({ posts: inputs, reply_to, reply_audience }) =>
+	publish(inputs, reply_to, reply_audience),
 )
 
 /**

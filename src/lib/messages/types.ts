@@ -27,8 +27,13 @@ export type MessageView = {
 
 export type OutgoingMessage = { body: string; media?: MessageMedia }
 
+export type Receipt = { user_id: string; read_at?: number; delivered_at?: number }
+
+export type ReceiptStatus = { status: 'sent' | 'delivered' | 'seen'; seen_by: string[] }
+
 export type MessagePage = {
 	items: MessageView[]
+	receipts: Receipt[]
 	next?: string
 }
 

@@ -2,6 +2,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { feed_arg } from '#lib/posts/args'
 	import Composer from '#lib/posts/Composer.svelte'
+	import NewPostsPill from '#lib/posts/NewPostsPill.svelte'
 	import PostCard from '#lib/posts/PostCard.svelte'
 	import PostList from '#lib/posts/PostList.svelte'
 	import { get_feed } from '#lib/posts/posts.remote'
@@ -24,7 +25,7 @@
 	const fresh = $derived(timeline.fresh.filter((post) => !deleted_posts.has(post.id)))
 	const fresh_ids = $derived(new Set(fresh.map((post) => post.id)))
 
-	// A new post reloads the timeline from the top, where it's pinned.
+	// A new post reloads the timeline from the top, where it's pinned; so does the "posted" pill.
 	$effect(() => {
 		if (timeline.version) scrollTo({ top: 0, behavior: 'smooth' })
 	})
@@ -34,6 +35,7 @@
 
 <PageBar title={m.app_home()}>
 	<Tabs tabs={TABS} bind:value={tab} />
+	<NewPostsPill {tab} />
 </PageBar>
 
 <Composer task={{ kind: 'new' }} me={data.me} variant="inline" />

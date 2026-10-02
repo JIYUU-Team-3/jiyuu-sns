@@ -1,9 +1,84 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "25f44016-84a0-4e73-a0de-12a67dc06f9f",
-  "prevId": "ba24221c-31fd-437c-9006-6b9e2a94f622",
+  "id": "feab8854-7fb2-44dc-a07c-e70a3dacf2b1",
+  "prevId": "2d48ff39-acb6-47fa-a0af-2e5831b5821a",
   "tables": {
+    "block": {
+      "name": "block",
+      "columns": {
+        "blocker_id": {
+          "name": "blocker_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "blocked_id": {
+          "name": "blocked_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {
+        "block_blocked_idx": {
+          "name": "block_blocked_idx",
+          "columns": [
+            "blocked_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "block_blocker_id_user_id_fk": {
+          "name": "block_blocker_id_user_id_fk",
+          "tableFrom": "block",
+          "tableTo": "user",
+          "columnsFrom": [
+            "blocker_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "block_blocked_id_user_id_fk": {
+          "name": "block_blocked_id_user_id_fk",
+          "tableFrom": "block",
+          "tableTo": "user",
+          "columnsFrom": [
+            "blocked_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "block_blocker_id_blocked_id_pk": {
+          "columns": [
+            "blocker_id",
+            "blocked_id"
+          ],
+          "name": "block_blocker_id_blocked_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "conversation": {
       "name": "conversation",
       "columns": {
@@ -106,6 +181,13 @@
         },
         "last_read_at": {
           "name": "last_read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivered_at": {
+          "name": "last_delivered_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -244,6 +326,82 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "follow_request": {
+      "name": "follow_request",
+      "columns": {
+        "requester_id": {
+          "name": "requester_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {
+        "follow_request_target_idx": {
+          "name": "follow_request_target_idx",
+          "columns": [
+            "target_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "follow_request_requester_id_user_id_fk": {
+          "name": "follow_request_requester_id_user_id_fk",
+          "tableFrom": "follow_request",
+          "tableTo": "user",
+          "columnsFrom": [
+            "requester_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "follow_request_target_id_user_id_fk": {
+          "name": "follow_request_target_id_user_id_fk",
+          "tableFrom": "follow_request",
+          "tableTo": "user",
+          "columnsFrom": [
+            "target_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "follow_request_requester_id_target_id_pk": {
+          "columns": [
+            "requester_id",
+            "target_id"
+          ],
+          "name": "follow_request_requester_id_target_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "message": {
       "name": "message",
       "columns": {
@@ -306,20 +464,6 @@
         },
         "media_height": {
           "name": "media_height",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "media_name": {
-          "name": "media_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "media_size": {
-          "name": "media_size",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -465,6 +609,127 @@
             "user_id"
           ],
           "name": "message_reaction_message_id_user_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "mute": {
+      "name": "mute",
+      "columns": {
+        "muter_id": {
+          "name": "muter_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "muted_id": {
+          "name": "muted_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mute_muter_id_user_id_fk": {
+          "name": "mute_muter_id_user_id_fk",
+          "tableFrom": "mute",
+          "tableTo": "user",
+          "columnsFrom": [
+            "muter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mute_muted_id_user_id_fk": {
+          "name": "mute_muted_id_user_id_fk",
+          "tableFrom": "mute",
+          "tableTo": "user",
+          "columnsFrom": [
+            "muted_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mute_muter_id_muted_id_pk": {
+          "columns": [
+            "muter_id",
+            "muted_id"
+          ],
+          "name": "mute_muter_id_muted_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "muted_term": {
+      "name": "muted_term",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "term": {
+          "name": "term",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "muted_term_user_id_user_id_fk": {
+          "name": "muted_term_user_id_user_id_fk",
+          "tableFrom": "muted_term",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "muted_term_user_id_term_pk": {
+          "columns": [
+            "user_id",
+            "term"
+          ],
+          "name": "muted_term_user_id_term_pk"
         }
       },
       "uniqueConstraints": {},
@@ -799,6 +1064,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "reply_audience": {
+          "name": "reply_audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'everyone'"
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -999,20 +1272,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "size": {
-          "name": "size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {},
@@ -1151,6 +1410,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "is_private": {
+          "name": "is_private",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1256,6 +1523,123 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "report": {
+      "name": "report",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reporter_id": {
+          "name": "reporter_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {
+        "report_reporter_idx": {
+          "name": "report_reporter_idx",
+          "columns": [
+            "reporter_id",
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "report_created_idx": {
+          "name": "report_created_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "report_reporter_id_user_id_fk": {
+          "name": "report_reporter_id_user_id_fk",
+          "tableFrom": "report",
+          "tableTo": "user",
+          "columnsFrom": [
+            "reporter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "report_user_id_user_id_fk": {
+          "name": "report_user_id_user_id_fk",
+          "tableFrom": "report",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "report_post_id_post_id_fk": {
+          "name": "report_post_id_post_id_fk",
+          "tableFrom": "report",
+          "tableTo": "post",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

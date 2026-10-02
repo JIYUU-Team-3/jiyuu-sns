@@ -17,6 +17,7 @@
 		first,
 		last,
 		pending = false,
+		receipt,
 		onreply,
 		onreact,
 		onjump,
@@ -27,6 +28,7 @@
 		first: boolean
 		last: boolean
 		pending?: boolean
+		receipt?: string
 		onreply: () => void
 		onreact: (emoji: string) => void
 		onjump: (id: string) => void
@@ -141,6 +143,7 @@
 		{#if last}
 			<div class="time">
 				{pending ? m.dm_sending() : format_clock(message.created_at, getLocale())}
+				{#if receipt}· {receipt}{/if}
 			</div>
 		{/if}
 	</div>
