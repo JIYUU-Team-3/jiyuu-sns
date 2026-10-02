@@ -37,11 +37,14 @@ export const GET: RequestHandler = async ({ locals, params, request }) => {
 	const object = await get_object(params.key, request.headers)
 	if (!object) error(404, 'Not found.')
 
-	const range = byte_range(object)
+	const range = request.headers.has('range') ? byte_range(object) : undefined
 	return new Response(object.body, {
 		status: range ? 206 : 200,
 		headers: {
 			'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+			...(object.httpMetadata?.contentDisposition && {
+				'content-disposition': object.httpMetadata.contentDisposition,
+			}),
 			'content-length': String(range ? range.end - range.start + 1 : object.size),
 			...(range && { 'content-range': `bytes ${range.start}-${range.end}/${object.size}` }),
 			'accept-ranges': 'bytes',

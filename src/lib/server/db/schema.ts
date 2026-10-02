@@ -63,7 +63,7 @@ export const post = sqliteTable(
 	],
 )
 
-/** Photos, GIFs and videos on a post, in the order the author picked them. */
+/** Attachments on a post, in the order the author picked them. */
 export const postMedia = sqliteTable(
 	'post_media',
 	{
@@ -72,12 +72,14 @@ export const postMedia = sqliteTable(
 			.references(() => post.id, { onDelete: 'cascade' }),
 		position: integer('position').notNull(),
 		/** `image` and `video` are uploads in R2; `gif` is a GIF from the picker's CDN. */
-		kind: text('kind', { enum: ['image', 'gif', 'video'] }).notNull(),
+		kind: text('kind', { enum: ['image', 'gif', 'video', 'file'] }).notNull(),
 		url: text('url').notNull(),
 		width: integer('width').notNull(),
 		height: integer('height').notNull(),
 		/** The author's description for screen readers; null when they didn't write one. */
 		alt: text('alt'),
+		name: text('name'),
+		size: integer('size'),
 	},
 	(table) => [primaryKey({ columns: [table.postId, table.position] })],
 )
@@ -348,10 +350,12 @@ export const message = sqliteTable(
 		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
 			onDelete: 'set null',
 		}),
-		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
+		mediaKind: text('media_kind', { enum: ['image', 'gif', 'file'] }),
 		mediaUrl: text('media_url'),
 		mediaWidth: integer('media_width'),
 		mediaHeight: integer('media_height'),
+		mediaName: text('media_name'),
+		mediaSize: integer('media_size'),
 		createdAt: created_at(),
 	},
 	(table) => [

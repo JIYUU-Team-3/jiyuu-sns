@@ -56,7 +56,7 @@ describe('sniff_post_upload', () => {
 	it('tells photos from videos by their bytes', async () => {
 		expect(await sniff_post_upload(file(PNG, 'video/mp4'))).toBe('image')
 		expect(await sniff_post_upload(file([...ftyp('isom')], 'image/png'))).toBe('video')
-		expect(await sniff_post_upload(file(ascii('<svg>')))).toBeUndefined()
+		expect(await sniff_post_upload(file(ascii('<svg>')))).toBe('file')
 	})
 })
 

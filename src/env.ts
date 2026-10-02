@@ -21,6 +21,11 @@ export const variables = defineEnvVars({
 			'Set to `1` only for the e2e server (`.env.e2e`): turns on email and password accounts, which the tests sign up with. Leave empty everywhere else; people sign in with Google.',
 		schema: (value) => value || undefined,
 	},
+	DEV_AUTH_BYPASS: {
+		description:
+			'Set to `1` to use a local developer account without Google. Only works on the Vite dev server over loopback HTTP; never on a production build.',
+		schema: (value) => value === '1',
+	},
 	VAPID_PUBLIC_KEY: {
 		public: true,
 		description:

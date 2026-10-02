@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
+	import { onDestroy, onMount } from 'svelte'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
@@ -14,6 +14,7 @@
 	import MediaTray from './composer/MediaTray.svelte'
 	import { Thread } from './composer/thread.svelte'
 	import Tools from './composer/Tools.svelte'
+	import { pick_files } from './composer/pick'
 	import { format_age } from './format'
 	import { post_href } from './links'
 	import { create_post, create_thread, edit_post } from './posts.remote'
@@ -51,8 +52,7 @@
 	const many = $derived(thread.posts.length > 1)
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
-	// The reply box under a post stays a quick text reply.
-	const attachments = $derived(!editing && variant !== 'reply')
+	const attachments = $derived(!editing)
 	const audience = $derived(!editing && !reply_to)
 
 	const editors: Editor[] = []
@@ -134,7 +134,15 @@
 		}
 	}
 
+	function onpaste(event: ClipboardEvent, post: Draft) {
+		const files = [...(event.clipboardData?.files ?? [])]
+		if (!attachments || !files.length) return
+		event.preventDefault()
+		void pick_files(post, files)
+	}
+
 	onMount(() => (hydrated = true))
+	onDestroy(() => thread.discard())
 </script>
 
 {#snippet editor_field(post: Draft, i: number)}
@@ -146,6 +154,7 @@
 		autofocus={variant === 'modal' && i === thread.focus}
 		self={me.id}
 		{onkeydown}
+		onpaste={(event) => onpaste(event, post)}
 	/>
 	{#if attachments}
 		<Attachments draft={post} oninsert={(text) => editors[i].insert(text)} />
@@ -263,7 +272,7 @@
 			{#if variant === 'inline' && audience && draft.dirty}
 				<div class="audience inline-audience"><AudiencePicker bind:value={thread.audience} /></div>
 			{/if}
-			{#if variant === 'inline'}
+			{#if variant === 'inline' || variant === 'reply'}
 				<div class="row-end">
 					<Tools {draft} />
 					<span class="grow"></span>
@@ -272,10 +281,6 @@
 				</div>
 			{/if}
 		</div>
-		{#if variant === 'reply'}
-			{#if draft.text}<CharCounter {length} />{/if}
-			{@render submit_button()}
-		{/if}
 	{/if}
 </form>
 

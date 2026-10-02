@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { flip } from 'svelte/animate'
 	import { m } from '#lib/paraglide/messages.js'
+	import { file_size } from '#lib/files'
 	import Icon from '#lib/ui/Icon.svelte'
 	import AltEditor from './AltEditor.svelte'
 	import { croppable, type Draft, type DraftMedia } from './draft.svelte'
@@ -41,7 +42,12 @@
 				onpointercancel={() => sortable.end()}
 				onkeydown={(event) => sortable.key(event, i)}
 			>
-				{#if item.kind === 'video'}
+				{#if item.kind === 'file'}
+					<div class="file-preview">
+						<Icon name="plus" />
+						<strong>{item.name}</strong><span>{file_size(item.size ?? 0)}</span>
+					</div>
+				{:else if item.kind === 'video'}
 					<!-- The first frame as a still; it plays once posted. -->
 					{#if item.preview}
 						<video src={item.preview} muted playsinline preload="metadata"></video>
@@ -68,7 +74,7 @@
 						<Icon name="crop" size="sm" />
 					</button>
 				{/if}
-				{#if item.state !== 'failed'}
+				{#if item.kind !== 'file' && item.state !== 'failed'}
 					{@const described = !!item.alt.trim()}
 					<button
 						type="button"
@@ -123,6 +129,26 @@
 {/if}
 
 <style>
+	.file-preview {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 6px;
+		height: 100%;
+		padding: 32px 12px 12px;
+		font-size: 13px;
+		overflow-wrap: anywhere;
+	}
+	.file-preview strong {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	.file-preview span {
+		color: var(--text-2);
+	}
 	.tray {
 		/* The tiles' offsets are measured from here while dragging. */
 		position: relative;

@@ -1,4 +1,4 @@
-export async function upload_message_photo(file: File): Promise<string> {
+export async function upload_message_file(file: File): Promise<string> {
 	const body = new FormData()
 	body.set('file', file)
 	const response = await fetch('/media/messages', { method: 'POST', body })
