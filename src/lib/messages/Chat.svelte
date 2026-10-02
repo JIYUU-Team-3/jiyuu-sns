@@ -126,7 +126,9 @@
 	function onlive(event: LiveEvent) {
 		if (event.type === 'refresh') {
 			last_poll = Date.now()
-			get_messages(messages_arg(id)).refresh()
+			get_messages(messages_arg(id))
+				.refresh()
+				.catch(() => {})
 			return
 		}
 		stop_typing(event.user_id)
@@ -164,7 +166,9 @@
 			if (document.visibilityState !== 'visible') return
 			if (live?.open && Date.now() - last_poll < LIVE_POLL) return
 			last_poll = Date.now()
-			get_messages(messages_arg(id)).refresh()
+			get_messages(messages_arg(id))
+				.refresh()
+				.catch(() => {})
 		}, 4_000)
 		return () => clearInterval(timer)
 	})

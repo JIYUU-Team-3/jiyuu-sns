@@ -13,7 +13,7 @@ export function connect_live(id: string, onevent: (event: LiveEvent) => void) {
 	const retry = () => {
 		socket = undefined
 		if (closed) return
-		timer = setTimeout(open, Math.min(RETRY_MAX, 1_000 * 2 ** attempt++))
+		timer = setTimeout(() => void open(), Math.min(RETRY_MAX, 1_000 * 2 ** attempt++))
 	}
 
 	async function open() {
@@ -43,7 +43,7 @@ export function connect_live(id: string, onevent: (event: LiveEvent) => void) {
 		}
 	}
 
-	open()
+	void open()
 
 	return {
 		get open() {

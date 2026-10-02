@@ -124,7 +124,7 @@
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
 		event.preventDefault()
-		submit()
+		void submit()
 	}
 </script>
 
