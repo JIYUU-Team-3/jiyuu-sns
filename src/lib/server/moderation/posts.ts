@@ -181,10 +181,6 @@ export async function moderate_post(
 			: []),
 	])
 
-	if (input.action === 'remove' || input.action === 'limit' || input.action === 'restore') {
-		await tell_author(db, target.author_id, input.moderator_id, action_id, input.post_id)
-	}
-
 	let suspended: 'suspend' | 'ban' | undefined
 	if (strike && input.reason) {
 		const counts = await strike_counts(db, target.author_id)
@@ -199,6 +195,11 @@ export async function moderate_post(
 			})
 			suspended = outcome.kind
 		}
+	}
+	// After the strike's outcome: the notice is news, and must not stand between a strike and
+	// the suspension it calls for.
+	if (input.action === 'remove' || input.action === 'limit' || input.action === 'restore') {
+		await tell_author(db, target.author_id, input.moderator_id, action_id, input.post_id)
 	}
 	return { action_id, suspended }
 }

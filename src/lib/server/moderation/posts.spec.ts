@@ -171,6 +171,17 @@ describe('strikes', () => {
 		expect((await find_standing(db, 'alice')).suspension?.until).toBeNull()
 	})
 
+	it('still suspend when telling the author fails', async () => {
+		const insert = db.insert.bind(db)
+		vi.spyOn(db, 'insert').mockImplementation(((table: Parameters<typeof insert>[0]) => {
+			if (table === notification) throw new Error('notification failed')
+			return insert(table)
+		}) as typeof db.insert)
+		await expect(remove({ reason: 'threat' })).rejects.toThrow('notification failed')
+		vi.restoreAllMocks()
+		expect((await find_standing(db, 'alice')).suspension?.until).toBeNull()
+	})
+
 	it('go when the post is restored', async () => {
 		await remove()
 		await moderate_post(db, { moderator_id: 'mod', post_id: 'p1', action: 'restore' })
