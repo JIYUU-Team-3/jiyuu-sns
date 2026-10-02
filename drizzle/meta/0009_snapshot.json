@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "afcdb3be-222f-4c9c-8bf0-bd00bf25513f",
-  "prevId": "033c01f6-09dc-4634-af29-e5125f5344d5",
+  "id": "033c01f6-09dc-4634-af29-e5125f5344d5",
+  "prevId": "2d48ff39-acb6-47fa-a0af-2e5831b5821a",
   "tables": {
     "account_standing": {
       "name": "account_standing",
@@ -305,6 +305,13 @@
         },
         "last_read_at": {
           "name": "last_read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivered_at": {
+          "name": "last_delivered_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -985,13 +992,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "action_id": {
-          "name": "action_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "read_at": {
           "name": "read_at",
           "type": "integer",
@@ -1051,19 +1051,6 @@
           "tableTo": "post",
           "columnsFrom": [
             "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "notification_action_id_moderation_action_id_fk": {
-          "name": "notification_action_id_moderation_action_id_fk",
-          "tableFrom": "notification",
-          "tableTo": "moderation_action",
-          "columnsFrom": [
-            "action_id"
           ],
           "columnsTo": [
             "id"
@@ -1306,29 +1293,6 @@
         },
         "edited_at": {
           "name": "edited_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "moderation": {
-          "name": "moderation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'visible'"
-        },
-        "sensitive": {
-          "name": "sensitive",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "removed_at": {
-          "name": "removed_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

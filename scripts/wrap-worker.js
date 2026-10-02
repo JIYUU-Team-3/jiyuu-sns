@@ -1,8 +1,9 @@
 /**
- * Give the built Worker a `scheduled` handler for the hourly Cron Trigger in wrangler.jsonc. The
- * Cloudflare adapter writes only `fetch` to `main` and has no hook for more, so after `vite build`
- * this moves its worker beside the server bundle, out of the public assets folder, and writes an
- * entry in its place that adds the cron. Run by `pnpm build`; running it twice changes nothing.
+ * Give the built Worker what the Cloudflare adapter can't: live chat sockets with their `ChatRoom`
+ * Durable Object, and a `scheduled` handler for the hourly Cron Trigger in wrangler.jsonc. The
+ * adapter writes only `fetch` to `main` and has no hook for more, so after `vite build` this moves
+ * its worker beside the server bundle, out of the public assets folder, and writes an entry in its
+ * place that adds them. Run by `pnpm build`; running it twice changes nothing.
  *
  * The scheduled run calls the app's `/internal/hourly` route in-process, with a token made fresh
  * for the run, so the job runs the app's own code and no request from outside can start it.
@@ -26,11 +27,17 @@ writeFileSync(
 	ENTRY,
 	`${MARKER}
 import app from './../cloudflare-tmp/app.js'
+import { LIVE_PREFIX, open_live } from './../../src/lib/server/live.ts'
+
+export { ChatRoom } from './../../src/lib/server/chat-room.ts'
 
 const CRON_TOKEN = Symbol.for('jiyuu.cron-token')
 
 export default {
-	fetch: app.fetch,
+	fetch(request, env, ctx) {
+		if (new URL(request.url).pathname.startsWith(LIVE_PREFIX)) return open_live(request, env)
+		return app.fetch(request, env, ctx)
+	},
 
 	async scheduled(_controller, env, ctx) {
 		const token = crypto.randomUUID()

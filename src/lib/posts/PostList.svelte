@@ -20,7 +20,7 @@
 		empty?: Snippet
 	} = $props()
 
-	/** One entry per page the reader has asked for ("Show more posts" appends the next cursor). */
+	/** One entry per page the reader has reached (nearing the end appends the next cursor). */
 	let cursors = $state<(string | undefined)[]>([undefined])
 </script>
 
@@ -52,7 +52,7 @@
 
 	<!--
 		The first page has no pending state, so the server renders real posts. Later pages load on
-		their own behind a skeleton, so "Show more" never blanks what is already on screen.
+		their own behind a skeleton, so scrolling on never blanks what is already on screen.
 	-->
 	<svelte:boundary {failed} pending={i === 0 ? undefined : skeleton}>
 		<PostPage
@@ -62,7 +62,10 @@
 			{show_replying}
 			{hide}
 			{empty}
-			onmore={(next) => cursors.push(next)}
+			onmore={(next) => {
+				// The end of the list can come into view twice before the next page takes its place.
+				if (!cursors.includes(next)) cursors.push(next)
+			}}
 		/>
 	</svelte:boundary>
 {/each}

@@ -260,6 +260,7 @@ export const conversationMember = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		lastReadAt: integer('last_read_at', { mode: 'timestamp_ms' }),
+		lastDeliveredAt: integer('last_delivered_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
 	},
 	(table) => [

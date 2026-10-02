@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1ec3b0eb-afba-4d06-b865-8717aafb1b17",
-  "prevId": "720695dd-2ff3-4b36-ac29-451ae43652a2",
+  "id": "04d95c5b-f4ff-4460-b704-83681641e8f4",
+  "prevId": "1ec3b0eb-afba-4d06-b865-8717aafb1b17",
   "tables": {
     "account_standing": {
       "name": "account_standing",
@@ -617,6 +617,73 @@
           "name": "follow_follower_id_following_id_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "media_check": {
+      "name": "media_check",
+      "columns": {
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nudity": {
+          "name": "nudity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "violence": {
+          "name": "violence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gore": {
+          "name": "gore",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "media_check_user_id_user_id_fk": {
+          "name": "media_check_user_id_user_id_fk",
+          "tableFrom": "media_check",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

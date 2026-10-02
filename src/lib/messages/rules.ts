@@ -1,5 +1,5 @@
 import { post_length } from '#lib/posts/rules'
-import type { Reaction } from './types'
+import type { Reaction, Receipt, ReceiptStatus } from './types'
 
 export const MESSAGE_MAX = 1000
 
@@ -55,4 +55,17 @@ export function toggle_reaction(list: Reaction[], emoji: string): Reaction[] {
 			reaction.emoji === emoji ? { ...reaction, count: reaction.count + 1, mine: true } : reaction,
 		)
 	return [...rest, { emoji, count: 1, mine: true }]
+}
+
+export function receipt_status(sent_at: number, receipts: Receipt[]): ReceiptStatus {
+	const seen_by = receipts
+		.filter((receipt) => (receipt.read_at ?? 0) >= sent_at)
+		.map((receipt) => receipt.user_id)
+	if (seen_by.length) return { status: 'seen', seen_by }
+	const delivered =
+		receipts.length > 0 &&
+		receipts.every(
+			(receipt) => Math.max(receipt.delivered_at ?? 0, receipt.read_at ?? 0) >= sent_at,
+		)
+	return { status: delivered ? 'delivered' : 'sent', seen_by }
 }

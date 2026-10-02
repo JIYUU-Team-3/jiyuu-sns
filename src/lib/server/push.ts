@@ -1,11 +1,18 @@
-import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm'
 import { VAPID_PRIVATE_KEY, VAPID_SUBJECT } from '$app/env/private'
 import { VAPID_PUBLIC_KEY } from '$app/env/public'
 import type { NotificationType } from '#lib/notifications/types'
 import { m } from '#lib/paraglide/messages.js'
 import { isLocale, localizeHref, type Locale } from '#lib/paraglide/runtime'
 import type { getDb } from './db'
-import { post, profile, pushSubscription, user } from './db/schema'
+import {
+	conversation,
+	conversationMember,
+	post,
+	profile,
+	pushSubscription,
+	user,
+} from './db/schema'
 import { send_push, type PushTarget, type VapidKeys } from './web-push'
 
 type Db = ReturnType<typeof getDb>
@@ -78,6 +85,7 @@ export type PushMessage = {
 	url: string
 	/** Notifications with the same tag replace each other, e.g. likes on one post. */
 	tag: string
+	delivered?: boolean
 }
 
 /** Moderation notices are written straight to the list and never pushed. */
@@ -139,8 +147,9 @@ export async function push_notifications(db: Db, events: Event[]) {
 			: [],
 	)
 
-	const gone: string[] = []
-	await Promise.all(
+	await send_all(
+		db,
+		keys,
 		events.flatMap((event) => {
 			const actor = actors.get(event.actor_id)
 			if (!actor) return []
@@ -153,24 +162,105 @@ export async function push_notifications(db: Db, events: Event[]) {
 					: `/p/${encodeURIComponent(event.post_id ?? '')}`
 			return subscriptions
 				.filter((subscription) => subscription.userId === event.user_id)
-				.map(async (subscription) => {
+				.map((subscription) => {
 					const locale = isLocale(subscription.locale) ? subscription.locale : 'en'
-					const message: PushMessage = {
-						title: TITLES[event.type]({ name: actor.name }, { locale }),
-						body: body ? snippet(body) : undefined,
-						url: localizeHref(path, { locale }),
-						tag:
-							event.type === 'like'
-								? `like:${event.post_id}`
-								: `${event.type}:${event.actor_id}:${event.post_id ?? ''}`,
-					}
-					try {
-						const result = await send_push(subscription, JSON.stringify(message), keys)
-						if (result === 'gone') gone.push(subscription.endpoint)
-					} catch (error) {
-						console.error('Push failed', error)
+					return {
+						subscription,
+						message: {
+							title: TITLES[event.type]({ name: actor.name }, { locale }),
+							body: body ? snippet(body) : undefined,
+							url: localizeHref(path, { locale }),
+							tag:
+								event.type === 'like'
+									? `like:${event.post_id}`
+									: `${event.type}:${event.actor_id}:${event.post_id ?? ''}`,
+						},
 					}
 				})
+		}),
+	)
+}
+
+const DM_PUSH_MAX = 100
+
+export async function push_direct_message(
+	db: Db,
+	sent: { conversation_id: string; sender_id: string; body: string; photo: boolean },
+) {
+	const keys = vapid_keys()
+	if (!keys) return
+
+	const subscriptions = await db
+		.select({
+			endpoint: pushSubscription.endpoint,
+			p256dh: pushSubscription.p256dh,
+			auth: pushSubscription.auth,
+			locale: pushSubscription.locale,
+		})
+		.from(conversationMember)
+		.innerJoin(pushSubscription, eq(pushSubscription.userId, conversationMember.userId))
+		.where(
+			and(
+				eq(conversationMember.conversationId, sent.conversation_id),
+				ne(conversationMember.userId, sent.sender_id),
+			),
+		)
+		.limit(DM_PUSH_MAX)
+	if (!subscriptions.length) return
+
+	const [about] = await db
+		.select({
+			name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
+			group: conversation.isGroup,
+			group_name: conversation.name,
+		})
+		.from(conversation)
+		.innerJoin(user, eq(user.id, sent.sender_id))
+		.leftJoin(profile, eq(profile.userId, user.id))
+		.where(eq(conversation.id, sent.conversation_id))
+		.limit(1)
+	if (!about) return
+
+	await send_all(
+		db,
+		keys,
+		subscriptions.map((subscription) => {
+			const locale = isLocale(subscription.locale) ? subscription.locale : 'en'
+			return {
+				subscription,
+				message: {
+					title:
+						about.group && about.group_name
+							? m.push_message_group({ name: about.name, group: about.group_name }, { locale })
+							: about.name,
+					body: sent.body
+						? snippet(sent.body)
+						: sent.photo
+							? m.dm_photo({}, { locale })
+							: undefined,
+					url: localizeHref(`/messages/${sent.conversation_id}`, { locale }),
+					tag: `dm:${sent.conversation_id}`,
+					delivered: true,
+				},
+			}
+		}),
+	)
+}
+
+async function send_all(
+	db: Db,
+	keys: VapidKeys,
+	jobs: { subscription: PushTarget; message: PushMessage }[],
+) {
+	const gone: string[] = []
+	await Promise.all(
+		jobs.map(async ({ subscription, message }) => {
+			try {
+				const result = await send_push(subscription, JSON.stringify(message), keys)
+				if (result === 'gone') gone.push(subscription.endpoint)
+			} catch (error) {
+				console.error('Push failed', error)
+			}
 		}),
 	)
 	if (gone.length) {

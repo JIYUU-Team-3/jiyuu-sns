@@ -103,6 +103,15 @@ export const get_feed = query(
 	({ tab, cursor }) => posts.feed_page(getRequestEvent().locals.db, viewer(), tab, cursor),
 )
 
+/** Who has posted to the viewer's timeline since they loaded it at `since`. */
+export const get_new_posts = query(
+	v.object({
+		tab: v.picklist(['for_you', 'following']),
+		since: v.pipe(v.number(), v.integer(), v.minValue(0)),
+	}),
+	({ tab, since }) => posts.new_post_authors(getRequestEvent().locals.db, viewer(), tab, since),
+)
+
 export const get_post = query(Id, async (id) => {
 	const found = await posts.find_post(getRequestEvent().locals.db, viewer(), id)
 	if (!found) error(404, 'Post not found.')

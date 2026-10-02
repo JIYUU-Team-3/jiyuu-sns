@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "720695dd-2ff3-4b36-ac29-451ae43652a2",
-  "prevId": "98e5b66d-6f5c-4b7b-8819-e0c973bc5798",
+  "id": "98e5b66d-6f5c-4b7b-8819-e0c973bc5798",
+  "prevId": "afcdb3be-222f-4c9c-8bf0-bd00bf25513f",
   "tables": {
     "account_standing": {
       "name": "account_standing",
@@ -83,47 +83,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "ai_usage": {
-      "name": "ai_usage",
-      "columns": {
-        "day": {
-          "name": "day",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "text": {
-          "name": "text",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "image": {
-          "name": "image",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "report": {
-          "name": "report",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -453,6 +412,13 @@
         },
         "last_read_at": {
           "name": "last_read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_delivered_at": {
+          "name": "last_delivered_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -1481,14 +1447,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "checked": {
-          "name": "checked",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'skipped'"
         }
       },
       "indexes": {
@@ -1512,14 +1470,6 @@
           "name": "post_timeline_idx",
           "columns": [
             "is_reply",
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "post_checked_idx": {
-          "name": "post_checked_idx",
-          "columns": [
-            "checked",
             "created_at"
           ],
           "isUnique": false
