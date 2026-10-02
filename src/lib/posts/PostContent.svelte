@@ -51,17 +51,22 @@
 	</div>
 {/if}
 {#if covered}
-	<!-- Nothing loads until the viewer may, and chooses to, see it. -->
-	<div class="cover">
-		{#if hidden}
-			<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_body()}</p>
-			<a class="btn btn-outline sm" href={settings_href()}>{m.post_sensitive_settings()}</a>
-		{:else}
-			<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_marked()}</p>
-			<button type="button" class="btn btn-outline sm" onclick={() => (revealed = true)}
-				>{m.post_sensitive_show()}</button
-			>
-		{/if}
+	<!-- The media is there, blurred past recognising and out of reach, with the notice over it. -->
+	<div class="veil">
+		<div class="blurred" inert aria-hidden="true">
+			<PostMedia media={content.media} {focus} />
+		</div>
+		<div class="cover">
+			{#if hidden}
+				<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_body()}</p>
+				<a class="btn btn-outline sm" href={settings_href()}>{m.post_sensitive_settings()}</a>
+			{:else}
+				<p><b>{m.post_sensitive_title()}</b> {m.post_sensitive_marked()}</p>
+				<button type="button" class="btn btn-outline sm" onclick={() => (revealed = true)}
+					>{m.post_sensitive_show()}</button
+				>
+			{/if}
+		</div>
 	</div>
 {:else}
 	<PostMedia media={content.media} {focus} {onswipe} />
@@ -103,21 +108,47 @@
 		font-size: 13px;
 		color: var(--text-2);
 	}
+	.veil {
+		position: relative;
+		margin-top: 12px;
+		border-radius: var(--r-card);
+		overflow: hidden;
+		/* A short photo still leaves room for the notice. */
+		min-height: 150px;
+		background: var(--img-fallback);
+	}
+	.blurred {
+		/* Scaled a little so the blur's soft edge falls outside the frame. */
+		filter: blur(32px) saturate(0.8);
+		transform: scale(1.15);
+		pointer-events: none;
+		user-select: none;
+	}
+	/* The media brings its own top margin; inside the veil it would show as a gap. */
+	.blurred > :global(*) {
+		margin-top: 0;
+	}
 	.cover {
+		position: absolute;
+		inset: 0;
 		display: grid;
 		gap: 10px;
-		justify-items: start;
-		margin-top: 12px;
+		align-content: center;
+		justify-items: center;
 		padding: 16px;
-		border-radius: var(--r-card);
-		border: 1px solid var(--line);
-		background: var(--bg-3);
+		text-align: center;
+		/* Dark whatever the theme, so the words read over any picture. */
+		background: rgba(0, 0, 0, 0.45);
+		color: #fff;
 	}
 	.cover p {
 		margin: 0;
-		color: var(--text-2);
+		max-width: 40ch;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 	}
-	.cover b {
-		color: var(--text);
+	.cover .btn {
+		background: rgba(0, 0, 0, 0.55);
+		border-color: rgba(255, 255, 255, 0.7);
+		color: #fff;
 	}
 </style>

@@ -65,7 +65,12 @@ export async function upload_media(file: File): Promise<string> {
 export async function is_sensitive_upload(url: string) {
 	const body = new FormData()
 	body.set('url', url)
-	const response = await fetch('/media/check', { method: 'POST', body }).catch(() => undefined)
+	// Bounded, so a check that hangs can't keep the post from being sent.
+	const response = await fetch('/media/check', {
+		method: 'POST',
+		body,
+		signal: AbortSignal.timeout(20_000),
+	}).catch(() => undefined)
 	if (!response?.ok) return false
 	const { sensitive } = (await response.json()) as { sensitive: boolean }
 	return sensitive

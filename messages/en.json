@@ -707,5 +707,6 @@
 	"privacy_blocked": "Blocked accounts",
 	"privacy_blocked_empty": "You haven’t blocked anyone.",
 	"privacy_unmute": "Unmute",
-	"privacy_unblock": "Unblock"
+	"privacy_unblock": "Unblock",
+	"composer_checking": "Checking the photo"
 }

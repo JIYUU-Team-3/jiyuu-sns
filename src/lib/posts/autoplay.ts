@@ -46,7 +46,10 @@ function off_center(video: HTMLVideoElement) {
 
 /** The autoplay candidate most in view; the one nearest the middle among equals. */
 function most_in_view() {
-	const candidates = [...entries].filter(([, entry]) => !entry.manual && entry.ratio >= IN_VIEW)
+	// A video blurred behind the sensitive cover is `inert`, and stays still until it's shown.
+	const candidates = [...entries].filter(
+		([video, entry]) => !entry.manual && entry.ratio >= IN_VIEW && !video.closest('[inert]'),
+	)
 	candidates.sort(([a, x], [b, y]) => y.ratio - x.ratio || off_center(a) - off_center(b))
 	return candidates[0]?.[0]
 }

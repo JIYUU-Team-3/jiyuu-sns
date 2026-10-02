@@ -160,15 +160,21 @@ test('media marked sensitive waits behind a cover @writes', async ({ page, brows
 
 	await reader.goto(`/p/${posted.id}`)
 	await expect(reader.getByText('Sensitive content.')).toBeVisible()
-	await expect(reader.locator('main img[src^="/media/posts/"]')).toHaveCount(0)
+	// The photo is drawn blurred and out of reach, never clear.
+	const photos = reader.locator('main img[src^="/media/posts/"]')
+	const blurred = reader.locator('main [inert] img[src^="/media/posts/"]')
+	await expect(blurred).toHaveCount(1)
+	await expect(photos).toHaveCount(1)
+	await expect(reader.locator('main [inert]')).toHaveCSS('filter', /blur/)
 	// The only way to see it is to turn the setting off.
 	await reader.getByRole('link', { name: 'Change in Settings' }).click()
 	await reader.getByRole('switch', { name: 'Hide sensitive media' }).click()
 	// With it off, each post still asks first, until that is turned off too.
 	await reader.goto(`/p/${posted.id}`)
-	await expect(reader.locator('main img[src^="/media/posts/"]')).toHaveCount(0)
+	await expect(blurred).toHaveCount(1)
 	await reader.getByRole('button', { name: 'Show', exact: true }).click()
-	await expect(reader.locator('main img[src^="/media/posts/"]').first()).toBeVisible()
+	await expect(blurred).toHaveCount(0)
+	await expect(photos.first()).toBeVisible()
 	await reader.context().close()
 })
 

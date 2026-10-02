@@ -326,7 +326,8 @@ function to_media(row: {
 	media_width: number | null
 	media_height: number | null
 }): MessageMedia | undefined {
-	if (!row.media_kind || !row.media_url) return undefined
+	// The check on the kind is for rows from when messages briefly took other files.
+	if (!row.media_url || (row.media_kind !== 'image' && row.media_kind !== 'gif')) return undefined
 	return {
 		kind: row.media_kind,
 		url: row.media_url,

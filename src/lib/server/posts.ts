@@ -148,10 +148,15 @@ function by_position<T>(json: string | null): T[] {
 
 /** SQL hands back a missing description as null; the client only knows set or unset. */
 function to_media(json: string | null): Media[] {
-	return by_position<Media & { alt: string | null }>(json).map(({ alt, ...item }) =>
-		alt ? { ...item, alt } : item,
+	return (
+		by_position<Media & { alt: string | null }>(json)
+			// A file attached while posts briefly took them is nothing a post can draw any more.
+			.filter((item) => SHOWN_KINDS.has(item.kind))
+			.map(({ alt, ...item }) => (alt ? { ...item, alt } : item))
 	)
 }
+
+const SHOWN_KINDS: ReadonlySet<string> = new Set(['image', 'gif', 'video'])
 
 function to_poll(row: Row): PollView | undefined {
 	if (!row.poll_ends_at) return undefined

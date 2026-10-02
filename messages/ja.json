@@ -707,5 +707,6 @@
 	"privacy_blocked": "ブロックしたアカウント",
 	"privacy_blocked_empty": "ブロックしているアカウントはありません。",
 	"privacy_unmute": "ミュート解除",
-	"privacy_unblock": "ブロック解除"
+	"privacy_unblock": "ブロック解除",
+	"composer_checking": "写真を確認中"
 }

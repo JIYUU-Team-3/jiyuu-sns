@@ -51,8 +51,11 @@
 					<img src={item.preview} alt="" draggable="false" />
 				{/if}
 				{#if item.kind === 'gif'}<span class="badge">GIF</span>{/if}
-				{#if item.state === 'uploading'}
-					<span class="status" role="status" aria-label={m.composer_uploading()}
+				{#if item.state === 'uploading' || item.state === 'checking'}
+					<span
+						class="status"
+						role="status"
+						aria-label={item.state === 'checking' ? m.composer_checking() : m.composer_uploading()}
 						><span class="spinner"></span></span
 					>
 				{:else if item.state === 'failed'}

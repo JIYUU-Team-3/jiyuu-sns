@@ -35,7 +35,8 @@ export type DraftMedia = {
 	height: number
 	/** The description (alt text) screen readers announce; blank for none. */
 	alt: string
-	state: 'uploading' | 'ready' | 'failed'
+	/** `checking` is an uploaded photo waiting for the automatic check; the post waits for it too. */
+	state: 'uploading' | 'checking' | 'ready' | 'failed'
 	/** Already on the post being edited: never deleted from here, only left out on save. */
 	existing?: boolean
 	/** The file as picked, so cropping always starts from the full photo. */
@@ -76,7 +77,9 @@ export class Draft {
 	editing = false
 
 	readonly trimmed = $derived(this.text.trim())
-	readonly uploading = $derived(this.media.some((item) => item.state === 'uploading'))
+	readonly uploading = $derived(
+		this.media.some((item) => item.state === 'uploading' || item.state === 'checking'),
+	)
 	readonly failed = $derived(this.media.some((item) => item.state === 'failed'))
 	readonly problem = $derived(
 		draft_problem({ body: this.trimmed, media: this.media, poll: this.poll }),
@@ -223,11 +226,19 @@ export class Draft {
 			])
 			const current = this.#find(key)
 			if (current?.upload !== upload) return discard_upload(url)
-			Object.assign(current, size, { url, state: 'ready' })
-			// Publishing doesn't wait for this; the server marks the post either way.
-			if (item.kind === 'image' && (await is_sensitive_upload(url))) {
-				const checked = this.#find(key)
-				if (checked?.upload !== upload) return
+			if (item.kind !== 'image') {
+				Object.assign(current, size, { url, state: 'ready' })
+				return
+			}
+			// A photo isn't ready until the check has answered, so its author hears before posting
+			// that it will be marked sensitive. No answer counts as not sensitive.
+			Object.assign(current, size, { url, state: 'checking' })
+			const sensitive = await is_sensitive_upload(url)
+			const checked = this.#find(key)
+			// Cropped again or removed meanwhile: that already let go of this upload.
+			if (checked?.upload !== upload) return
+			checked.state = 'ready'
+			if (sensitive) {
 				checked.flagged = true
 				this.sensitive = true
 			}
