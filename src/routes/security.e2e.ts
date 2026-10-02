@@ -24,19 +24,23 @@ test('a signed-out caller is refused what a signed-in reader gets @writes', asyn
 	page,
 	playwright,
 }) => {
+	// Home asks who has posted since it loaded as soon as it's on screen.
+	const news = page.waitForRequest((request) => request.url().includes('/get_new_posts'))
 	await sign_up(page, `e2e_s_${unique()}`)
 	// The first page comes with its data; switching tabs makes the browser ask for a feed.
 	const feed = page.waitForRequest((request) => request.url().includes('/get_feed'))
 	await page.getByRole('tab', { name: 'Following' }).click()
-	const url = (await feed).url()
-
-	// Remote functions answer 200 and carry the real status in the body.
-	const mine = await (await page.request.get(url)).json()
-	expect(mine.type).toBe('result')
+	const urls = [(await feed).url(), (await news).url()]
 
 	const anonymous = await playwright.request.newContext()
-	const refused = await (await anonymous.get(url)).json()
-	expect(refused).toMatchObject({ type: 'error', error: { status: 401 } })
+	for (const url of urls) {
+		// Remote functions answer 200 and carry the real status in the body.
+		const mine = await (await page.request.get(url)).json()
+		expect(mine.type).toBe('result')
+
+		const refused = await (await anonymous.get(url)).json()
+		expect(refused).toMatchObject({ type: 'error', error: { status: 401 } })
+	}
 	await anonymous.dispose()
 })
 

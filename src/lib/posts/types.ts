@@ -55,6 +55,12 @@ export type PostPage = {
 	next?: string
 }
 
+/** A page of Home's timeline. */
+export type FeedPage = PostPage & {
+	/** When the server read the timeline, in its own milliseconds; later posts are "new". */
+	as_of: number
+}
+
 type Size = { url: string; width: number; height: number }
 
 /** A GIF picker result: a small rendition for the grid, a bigger one for the post. */
