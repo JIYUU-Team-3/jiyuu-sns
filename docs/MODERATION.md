@@ -260,6 +260,11 @@ results are poor, thresholds move toward "case only" before launch.
   use. Needs `challenges.cloudflare.com` in the CSP `script-src` and `frame-src` and a privacy-page
   line.
 - **No phone verification.**
+- **Ranking.** "For you" (`src/lib/server/ranking.ts`) reads the same signals: a post loses places
+  for each post its author made in the six hours before it, for the author's behaviour score, and
+  for reports on its open case. Likes from `new` or `restricted` accounts, and an author's own
+  likes and replies, don't count toward it. A `restricted` account's posts reach only its
+  followers there. "Following" stays in time order.
 
 ## Moderation tools
 

@@ -46,6 +46,10 @@ export default defineConfig(
 			parserOptions: {
 				// naming-convention requires type information.
 				projectService: true,
+				// The same as the Svelte block above. When the two differ, TypeScript reloads
+				// the whole project each time ESLint goes between a .ts and a .svelte file,
+				// which made linting the repo take nine minutes instead of one.
+				extraFileExtensions: ['.svelte'],
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},
