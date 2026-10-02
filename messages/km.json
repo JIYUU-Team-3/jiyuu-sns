@@ -396,6 +396,8 @@
 	"dm_label": "សារ",
 	"dm_send": "ផ្ញើ",
 	"dm_sending": "កំពុងផ្ញើ…",
+	"dm_typing": "{name} កំពុងវាយ…",
+	"dm_typing_many": "{count} នាក់កំពុងវាយ…",
 	"dm_sent": "បានផ្ញើ",
 	"dm_delivered": "បានបញ្ជូន",
 	"dm_seen": "បានឃើញ",

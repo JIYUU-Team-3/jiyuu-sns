@@ -396,6 +396,8 @@
 	"dm_label": "Message",
 	"dm_send": "Send",
 	"dm_sending": "Sending…",
+	"dm_typing": "{name} is typing…",
+	"dm_typing_many": "{count} people are typing…",
 	"dm_sent": "Sent",
 	"dm_delivered": "Delivered",
 	"dm_seen": "Seen",

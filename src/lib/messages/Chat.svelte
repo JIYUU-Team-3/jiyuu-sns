@@ -16,6 +16,7 @@
 	import ConversationAvatar from './ConversationAvatar.svelte'
 	import { format_day } from './format'
 	import { messages_href } from './links'
+	import { connect_live, type LiveEvent } from './live'
 	import MessageComposer from './MessageComposer.svelte'
 	import MessageItem from './MessageItem.svelte'
 	import {
@@ -99,9 +100,75 @@
 		b.created_at - a.created_at < RUN_GAP &&
 		same_day(a.created_at, b.created_at)
 
+	const TYPING_SHOWN = 6_000
+	const TYPING_REPEAT = 2_500
+	const LIVE_POLL = 30_000
+
+	const typing = new SvelteMap<string, ReturnType<typeof setTimeout>>()
+	let live: ReturnType<typeof connect_live> | undefined
+	let typing_sent = 0
+	let last_poll = 0
+
+	const typers = $derived(
+		convo.members.filter((member) => typing.has(member.id)).map((member) => member.name),
+	)
+	const typing_label = $derived(
+		typers.length === 1
+			? m.dm_typing({ name: typers[0] })
+			: m.dm_typing_many({ count: typers.length }),
+	)
+
+	function stop_typing(user_id: string) {
+		clearTimeout(typing.get(user_id))
+		typing.delete(user_id)
+	}
+
+	function onlive(event: LiveEvent) {
+		if (event.type === 'refresh') {
+			last_poll = Date.now()
+			get_messages(messages_arg(id))
+				.refresh()
+				.catch(() => {})
+			return
+		}
+		stop_typing(event.user_id)
+		if (event.on)
+			typing.set(
+				event.user_id,
+				setTimeout(() => typing.delete(event.user_id), TYPING_SHOWN),
+			)
+	}
+
+	function ontyping(active: boolean) {
+		const now = Date.now()
+		if (active && now - typing_sent >= TYPING_REPEAT) {
+			typing_sent = now
+			live?.send('typing')
+		} else if (!active && typing_sent) {
+			typing_sent = 0
+			live?.send('idle')
+		}
+	}
+
+	$effect(() => {
+		const room = id
+		const connection = untrack(() => connect_live(room, onlive))
+		live = connection
+		return () => {
+			connection.close()
+			for (const user_id of [...typing.keys()]) untrack(() => stop_typing(user_id))
+			typing_sent = 0
+		}
+	})
+
 	onMount(() => {
 		const timer = setInterval(() => {
-			if (document.visibilityState === 'visible') get_messages(messages_arg(id)).refresh()
+			if (document.visibilityState !== 'visible') return
+			if (live?.open && Date.now() - last_poll < LIVE_POLL) return
+			last_poll = Date.now()
+			get_messages(messages_arg(id))
+				.refresh()
+				.catch(() => {})
 		}, 4_000)
 		return () => clearInterval(timer)
 	})
@@ -320,10 +387,16 @@
 				onjump={jump}
 			/>
 		{/each}
+		{#if typers.length}
+			<div class="typing" role="status">
+				<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+				<span class:sr={!convo.group}>{typing_label}</span>
+			</div>
+		{/if}
 	</div>
 </div>
 
-<MessageComposer {replying} oncancelreply={() => (replying = undefined)} onsend={send} />
+<MessageComposer {replying} oncancelreply={() => (replying = undefined)} onsend={send} {ontyping} />
 
 {#if leaving}
 	<ConfirmDialog
@@ -410,6 +483,51 @@
 		color: var(--text-2);
 		font-size: 14px;
 		overflow-wrap: anywhere;
+	}
+	.typing {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 6px;
+		color: var(--text-2);
+		font-size: 13px;
+	}
+	.dots {
+		display: flex;
+		gap: 4px;
+		padding: 13px 14px;
+		border-radius: 20px;
+		background: var(--bg-3);
+	}
+	.dots i {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--text-2);
+		animation: bounce 1.2s infinite ease-in-out;
+	}
+	.dots i:nth-child(2) {
+		animation-delay: 0.15s;
+	}
+	.dots i:nth-child(3) {
+		animation-delay: 0.3s;
+	}
+	@keyframes bounce {
+		0%,
+		60%,
+		100% {
+			transform: translateY(0);
+			opacity: 0.5;
+		}
+		30% {
+			transform: translateY(-4px);
+			opacity: 1;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.dots i {
+			animation: none;
+		}
 	}
 	.day {
 		align-self: center;

@@ -396,6 +396,8 @@
 	"dm_label": "メッセージ",
 	"dm_send": "送信",
 	"dm_sending": "送信中…",
+	"dm_typing": "{name} さんが入力中…",
+	"dm_typing_many": "{count} 人が入力中…",
 	"dm_sent": "送信済み",
 	"dm_delivered": "配信済み",
 	"dm_seen": "既読",
