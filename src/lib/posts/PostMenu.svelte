@@ -78,7 +78,7 @@
 			role="menuitem"
 			onclick={() => {
 				close()
-				copy_link()
+				void copy_link()
 			}}
 		>
 			<Icon name="link" />{m.post_copy_link()}
@@ -91,7 +91,7 @@
 				role="menuitem"
 				onclick={() => {
 					close()
-					mute({ id: post.author.id, handle }, true)
+					void mute({ id: post.author.id, handle }, true)
 				}}
 			>
 				<Icon name="volume-x" />{m.safety_mute({ handle })}
@@ -153,7 +153,7 @@
 		cta={m.safety_block_cta()}
 		onconfirm={() => {
 			blocking = false
-			block({ id: post.author.id, handle }, true)
+			void block({ id: post.author.id, handle }, true)
 		}}
 		oncancel={() => (blocking = false)}
 	/>

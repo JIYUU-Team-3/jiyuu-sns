@@ -29,7 +29,7 @@
 			role="menuitem"
 			onclick={() => {
 				close()
-				mute(person, !profile.muted, false)
+				void mute(person, !profile.muted, false)
 			}}
 		>
 			<Icon name="volume-x" />{profile.muted
@@ -42,7 +42,7 @@
 			role="menuitem"
 			onclick={() => {
 				close()
-				if (profile.blocked) block(person, false, false)
+				if (profile.blocked) void block(person, false, false)
 				else blocking = true
 			}}
 		>
@@ -72,7 +72,7 @@
 		cta={m.safety_block_cta()}
 		onconfirm={() => {
 			blocking = false
-			block(person, true, false)
+			void block(person, true, false)
 		}}
 		oncancel={() => (blocking = false)}
 	/>

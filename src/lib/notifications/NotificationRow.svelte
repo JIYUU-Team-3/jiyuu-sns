@@ -31,7 +31,7 @@
 	/** Like a post card, the whole row opens its target unless the click hit a link. */
 	function open(event: MouseEvent) {
 		if ((event.target as Element).closest('a, button')) return
-		if (href) goto(href)
+		if (href) void goto(href)
 	}
 </script>
 
