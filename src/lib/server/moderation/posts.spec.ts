@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	accountStanding,
 	appeal,
+	moderationAction,
 	notification,
 	post,
 	postLike,
@@ -64,6 +65,24 @@ const remove = (extra: { strike?: boolean; reason?: 'spam' | 'threat' } = {}) =>
 	})
 
 describe('a removed post', () => {
+	it('stays removed when a limit read it as visible just before the removal', async () => {
+		// The limit's read happened before the removal landed; only its write comes after.
+		const stale = [{ author_id: 'alice', moderation: 'visible', sensitive: false }]
+		const read = { from: () => read, where: () => read, limit: async () => stale }
+		await remove()
+		vi.spyOn(db, 'select').mockReturnValueOnce(read as never)
+		const limited = await moderate_post(db, {
+			moderator_id: null,
+			post_id: 'p1',
+			action: 'limit',
+			reason: 'spam',
+		})
+		expect(limited).toBeUndefined()
+		expect((await find_post(db, 'alice', 'p1'))?.moderation).toBe('removed')
+		const actions = await db.select({ action: moderationAction.action }).from(moderationAction)
+		expect(actions).toEqual([{ action: 'remove' }])
+	})
+
 	it('stays removed when a late automatic check would only limit it', async () => {
 		await remove()
 		expect(

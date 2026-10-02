@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, notExists, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, notExists, sql } from 'drizzle-orm'
 import { is_rule, strike_outcome, type Rule } from '#lib/moderation/rules'
 import type { getDb } from '../db'
 import {
@@ -97,7 +97,7 @@ export async function moderate_post(
 	},
 ) {
 	const [target] = await db
-		.select({ author_id: post.authorId, moderation: post.moderation, sensitive: post.sensitive })
+		.select({ author_id: post.authorId })
 		.from(post)
 		.where(eq(post.id, input.post_id))
 		.limit(1)
@@ -114,20 +114,30 @@ export async function moderate_post(
 					: input.action === 'remove'
 						? { moderation: 'removed', removedAt: now }
 						: { moderation: 'visible', removedAt: null }
-	const unchanged =
-		(input.action === 'sensitive' && target.sensitive) ||
-		(input.action === 'unsensitive' && !target.sensitive) ||
-		// A limit is weaker than a removal: a late automatic check mustn't undo one.
-		(input.action === 'limit' && target.moderation !== 'visible') ||
-		(input.action === 'remove' && target.moderation === 'removed') ||
-		(input.action === 'restore' && target.moderation === 'visible')
-	if (unchanged) return undefined
+	// The state each action starts from, checked in the update itself so an action that raced
+	// this one is never overwritten. A limit is weaker than a removal, so it only hides a visible
+	// post: a late automatic check can't undo a moderator's removal.
+	const from =
+		input.action === 'sensitive'
+			? eq(post.sensitive, false)
+			: input.action === 'unsensitive'
+				? eq(post.sensitive, true)
+				: input.action === 'limit'
+					? eq(post.moderation, 'visible')
+					: input.action === 'remove'
+						? ne(post.moderation, 'removed')
+						: ne(post.moderation, 'visible')
+	const changed = await db
+		.update(post)
+		.set(changes)
+		.where(and(eq(post.id, input.post_id), from))
+		.returning({ id: post.id })
+	if (!changed.length) return undefined
 
 	const action_id = crypto.randomUUID()
 	const strike = input.action === 'remove' && !!input.strike
 	const closes = input.action !== 'restore' && input.action !== 'unsensitive'
 	await db.batch([
-		db.update(post).set(changes).where(eq(post.id, input.post_id)),
 		db.insert(moderationAction).values({
 			id: action_id,
 			moderatorId: input.moderator_id,
