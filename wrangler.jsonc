@@ -3,6 +3,8 @@
 	"name": "jiyuu-sns",
 	"compatibility_date": "2026-09-16",
 	"compatibility_flags": ["nodejs_als"],
+	// Written by the Cloudflare adapter, then wrapped by scripts/wrap-worker.js to add the hourly
+	// Cron Trigger below, which the adapter has no hook for.
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
 		"binding": "ASSETS",
@@ -44,6 +46,9 @@
 			"bucket_name": "jiyuu-media",
 		},
 	],
+	// Makes the small copy of a large photo that the automatic checks send to the vision model;
+	// see `shrink` in `src/lib/server/moderation/checks.ts`. Local dev runs an offline version.
+	"images": { "binding": "IMAGES" },
 	// Rate limiters, counted per account id (or per address for AUTH_LIMIT) at each Cloudflare
 	// location; see `src/lib/server/rate-limit.ts`. `namespace_id` is any number unique to this
 	// account, and `period` is in seconds.
@@ -58,7 +63,23 @@
 		{ "name": "LOOKUP_LIMIT", "namespace_id": "1703", "simple": { "limit": 240, "period": 60 } },
 		// Better Auth's endpoints and starting a Google sign-in, per address.
 		{ "name": "AUTH_LIMIT", "namespace_id": "1704", "simple": { "limit": 30, "period": 60 } },
+		// Moderator actions: a fast moderator clears a few items a minute, a script far more.
+		{ "name": "MOD_LIMIT", "namespace_id": "1706", "simple": { "limit": 120, "period": 60 } },
+		// Posts and messages with links: each one asks Cloudflare's security resolver about them.
+		{
+			"name": "LINK_LOOKUP_LIMIT",
+			"namespace_id": "1707",
+			"simple": { "limit": 30, "period": 60 },
+		},
+		// The composer asking whether a photo it just uploaded is sensitive: once per upload.
+		{
+			"name": "MEDIA_CHECK_LIMIT",
+			"namespace_id": "1708",
+			"simple": { "limit": 90, "period": 60 },
+		},
 	],
+	// The hourly moderation job (scripts/wrap-worker.js). The Free plan allows 5 per account.
+	"triggers": { "crons": ["17 * * * *"] },
 	"workers_dev": true,
 	// Preview versions would run with the production database and secrets on a second URL.
 	"preview_urls": false,

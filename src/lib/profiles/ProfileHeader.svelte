@@ -10,6 +10,7 @@
 	import { toast } from '#lib/ui/toasts.svelte'
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href } from './links'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import ProfileMenu from './ProfileMenu.svelte'
 	import type { ProfileView } from './types'
 
@@ -53,6 +54,7 @@
 	</div>
 	<h2 class="name">
 		{profile.name}
+		{#if profile.moderator}<ModeratorBadge />{/if}
 		{#if profile.private}
 			<span class="lock" title={m.profile_private()}>
 				<Icon name="lock" size="sm" />

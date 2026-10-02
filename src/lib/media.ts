@@ -17,16 +17,16 @@ export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 /** Videos on posts: MP4 and QuickTime, stored as uploaded since nothing transcodes them. */
 export const VIDEO_ACCEPT = 'video/mp4,video/quicktime'
 
-/** Supported photos and videos preview inline; other files are downloads. */
-export type PostUploadKind = 'image' | 'video' | 'file'
+/** What a post attachment upload is: a photo or a video. */
+export type PostUploadKind = 'image' | 'video'
 
 export const POST_UPLOAD_MAX_BYTES: Record<PostUploadKind, number> = {
 	image: IMAGE_MAX_BYTES.post,
 	video: 50 * 1024 * 1024,
-	file: 5 * 1024 * 1024,
 }
 
-export type ImageProblem = 'type' | 'size'
+/** `blocked`: a file a moderator removed before, refused by the server. */
+export type ImageProblem = 'type' | 'size' | 'blocked'
 
 export type ImageType = { type: string; ext: string }
 
@@ -73,12 +73,12 @@ export function sniff_video(head: Uint8Array): boolean {
 	return VIDEO_BRANDS.has(String.fromCharCode(...head.subarray(8, 12)))
 }
 
-/** A post upload's kind from its bytes, with other formats treated as download-only files. */
-export async function sniff_post_upload(file: File): Promise<PostUploadKind> {
+/** A post upload's kind from its bytes, or undefined for anything else. */
+export async function sniff_post_upload(file: File): Promise<PostUploadKind | undefined> {
 	const head = new Uint8Array(await file.slice(0, 12).arrayBuffer())
 	if (sniff_image(head)) return 'image'
 	if (sniff_video(head)) return 'video'
-	return 'file'
+	return undefined
 }
 
 /** A form field's file, or undefined when the picker was left empty. */

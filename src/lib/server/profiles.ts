@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import type { ProfileView } from '#lib/profiles/types'
 import { shown_image } from './account-image'
+import { is_moderator } from './moderation/standing'
 import type { getDb } from './db'
 import { profile, user } from './db/schema'
 
@@ -28,8 +29,9 @@ export async function find_profile_by_handle(
 			bio: profile.bio,
 			image: shown_image,
 			banner: profile.bannerUrl,
+			moderator: is_moderator(profile.userId),
 			joined: sql<number>`${user.createdAt}`,
-			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0)`,
+			posts: sql<number>`(select count(*) from post p where p.author_id = ${profile.userId} and p.is_reply = 0 and p.moderation = 'visible')`,
 			followers: sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`,
 			following: sql<number>`(select count(*) from follow f where f.follower_id = ${profile.userId})`,
 			followed: viewer
@@ -61,6 +63,7 @@ export async function find_profile_by_handle(
 		...row,
 		image: row.image ?? undefined,
 		banner: row.banner ?? undefined,
+		moderator: row.moderator ? true : undefined,
 		followed: !!row.followed,
 		follows_you: !!row.follows_you,
 		requested: !!row.requested,

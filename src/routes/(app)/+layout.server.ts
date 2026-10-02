@@ -26,5 +26,5 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		avatar_uploaded: !!profile.avatarUrl,
 		account_image: account_image(locals.user.image),
 	}
-	return { me, own }
+	return { me, own, moderator: locals.standing?.role === 'moderator' }
 }

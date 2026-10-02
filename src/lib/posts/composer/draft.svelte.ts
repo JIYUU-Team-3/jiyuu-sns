@@ -10,9 +10,9 @@ import {
 import type { PostContent } from '../state.svelte'
 import { is_upload, type Gif, type Media, type MediaKind } from '../types'
 import type { CropBox } from './crop-box'
-import { attachment_name } from '#lib/files'
 import {
 	discard_upload,
+	is_sensitive_upload,
 	measure,
 	probe_video,
 	upload_kind,
@@ -33,11 +33,10 @@ export type DraftMedia = {
 	url?: string
 	width: number
 	height: number
-	name?: string
-	size?: number
 	/** The description (alt text) screen readers announce; blank for none. */
 	alt: string
-	state: 'uploading' | 'ready' | 'failed'
+	/** `checking` is an uploaded photo waiting for the automatic check; the post waits for it too. */
+	state: 'uploading' | 'checking' | 'ready' | 'failed'
 	/** Already on the post being edited: never deleted from here, only left out on save. */
 	existing?: boolean
 	/** The file as picked, so cropping always starts from the full photo. */
@@ -46,6 +45,8 @@ export type DraftMedia = {
 	crop?: CropBox
 	/** Which upload is current, so a slow earlier one can't land after a re-crop. */
 	upload?: string
+	/** The automatic check found this photo sensitive, so the post will be marked whatever is ticked. */
+	flagged?: boolean
 }
 
 export type DraftPoll = { options: string[]; days: PollDays }
@@ -61,7 +62,7 @@ export const croppable = (item: DraftMedia) =>
 	item.kind === 'image' && !!item.original && item.original.type !== 'image/gif'
 
 /** A picked file that passed the checks, with its size and kind. */
-type Accepted = { file: File; kind: 'image' | 'video' | 'file'; size?: VideoProbe }
+type Accepted = { file: File; kind: 'image' | 'video'; size?: VideoProbe }
 
 /** One post being written: text plus photos, GIFs and videos, a poll, a place. */
 export class Draft {
@@ -69,18 +70,21 @@ export class Draft {
 	media = $state<DraftMedia[]>([])
 	poll = $state<DraftPoll>()
 	location = $state<string>()
+	/** The author marked the media as sensitive. Set when writing; a moderator can change it later. */
+	sensitive = $state(false)
 	panel = $state<Panel>()
-	checking = $state(0)
-	#generation = 0
+	/** Editing a published post, where the sensitive mark isn't offered. */
+	editing = false
 
 	readonly trimmed = $derived(this.text.trim())
 	readonly uploading = $derived(
-		this.checking > 0 || this.media.some((item) => item.state === 'uploading'),
+		this.media.some((item) => item.state === 'uploading' || item.state === 'checking'),
 	)
 	readonly failed = $derived(this.media.some((item) => item.state === 'failed'))
 	readonly problem = $derived(
 		draft_problem({ body: this.trimmed, media: this.media, poll: this.poll }),
 	)
+	readonly flagged = $derived(this.media.some((item) => item.flagged))
 	readonly ready = $derived(!this.uploading && !this.failed && !this.problem)
 	/** Anything worth asking about before it's thrown away. */
 	readonly dirty = $derived(
@@ -92,6 +96,7 @@ export class Draft {
 	/** Start an edit from what the post shows now. */
 	static editing(content: PostContent) {
 		const draft = new Draft()
+		draft.editing = true
 		draft.text = content.body
 		draft.media = content.media.map((item, i) => ({
 			...item,
@@ -128,19 +133,14 @@ export class Draft {
 	)
 
 	/** The photos, GIFs and videos as `create_post` and `edit_post` take them, once `ready`. */
-	media_payload() {
-		return this.media.map(({ kind, url, width, height, alt, name, size }) => {
-			if (kind === 'file')
-				return {
-					kind,
-					url: url!,
-					width: 1 as const,
-					height: 1 as const,
-					name: name!,
-					size: size!,
-				}
-			return { kind, url: url!, width, height, alt: alt.trim() || undefined }
-		})
+	media_payload(): Media[] {
+		return this.media.map(({ kind, url, width, height, alt }) => ({
+			kind,
+			url: url!,
+			width,
+			height,
+			alt: alt.trim() || undefined,
+		}))
 	}
 
 	/** What `create_post` takes, once `ready`. */
@@ -150,6 +150,7 @@ export class Draft {
 			media: this.media_payload(),
 			poll: this.poll && { options: [...this.poll.options], days: this.poll.days },
 			location: this.location,
+			sensitive: (this.sensitive || this.flagged) && this.media.length > 0,
 		}
 	}
 
@@ -177,15 +178,7 @@ export class Draft {
 	/** Start uploading what fits; the rest is reported, not silently dropped. */
 	async add_files(files: File[]): Promise<PickResult> {
 		const skipped: UploadProblem[] = []
-		const generation = this.#generation
-		this.checking++
-		let checked
-		try {
-			checked = await Promise.all(files.map(accept))
-		} finally {
-			this.checking--
-		}
-		if (generation !== this.#generation) return { skipped, over_limit: false }
+		const checked = await Promise.all(files.map(accept))
 		const fitting = checked.filter((result): result is Accepted => {
 			if ('problem' in result) skipped.push(result.problem)
 			return !('problem' in result)
@@ -206,7 +199,6 @@ export class Draft {
 			alt: '',
 			state: 'uploading',
 			original: file,
-			...(kind === 'file' && { name: attachment_name(file.name), size: file.size }),
 		})
 		void this.#upload(key, file)
 	}
@@ -216,7 +208,7 @@ export class Draft {
 		const item = this.#find(key)
 		if (!item || item.existing) return
 		this.#release(item)
-		Object.assign(item, { crop, url: undefined })
+		Object.assign(item, { crop, url: undefined, flagged: false })
 		void this.#upload(key, cropped)
 	}
 
@@ -234,7 +226,22 @@ export class Draft {
 			])
 			const current = this.#find(key)
 			if (current?.upload !== upload) return discard_upload(url)
-			Object.assign(current, size, { url, state: 'ready' })
+			if (item.kind !== 'image') {
+				Object.assign(current, size, { url, state: 'ready' })
+				return
+			}
+			// A photo isn't ready until the check has answered, so its author hears before posting
+			// that it will be marked sensitive. No answer counts as not sensitive.
+			Object.assign(current, size, { url, state: 'checking' })
+			const sensitive = await is_sensitive_upload(url)
+			const checked = this.#find(key)
+			// Cropped again or removed meanwhile: that already let go of this upload.
+			if (checked?.upload !== upload) return
+			checked.state = 'ready'
+			if (sensitive) {
+				checked.flagged = true
+				this.sensitive = true
+			}
 		} catch {
 			const current = this.#find(key)
 			if (current?.upload === upload) current.state = 'failed'
@@ -288,7 +295,6 @@ export class Draft {
 
 	/** Empty the draft after publishing: its uploads now belong to the post. */
 	clear() {
-		this.#generation++
 		for (const item of this.media) {
 			if (is_upload(item.kind) && !item.existing) URL.revokeObjectURL(item.preview)
 		}
@@ -296,6 +302,7 @@ export class Draft {
 		this.media = []
 		this.poll = undefined
 		this.location = undefined
+		this.sensitive = false
 		this.panel = undefined
 	}
 
@@ -308,10 +315,10 @@ export class Draft {
 
 /** Check one picked file; a video is probed for its size and length first. */
 async function accept(file: File): Promise<Accepted | { problem: UploadProblem }> {
-	const problem = await upload_problem(file)
+	const problem = upload_problem(file)
 	if (problem) return { problem }
-	const kind = await upload_kind(file)
-	if (kind !== 'video') return { file, kind }
+	const kind = upload_kind(file)!
+	if (kind === 'image') return { file, kind }
 	const size = await probe_video(file).catch(() => undefined)
 	const unusable = size ? video_problem(size) : 'type'
 	return unusable ? { problem: unusable } : { file, kind, size }

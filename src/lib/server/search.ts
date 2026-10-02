@@ -3,6 +3,7 @@ import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
 import type { TagView, UserView } from '#lib/search/types'
 import { shown_image } from './account-image'
+import { is_moderator } from './moderation/standing'
 import type { getDb } from './db'
 import { follow, post, postTag, profile, user } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
@@ -31,6 +32,9 @@ const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const escape_like = (text: string) => text.replace(/[!%_]/g, (char) => `!${char}`)
 
 const contains = (text: string) => `%${escape_like(text)}%`
+
+/** Tags count only on posts everyone can see, so a hidden post never trends or shows in counts. */
+const tag_shown = sql`exists(select 1 from post p where p.id = ${postTag.postId} and p.moderation = 'visible')`
 const starts_with = (text: string) => `${escape_like(text)}%`
 
 /** `#svelte` searches that tag exactly; anything else searches post text. */
@@ -79,6 +83,7 @@ function select_users(db: Db, viewer: string | undefined) {
 			name: profile.displayName,
 			bio: profile.bio,
 			image: shown_image,
+			moderator: is_moderator(profile.userId),
 			followed: viewer
 				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
 				: sql<number>`0`,
@@ -97,6 +102,7 @@ type UserRow = Awaited<ReturnType<ReturnType<typeof select_users>['execute']>>[n
 const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
 	...row,
 	image: row.image ?? undefined,
+	moderator: row.moderator ? true : undefined,
 	followed: !!row.followed,
 	requested: !!row.requested,
 	mine: row.id === viewer,
@@ -196,7 +202,7 @@ export async function search_tags(db: Db, q: string, limit = PAGE_SIZE): Promise
 	return db
 		.select({ tag: postTag.tag, posts })
 		.from(postTag)
-		.where(sql`${postTag.tag} like ${starts_with(needle)} escape '!'`)
+		.where(and(sql`${postTag.tag} like ${starts_with(needle)} escape '!'`, tag_shown))
 		.groupBy(postTag.tag)
 		.orderBy(desc(posts), postTag.tag)
 		.limit(limit)
@@ -220,6 +226,7 @@ export async function trending_tags(db: Db, limit: number, viewer?: string): Pro
 		.where(
 			and(
 				gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)),
+				tag_shown,
 				viewer
 					? sql`not exists(select 1 from muted_term t where t.user_id = ${viewer} and t.term = '#' || ${postTag.tag})`
 					: undefined,

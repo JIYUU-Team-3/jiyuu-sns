@@ -6,23 +6,32 @@
 	let {
 		value = $bindable(''),
 		taken,
+		current,
+		locked = false,
 	}: {
 		value?: string
 		/** A handle the server found held by someone else, flagged until it's edited away. */
 		taken?: string
+		/** The account's own handle, which it may keep even when reserved. */
+		current?: string
+		/** A moderator's handle can't change. */
+		locked?: boolean
 	} = $props()
 
 	const HINT_ID = 'handle-hint'
 
 	const trimmed = $derived(value.trim())
 	const problem = $derived(
-		trimmed ? (handle_problem(trimmed) ?? (trimmed === taken ? 'taken' : undefined)) : undefined,
+		trimmed
+			? (handle_problem(trimmed, current, locked) ?? (trimmed === taken ? 'taken' : undefined))
+			: undefined,
 	)
 
 	/** The hint under the field: the rules while empty or fine, otherwise what's wrong. */
 	function hint(problem: HandleProblem | undefined, handle: string) {
 		if (problem === 'format') return m.onboarding_handle_format()
 		if (problem === 'taken') return m.onboarding_handle_taken({ handle })
+		if (problem === 'locked') return m.profile_handle_locked()
 		return m.onboarding_handle_rules()
 	}
 </script>

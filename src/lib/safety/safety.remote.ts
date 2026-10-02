@@ -2,9 +2,21 @@ import { error } from '@sveltejs/kit'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
 import { get_profile } from '#lib/profiles/profiles.remote'
+import type { Rule } from '#lib/moderation/rules'
+import { on_report } from '#lib/server/moderation/cases'
 import * as safety from '#lib/server/safety'
 import { member, signed_in } from '#lib/server/session'
 import { normalize_term, REPORT_NOTE_MAX, REPORT_REASONS, TERM_MAX } from './rules'
+
+/** The rule each report reason names in the queue; `other` names none. */
+const REPORT_RULES: Partial<Record<(typeof REPORT_REASONS)[number], Rule>> = {
+	spam: 'spam',
+	harassment: 'harassment',
+	hate: 'hate',
+	violence: 'threat',
+	sexual: 'sexual',
+	self_harm: 'self_harm_encouragement',
+}
 
 const Handle = v.pipe(v.string(), v.regex(/^[a-z0-9_.]{3,20}$/))
 const Toggle = v.object({ handle: Handle, on: v.boolean() })
@@ -65,6 +77,16 @@ export const report = command(
 	}),
 	async (input) => {
 		const { db, user_id } = await member()
-		if (!(await safety.save_report(db, user_id, input))) error(404, 'Not found.')
+		const saved = await safety.save_report(db, user_id, input)
+		if (!saved) error(404, 'Not found.')
+		// A new report puts its target in the moderators' queue; a repeat adds nothing to it.
+		if (saved.fresh) {
+			await on_report(db, {
+				target_kind: input.post_id ? 'post' : 'profile',
+				target_id: input.post_id ?? saved.user_id,
+				target_user_id: saved.user_id,
+				reason: REPORT_RULES[input.reason] ?? '',
+			})
+		}
 	},
 )

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { refusal_message } from '#lib/moderation/refusals'
 	import { m } from '#lib/paraglide/messages.js'
 	import TextMorph from '#lib/ui/TextMorph.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
@@ -40,8 +41,8 @@
 							},
 				),
 			)
-		} catch {
-			toast.show(m.toast_error())
+		} catch (cause) {
+			toast.show(refusal_message(cause, m.toast_error))
 		} finally {
 			pending = false
 		}

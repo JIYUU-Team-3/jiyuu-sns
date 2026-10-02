@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state'
+	import { mod_post_href } from '#lib/moderation/links'
 	import { m } from '#lib/paraglide/messages.js'
 	import { block, mute } from '#lib/safety/actions'
 	import ReportDialog from '#lib/safety/ReportDialog.svelte'
@@ -83,6 +85,11 @@
 		>
 			<Icon name="link" />{m.post_copy_link()}
 		</button>
+		{#if page.data.moderator}
+			<a class="menu-item" role="menuitem" href={mod_post_href(post.id)} onclick={close}>
+				<Icon name="shield" />{m.mod_moderate()}
+			</a>
+		{/if}
 		{#if handle}
 			<div class="menu-sep" role="separator"></div>
 			<button

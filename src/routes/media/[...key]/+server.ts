@@ -27,9 +27,12 @@ export const GET: RequestHandler = async ({ locals, params, request }) => {
 			(await can_see_media(locals.db, locals.user.id, url))
 		if (!allowed) error(404, 'Not found.')
 	}
+	// A post's photos and videos go with the post: only people who can see it, which for a post a
+	// moderator hid is its author and the moderators. An upload no post uses yet is its uploader's.
 	if (is_post_key(params.key)) {
 		const allowed =
 			is_own_post_upload(url, locals.user.id) ||
+			locals.standing?.role === 'moderator' ||
 			(await can_see_post_media(locals.db, locals.user.id, url))
 		if (!allowed) error(404, 'Not found.')
 	}
@@ -37,14 +40,11 @@ export const GET: RequestHandler = async ({ locals, params, request }) => {
 	const object = await get_object(params.key, request.headers)
 	if (!object) error(404, 'Not found.')
 
-	const range = request.headers.has('range') ? byte_range(object) : undefined
+	const range = byte_range(object)
 	return new Response(object.body, {
 		status: range ? 206 : 200,
 		headers: {
 			'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
-			...(object.httpMetadata?.contentDisposition && {
-				'content-disposition': object.httpMetadata.contentDisposition,
-			}),
 			'content-length': String(range ? range.end - range.start + 1 : object.size),
 			...(range && { 'content-range': `bytes ${range.start}-${range.end}/${object.size}` }),
 			'accept-ranges': 'bytes',

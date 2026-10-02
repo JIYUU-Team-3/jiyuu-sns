@@ -16,13 +16,7 @@
 	const preview = $derived.by(() => {
 		const last = convo.last
 		if (!last) return m.dm_no_messages()
-		const text =
-			last.body ||
-			(last.media_kind === 'file'
-				? m.dm_sent_file()
-				: last.media_kind === 'gif'
-					? m.dm_sent_gif()
-					: m.dm_sent_photo())
+		const text = last.body || (last.media_kind === 'gif' ? m.dm_sent_gif() : m.dm_sent_photo())
 		if (last.mine) return m.dm_you_prefix({ text })
 		if (convo.group) return m.dm_sender_prefix({ name: last.sender_name.split(/\s+/)[0], text })
 		return text

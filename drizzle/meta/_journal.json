@@ -78,6 +78,48 @@
       "when": 1790939587815,
       "tag": "0010_paste_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790939588815,
+      "tag": "0011_moderation",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790939589815,
+      "tag": "0012_post_moderation",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790939590815,
+      "tag": "0013_write_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790939591815,
+      "tag": "0014_ai_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1790939592815,
+      "tag": "0015_behaviour_score",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790939593815,
+      "tag": "0016_media_check",
+      "breakpoints": true
     }
   ]
 }

@@ -8,13 +8,14 @@
 	import PostList from '#lib/posts/PostList.svelte'
 	import { get_conversation, get_post, get_replies } from '#lib/posts/posts.remote'
 	import { deleted_posts } from '#lib/posts/state.svelte'
+	import PostNotice from '#lib/moderation/PostNotice.svelte'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { home_href } from '../../../(public)/links'
 	import PageBar from '../../PageBar.svelte'
 	import type { PageProps } from './$types'
 
-	let { data, params }: PageProps = $props()
+	let { data, form, params }: PageProps = $props()
 
 	const post = $derived(await get_post(params.id))
 	const conversation = $derived(await get_conversation(params.id))
@@ -34,8 +35,11 @@
 {#if deleted_posts.has(post.id)}
 	<EmptyState title={m.post_not_found_title()} body={m.post_not_found_body()} />
 {:else}
+	{#if data.notice}<PostNotice notice={data.notice} {form} />{/if}
 	<FocusPost {post} ondeleted={() => goto(home_href(), { replaceState: true })} />
-	{#if post.can_reply}
+	{#if post.moderation}
+		<!-- A post a moderator hid takes no replies; the notice above says why. -->
+	{:else if post.can_reply}
 		<Composer task={{ kind: 'reply', post }} me={data.me} variant="reply" />
 	{:else if post.author.handle}
 		<p class="limited">

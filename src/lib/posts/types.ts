@@ -7,27 +7,20 @@ export type Author = {
 	/** Undefined for an account that hasn't picked a handle yet. */
 	handle?: string
 	image?: string
+	/** Moderates Jiyuu, which a shield beside the name shows. */
+	moderator?: boolean
 }
 
-export type MediaKind = 'image' | 'gif' | 'video' | 'file'
+export type MediaKind = 'image' | 'gif' | 'video'
 
-/** Attachments are our uploads in R2; picker GIFs come from the CDN. */
+/** Photos and videos are our uploads in R2; GIFs come from the picker's CDN. */
 export const is_upload = (kind: MediaKind) => kind !== 'gif'
 
 /**
- * A post attachment. Visual media have dimensions and optional alt text; other files have
- * their download name and byte size, with placeholder dimensions of 1 × 1.
+ * A photo or video (uploaded to R2) or a GIF (from the picker's CDN), with its size for layout
+ * and the author's description (alt text), if they wrote one.
  */
-export type Media = {
-	kind: MediaKind
-	url: string
-	width: number
-	height: number
-	alt?: string
-	/** General files are downloads, with server-verified names and byte sizes. */
-	name?: string
-	size?: number
-}
+export type Media = { kind: MediaKind; url: string; width: number; height: number; alt?: string }
 
 export type PollView = {
 	options: { label: string; votes: number }[]
@@ -56,6 +49,17 @@ export type PostView = {
 	liked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
+	/** Media blurred until the viewer opens it. */
+	sensitive: boolean
+	/** Set only for the author of a post a moderator limited or removed; nobody else sees it. */
+	moderation?: 'limited' | 'removed'
+	/** Blocked domains its text mentions; links to them are drawn as plain text. */
+	blocked_hosts: string[]
+	/**
+	 * The author's account is under a month old, so its links go through the "leaving Jiyuu" page.
+	 * (New accounts can't post links at all; this covers the ones that just became able to.)
+	 */
+	warn_links: boolean
 	reply_audience: ReplyAudience
 	can_reply: boolean
 }

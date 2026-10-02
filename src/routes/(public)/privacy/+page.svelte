@@ -15,6 +15,7 @@
 		<li>{m.privacy_collect_content()}</li>
 		<li>{m.privacy_collect_photos()}</li>
 		<li>{m.privacy_collect_places()}</li>
+		<li>{m.privacy_collect_links()}</li>
 	</ul>
 
 	<h2>{m.privacy_use_heading()}</h2>

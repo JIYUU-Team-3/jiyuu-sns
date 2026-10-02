@@ -13,6 +13,13 @@
 </script>
 
 <MediaTray {draft} />
+{#if draft.media.length && !draft.editing}
+	<label class="sensitive">
+		<input type="checkbox" bind:checked={draft.sensitive} disabled={draft.flagged} />
+		{m.composer_sensitive()}
+	</label>
+	{#if draft.flagged}<p class="flagged" role="status">{m.composer_sensitive_found()}</p>{/if}
+{/if}
 {#if draft.poll}<PollBuilder {draft} poll={draft.poll} />{/if}
 {#if draft.location}
 	<span class="place">
@@ -41,6 +48,19 @@
 {/if}
 
 <style>
+	.sensitive {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 6px 0;
+		font-size: 14px;
+		color: var(--text-2);
+	}
+	.flagged {
+		margin: 0 0 6px;
+		font-size: 13px;
+		color: var(--text-2);
+	}
 	.place {
 		display: inline-flex;
 		align-items: center;

@@ -66,6 +66,22 @@
 		checked={prefs.value.reduce_motion}
 		onchange={(on) => prefs.set('reduce_motion', on)}
 	/>
+	<SwitchRow
+		icon="shield"
+		label={m.settings_hide_sensitive()}
+		sub={m.settings_hide_sensitive_sub()}
+		checked={!prefs.value.show_sensitive}
+		onchange={(on) => prefs.set('show_sensitive', !on)}
+	/>
+	{#if prefs.value.show_sensitive}
+		<SwitchRow
+			icon="shield"
+			label={m.settings_cover_sensitive()}
+			sub={m.settings_cover_sensitive_sub()}
+			checked={prefs.value.cover_sensitive}
+			onchange={(on) => prefs.set('cover_sensitive', on)}
+		/>
+	{/if}
 </SettingsSection>
 
 <SettingsSection id="settings-language" title={m.settings_language()}>

@@ -9,14 +9,27 @@ const HANDLE_PATTERN = /^[a-z0-9_.]{3,20}$/
 /** Handles kept for Jiyuu itself. Checked here until the backend owns handle availability. */
 const RESERVED_HANDLES = new Set([
 	...['admin', 'administrator', 'jiyuu', 'jiyuu_official', 'jiyuu_support', 'jiyuu.official'],
+	// The moderator's handle. Its holder keeps it; see `current` below.
+	'jiyuu_org',
 	...['support', 'help', 'official', 'staff', 'team', 'moderator', 'mod', 'security', 'system'],
 	...['root', 'everyone', 'here'],
 ])
 
-export type HandleProblem = 'format' | 'taken'
+/** `locked`: a moderator's handle, which can't change, so it never comes free for someone else. */
+export type HandleProblem = 'format' | 'taken' | 'locked'
 
-/** Why a proposed handle can't be used, or undefined when it looks fine. */
-export function handle_problem(handle: string): HandleProblem | undefined {
+/**
+ * Why a proposed handle can't be used, or undefined when it looks fine. `current` is the
+ * account's own handle: keeping it is always fine, even when it's reserved, and with `locked`
+ * nothing else is.
+ */
+export function handle_problem(
+	handle: string,
+	current?: string,
+	locked = false,
+): HandleProblem | undefined {
+	if (current !== undefined && handle === current) return undefined
+	if (locked) return 'locked'
 	if (!HANDLE_PATTERN.test(handle)) return 'format'
 	if (RESERVED_HANDLES.has(handle)) return 'taken'
 	return undefined
@@ -35,10 +48,14 @@ export type ProfileErrors = {
 export type ProfileImages = Partial<Record<ImageKind, File>>
 
 /** Field problems in a submitted profile; an empty object means it can be saved. */
-export function profile_errors(draft: ProfileDraft): ProfileErrors {
+export function profile_errors(
+	draft: ProfileDraft,
+	current?: string,
+	locked = false,
+): ProfileErrors {
 	const errors: ProfileErrors = {}
 	if (!draft.name) errors.name = 'required'
-	const handle = handle_problem(draft.handle)
+	const handle = handle_problem(draft.handle, current, locked)
 	if (handle) errors.handle = handle
 	return errors
 }

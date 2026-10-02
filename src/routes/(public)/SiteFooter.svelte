@@ -10,6 +10,7 @@
 	<a href={localized('/about')}>{m.site_footer_about()}</a>
 	<a href={localized('/terms')}>{m.site_footer_terms()}</a>
 	<a href={localized('/privacy')}>{m.site_footer_privacy()}</a>
+	<a href={localized('/guidelines')}>{m.site_footer_guidelines()}</a>
 	<a href={localized('/accessibility')}>{m.site_footer_accessibility()}</a>
 	<LanguageSelect />
 	<span>{m.site_copyright({ year: new Date().getFullYear() })}</span>

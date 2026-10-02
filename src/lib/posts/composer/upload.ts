@@ -1,19 +1,22 @@
-import { POST_UPLOAD_MAX_BYTES, sniff_post_upload, type PostUploadKind } from '#lib/media'
+import { IMAGE_ACCEPT, POST_UPLOAD_MAX_BYTES, VIDEO_ACCEPT, type PostUploadKind } from '#lib/media'
 import { VIDEO_MAX_SECONDS } from '../rules'
 
 export type UploadProblem = 'type' | 'size' | 'duration'
 
-/** Every file is accepted; supported images and videos get inline previews. */
-export const POST_UPLOAD_ACCEPT = '*/*'
+/** The file picker's `accept`: photos and videos. */
+export const POST_UPLOAD_ACCEPT = `${IMAGE_ACCEPT},${VIDEO_ACCEPT}`
 
-/** A picked file's kind from its bytes, using the same detector as the server. */
-export function upload_kind(file: File): Promise<PostUploadKind> {
-	return sniff_post_upload(file)
+/** A picked file's kind by its claimed type; the server sniffs the bytes again either way. */
+export function upload_kind(file: File): PostUploadKind | undefined {
+	if (IMAGE_ACCEPT.split(',').includes(file.type)) return 'image'
+	if (VIDEO_ACCEPT.split(',').includes(file.type)) return 'video'
+	return undefined
 }
 
 /** A quick check before uploading; a video's length is checked once it's probed. */
-export async function upload_problem(file: File): Promise<UploadProblem | undefined> {
-	const kind = await upload_kind(file)
+export function upload_problem(file: File): UploadProblem | undefined {
+	const kind = upload_kind(file)
+	if (!kind) return 'type'
 	if (file.size > POST_UPLOAD_MAX_BYTES[kind]) return 'size'
 	return undefined
 }
@@ -48,7 +51,7 @@ export function video_problem(probe: VideoProbe): UploadProblem | undefined {
 	return probe.seconds > VIDEO_MAX_SECONDS ? 'duration' : undefined
 }
 
-/** Upload one attachment; resolves to its `/media/posts/…` URL. */
+/** Upload one photo or video; resolves to its `/media/posts/…` URL. */
 export async function upload_media(file: File): Promise<string> {
 	const body = new FormData()
 	body.set('file', file)
@@ -56,6 +59,21 @@ export async function upload_media(file: File): Promise<string> {
 	if (!response.ok) throw new Error(`upload failed: ${response.status}`)
 	const { url } = (await response.json()) as { url: string }
 	return url
+}
+
+/** Whether the automatic check found an uploaded photo sensitive. Best effort: no answer is no. */
+export async function is_sensitive_upload(url: string) {
+	const body = new FormData()
+	body.set('url', url)
+	// Bounded, so a check that hangs can't keep the post from being sent.
+	const response = await fetch('/media/check', {
+		method: 'POST',
+		body,
+		signal: AbortSignal.timeout(20_000),
+	}).catch(() => undefined)
+	if (!response?.ok) return false
+	const { sensitive } = (await response.json()) as { sensitive: boolean }
+	return sensitive
 }
 
 /** Drop an upload that never made it into a post. Best effort: a leftover file is harmless. */

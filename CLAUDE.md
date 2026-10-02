@@ -37,3 +37,5 @@ functions, uploads, media, push, or anything in `src/lib/server/`. In every chan
 10. Email and password sign-in exists only for e2e (`ALLOW_EMAIL_SIGNUP` in `.env.e2e`). Never
     enable it elsewhere, and never print or commit values from `.env` or `.env.prod`.
 11. A security fix comes with a test that fails without it; see `src/routes/security.e2e.ts`.
+12. Every query that lists posts includes `visible_posts(viewer)`; moderation tools start with
+    `moderator()` or `require_moderator(locals)`. See `docs/MODERATION.md`.

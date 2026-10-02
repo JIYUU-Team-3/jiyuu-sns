@@ -45,23 +45,27 @@ These are the ones that have already been broken once.
    fetches, N needs a hard number.
 9. **New endpoints that write or call a third party get a rate limit** (`limit()` in
    `src/lib/server/rate-limit.ts`, bindings in `wrangler.jsonc`).
-10. **Inline images and videos have their metadata stripped by keep-list.** `strip-metadata.ts`
-    and `strip-video.ts` keep only what draws the picture and refuse what they can't parse.
-    Other post and DM files retain their original bytes and metadata and are download-only: generated
-    `.bin` keys, `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
-    Never render those files inline; keep the same session, membership, size and rate checks.
+10. **Metadata is stripped by keep-list.** `strip-metadata.ts` and `strip-video.ts` keep only what
+    draws the picture and refuse what they can't parse. A new format follows the same shape.
 11. **Server-only data stays server-only.** Email addresses are returned to their owner and nobody
     else. Don't return a whole `user` row from a `load` or a query; pick the fields.
 12. **A security fix comes with a test that fails without it.** See `src/routes/security.e2e.ts`.
 13. **Every post query filters with `visible_posts(viewer)`** from `src/lib/server/safety.ts`, so
-    blocks and private accounts hold. `page()`, `find_post` and `find_posts` already do; a new
+    blocks and private accounts hold, and a post a moderator limited or removed reaches its author
+    only (it includes `shown_to`). `page()`, `find_post` and `find_posts` already do; a new
     `select_posts` call outside them must add it. Timelines and search also add
     `unmuted_posts(viewer)`, and people lists add `visible_people(viewer)`. The same goes for
     anything else that shows a post: push previews and post photos and videos check it too.
+    Moderators read hidden posts through `/mod`, never by widening it.
 14. **A follow or request is only written if the SQL that writes it checks privacy and blocks.**
     Don't read the state first and insert afterwards; a block or a privacy change can land in
     between. Raw `db.run(sql…)` with parameters fails inside `db.batch` on D1, so use the query
     builder there.
+15. **Moderation tools start with `moderator()`** (remote functions) or `require_moderator(locals)`
+    (loads and form actions), and the role comes from `account_standing` by user id. A suspended
+    account is turned away in `hooks.server.ts` and again in `signed_in()`; keep both.
+16. **Posts and messages pass the write checks** in `server/moderation/write.ts` before they're
+    saved: text cleaning, the spam rules and the link checks. A new way to publish text uses them.
 
 ## Where each defence lives
 
@@ -82,6 +86,13 @@ These are the ones that have already been broken once.
 | Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                                                                | `posts/text.ts`                                                  |
 | Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader                                             | `server/messages.ts`, `routes/media/[...key]`                    |
 | Listening in on someone else's chat       | Live sockets need a signed one-minute ticket made after a membership check, a same-site Origin; caps on sockets, frame size and typing rate | `server/live.ts`, `server/live-ticket.ts`, `server/chat-room.ts` |
+| Seeing a post or photo a moderator hid    | `shown_to` in every post query; `/media` serves a hidden post's media to its author and moderators only                                     | `server/posts.ts`, `routes/media/[...key]`                       |
+| A suspended account acting                | One gate before every route, and `signed_in()`                                                                                              | `hooks.server.ts` (`handleSuspended`), `session.ts`              |
+| Using moderation tools                    | `moderator()` / `require_moderator`; role by user id, set only by a script                                                                  | `session.ts`, `server/moderation/guard.ts`                       |
+| Malicious and disguised links             | Lookalike, address and blocklist checks; Cloudflare's security resolver; blocked links drawn as text                                        | `server/moderation/links.ts`                                     |
+| Spam and fake accounts                    | Trust levels, new-account limits, repeat refusal, hourly behaviour score                                                                    | `server/moderation/trust.ts`, `score.ts`                         |
+| Harmful posts and images                  | Llama Guard and a vision model after posting, within a daily budget; moderator queue                                                        | `server/moderation/checks.ts`, `/mod`                            |
+| A removed image coming back               | SHA-256 blocklist on every upload path                                                                                                      | `server/moderation/media.ts`                                     |
 | Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report                                                | `server/safety.ts`, `server/follows.ts`                          |
 | Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval                                             | `server/safety.ts`, `server/posts.ts`                            |
 | Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                                                                | `server/posts.ts` (`insert_thread`)                              |
@@ -120,9 +131,8 @@ look next.
 1. **Blocks don't reach group chats.** A block stops direct chats both ways, but anyone can still
    put up to 49 people in a group without asking them, blocked or not, and a direct chat can't be
    left. Consider asking before adding someone to a group.
-2. **No moderation or admin role.** Reports are stored in the `report` table, but nobody reviews
-   them, and nobody can remove someone else's post or suspend an account except by editing the
-   database.
+2. **One moderator, no admin UI for roles.** `@jiyuu_org` moderates (see docs/MODERATION.md); more
+   are added with `pnpm db:grant-moderator`. The automatic checks only read English text.
 3. **No account deletion or data export.** The schema cascades correctly from `user`, but nothing
    calls it, and R2 objects would be left behind.
 4. **Uploads that are never attached stay in R2.** The composer deletes what it discards, but a
@@ -140,11 +150,11 @@ look next.
 8. **Posts can be edited forever.** Likes and replies stay on a post whose text changed; only the
    "Edited" label says so. Polls are locked once voted on; ordinary posts are not. Consider an
    edit window or edit history.
-9. **Post text keeps bidi and stacked combining characters.** Names and bios are cleaned; post
-   bodies are not, so a post can still reorder its own text or stack marks ("Zalgo") to overflow
-   its row. The length limit counts graphemes, so one "character" can be long.
-10. **GIF rating is only applied in the picker.** `create_post` accepts any URL on GIPHY's CDN, so
-    a scripted client can attach a GIF the `pg-13` filter would have hidden.
+9. **Message and post text is cleaned, group names and bios differently.** `clean_text` drops bidi
+   overrides and caps stacked marks in posts and messages; names, bios and group names use
+   `visible_text`, which doesn't cap marks.
+10. **GIF ratings are asked of GIPHY by id**, and a GIF it won't vouch for is refused, so posting
+    a GIF fails whenever GIPHY is down.
 11. **The video length limit trusts the file's header.** `strip_video` reads the duration the file
     claims. The 50 MB cap is the real limit.
 12. **Third parties see readers' addresses**: GIPHY (GIFs), Google (account photos), jsDelivr

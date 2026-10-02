@@ -22,6 +22,7 @@ export const actions: Actions = {
 			env.MEDIA,
 			locals.user.id,
 			await read_form(request, PROFILE_FORM_MAX_BYTES),
+			locals.standing?.role === 'moderator',
 		)
 		if (!('saved' in result)) return result
 		return redirect(303, profile_href(result.saved.handle))

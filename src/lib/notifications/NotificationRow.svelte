@@ -9,6 +9,7 @@
 	import { profile_href } from '#lib/profiles/links'
 	import { privacy_href } from '#lib/settings/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
+	import { rule_label } from '#lib/moderation/labels'
 	import Icon from '#lib/ui/Icon.svelte'
 	import type { NotificationView } from './types'
 
@@ -28,6 +29,20 @@
 				: m.notifications_follow,
 	)
 
+	/** A moderator's action, told without naming the moderator: the post page has the details. */
+	const moderation_text = $derived.by(() => {
+		const notice = item.moderation
+		if (!notice) return ''
+		if (notice.action === 'restore') return m.notifications_moderation_restore()
+		if (notice.review_refused) return m.notifications_moderation_review_refused()
+		const rule = notice.reason ? rule_label(notice.reason) : undefined
+		if (notice.action === 'remove')
+			return rule
+				? m.notifications_moderation_remove({ rule })
+				: m.notifications_moderation_remove_plain()
+		return m.notifications_moderation_limit()
+	})
+
 	/** Like a post card, the whole row opens its target unless the click hit a link. */
 	function open(event: MouseEvent) {
 		if ((event.target as Element).closest('a, button')) return
@@ -35,7 +50,20 @@
 	}
 </script>
 
-{#if item.post}
+{#if item.moderation}
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div class="nrow" class:unread={item.unread} onclick={open}>
+		<div class="n-ico moderation"><Icon name="shield" size="lg" /></div>
+		<div class="n-body">
+			<p class="n-text">
+				{#if href}<a class="nm" {href}>{moderation_text}</a>{:else}{moderation_text}{/if}
+				<span class="time" title={format_timestamp(item.created_at, getLocale())}
+					>· {format_age(item.created_at, current_time(), getLocale())}</span
+				>
+			</p>
+		</div>
+	</div>
+{:else if item.post}
 	<div class:unread={item.unread}><PostCard post={item.post} /></div>
 {:else}
 	<!-- The name link is the keyboard path; the row click is a pointer shortcut. -->
@@ -97,6 +125,9 @@
 	.n-ico.follow_request {
 		color: var(--accent-text);
 	}
+	.n-ico.moderation {
+		color: var(--text-2);
+	}
 	.n-body {
 		flex: 1;
 		min-width: 0;
@@ -107,6 +138,10 @@
 	.n-text {
 		margin: 8px 0 0;
 		overflow-wrap: anywhere;
+	}
+	/* No avatar above the text here, so its first line sits level with the icon instead. */
+	.n-ico.moderation + .n-body .n-text {
+		margin-top: 4px;
 	}
 	.nm {
 		font-weight: 700;

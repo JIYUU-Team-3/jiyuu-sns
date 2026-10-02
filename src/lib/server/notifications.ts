@@ -8,7 +8,8 @@ import type {
 } from '#lib/notifications/types'
 import { shown_image } from './account-image'
 import type { getDb } from './db'
-import { notification, profile, user } from './db/schema'
+import { appeal, moderationAction, notification, profile, user } from './db/schema'
+import { is_rule } from '#lib/moderation/rules'
 import { find_posts } from './posts'
 import { push_notifications } from './push'
 import { actor_shown, silenced } from './safety'
@@ -20,7 +21,8 @@ export const PAGE_SIZE = 20
 type NewNotification = {
 	user_id: string
 	actor_id: string
-	type: NotificationType
+	/** Moderation notices are written by `server/moderation/posts.ts`, without a push. */
+	type: Exclude<NotificationType, 'moderation'>
 	post_id?: string
 }
 
@@ -138,9 +140,14 @@ export async function notifications_page(
 			post_body: sql<
 				string | null
 			>`(select p.body from post p where p.id = ${notification.postId})`,
+			action: moderationAction.action,
+			reason: moderationAction.reason,
+			review: appeal.status,
 		})
 		.from(notification)
 		.innerJoin(user, eq(user.id, notification.actorId))
+		.leftJoin(moderationAction, eq(moderationAction.id, notification.actionId))
+		.leftJoin(appeal, eq(appeal.actionId, notification.actionId))
 		.leftJoin(profile, eq(profile.userId, notification.actorId))
 		.where(
 			and(
@@ -183,6 +190,15 @@ export async function notifications_page(
 				post_id: row.post_id ?? undefined,
 				snippet: row.type === 'like' ? (row.post_body ?? undefined) : undefined,
 				post,
+				moderation:
+					row.type === 'moderation' &&
+					(row.action === 'remove' || row.action === 'limit' || row.action === 'restore')
+						? {
+								action: row.action,
+								reason: is_rule(row.reason) ? row.reason : undefined,
+								review_refused: row.review === 'refused',
+							}
+						: undefined,
 			},
 		]
 	})

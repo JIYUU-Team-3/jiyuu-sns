@@ -1,6 +1,7 @@
 import type { User, Session } from 'better-auth'
 import { createAuth } from '#lib/server/auth'
 import type { getDb } from '#lib/server/db'
+import type { Standing } from '#lib/server/moderation/standing'
 import type { Prefs } from '#lib/settings/prefs'
 
 // See https://svelte.dev/docs/kit/types#app.d.ts
@@ -21,6 +22,8 @@ declare global {
 			db: ReturnType<typeof getDb>
 			/** The device's display preferences, from its cookie. */
 			prefs: Prefs
+			/** The signed-in account's role and any suspension in force; set with `user`. */
+			standing?: Standing
 		}
 
 		// interface Error {}

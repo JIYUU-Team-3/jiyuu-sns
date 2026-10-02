@@ -8,6 +8,7 @@
 	import PostMenu from './PostMenu.svelte'
 	import PostContent from './PostContent.svelte'
 	import { edited_posts, like_state } from './state.svelte'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { PostView } from './types'
 
 	let { post, ondeleted }: { post: PostView; ondeleted?: () => void } = $props()
@@ -24,12 +25,20 @@
 				<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
 			</a>
 			<a class="who" href={profile_href(post.author.handle)}>
-				<div class="nm">{post.author.name}</div>
+				<div class="nm">
+					{post.author.name}
+					{#if post.author.moderator}<ModeratorBadge />{/if}
+				</div>
 				<div class="hd">@{post.author.handle}</div>
 			</a>
 		{:else}
 			<Avatar name={post.author.name} seed={post.author.id} image={post.author.image} size={48} />
-			<div class="who"><div class="nm">{post.author.name}</div></div>
+			<div class="who">
+				<div class="nm">
+					{post.author.name}
+					{#if post.author.moderator}<ModeratorBadge />{/if}
+				</div>
+			</div>
 		{/if}
 		<PostMenu {post} {ondeleted} />
 	</div>

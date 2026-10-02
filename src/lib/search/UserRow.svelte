@@ -4,6 +4,7 @@
 	import { set_follow } from '#lib/profiles/profiles.remote'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { UserView } from './types'
 
 	let { user, show_bio = true }: { user: UserView; show_bio?: boolean } = $props()
@@ -39,7 +40,10 @@
 		<Avatar name={user.name} seed={user.id} image={user.image} />
 	</a>
 	<div class="info">
-		<a class="nm" href={profile_href(user.handle)}>{user.name}</a>
+		<a class="nm" href={profile_href(user.handle)}>
+			{user.name}
+			{#if user.moderator}<ModeratorBadge />{/if}
+		</a>
 		<div class="hd">@{user.handle}</div>
 		{#if show_bio && user.bio}<p class="bio">{user.bio}</p>{/if}
 	</div>

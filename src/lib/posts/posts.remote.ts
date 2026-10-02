@@ -3,11 +3,15 @@ import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
 import { REPLY_AUDIENCES, type ReplyAudience } from '#lib/safety/rules'
-import { delete_media } from '#lib/server/media'
-import { checked_post_media } from '#lib/server/post-attachments'
-import { POST_UPLOAD_MAX_BYTES } from '#lib/media'
+import { is_gif_url } from '#lib/server/gifs'
+import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
+import { check_posts_later } from '#lib/server/moderation/after-write'
+import { sensitive_uploads } from '#lib/server/moderation/checks'
+import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
+import { trust_level } from '#lib/server/moderation/trust'
 import { member, signed_in } from '#lib/server/session'
+import { clean_text } from './clean'
 import { author_arg, feed_arg, replies_arg } from './args'
 import {
 	ALT_MAX,
@@ -19,13 +23,21 @@ import {
 	poll_options,
 	THREAD_MAX,
 } from './rules'
+import type { Media } from './types'
 
 const Id = v.pipe(v.string(), v.uuid())
 // Better Auth ids aren't UUIDs, so only the length is bounded.
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
-// The real limit is checked in graphemes by `post_problem`; this only bounds the payload.
-const Text = v.pipe(v.string(), v.trim(), v.maxLength(4000))
+// The real limit is checked in graphemes by `post_problem`; this only bounds the payload. Bidi
+// overrides and stacked marks are taken out first, as names and bios already are.
+const Text = v.pipe(
+	v.string(),
+	v.maxLength(8000),
+	v.transform(clean_text),
+	v.trim(),
+	v.maxLength(4000),
+)
 const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
 const Url = v.pipe(v.string(), v.maxLength(2048))
 // A blank description is no description.
@@ -36,23 +48,13 @@ const Alt = v.pipe(
 	v.transform((alt) => alt || undefined),
 )
 
-const MediaInput = v.variant('kind', [
-	v.object({
-		kind: v.picklist(['image', 'gif', 'video']),
-		url: Url,
-		width: Size,
-		height: Size,
-		alt: Alt,
-	}),
-	v.object({
-		kind: v.literal('file'),
-		url: Url,
-		width: v.literal(1),
-		height: v.literal(1),
-		name: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
-		size: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(POST_UPLOAD_MAX_BYTES.file)),
-	}),
-])
+const MediaInput = v.object({
+	kind: v.picklist(['image', 'gif', 'video']),
+	url: Url,
+	width: Size,
+	height: Size,
+	alt: Alt,
+})
 
 const PostFields = {
 	body: Text,
@@ -64,6 +66,7 @@ const PostFields = {
 		}),
 	),
 	location: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(LOCATION_MAX))),
+	sensitive: v.optional(v.boolean()),
 }
 
 const PostInput = v.pipe(
@@ -89,6 +92,15 @@ const viewer = () => signed_in().user_id
 
 /** Every write goes through here: no session or no profile, no write. */
 const author = member
+
+/**
+ * Photos and videos must be the author's own uploads, of the kind they claim to be; GIFs must
+ * come from the picker's CDN.
+ */
+function allowed_media({ kind, url }: Media, user_id: string) {
+	if (kind === 'gif') return is_gif_url(url)
+	return is_own_post_upload(url, user_id) && is_video_url(url) === (kind === 'video')
+}
 
 export const get_feed = query(
 	v.object({ tab: v.picklist(['for_you', 'following']), cursor: Cursor }),
@@ -126,11 +138,10 @@ export const get_author_posts = query(
 
 type PostPayload = v.InferOutput<typeof PostInput>
 
-async function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
-	const media = await checked_post_media(env.MEDIA, user_id, rest.media)
+function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
+	if (!rest.media.every((media) => allowed_media(media, user_id))) error(400, 'Invalid media.')
 	return {
 		...rest,
-		media,
 		location: location || undefined,
 		poll: poll && { ...poll, options: poll_options(poll.options) },
 	}
@@ -142,10 +153,22 @@ async function publish(
 	audience: ReplyAudience,
 ) {
 	const { db, user_id } = await author()
-	const prepared = await Promise.all(inputs.map((input) => prepare(input, user_id)))
+	const drafts = inputs.map((input) => prepare(input, user_id))
+	// A photo found sensitive while it was being written goes behind the cover whatever was ticked.
+	const flagged = await sensitive_uploads(
+		db,
+		drafts.flatMap((draft) => draft.media.map((media) => media.url)),
+	)
+	const prepared = drafts.map((draft) =>
+		draft.media.some((media) => flagged.has(media.url)) ? { ...draft, sensitive: true } : draft,
+	)
+	const trust = await trust_level(db, user_id)
+	const { risky } = await check_new_posts(db, user_id, trust, prepared)
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to, audience)
 	if (!ids) error(404, 'The post you replied to was deleted.')
 	if (ids === 'closed') error(403, 'replies_closed')
+	await flag_risky_links(db, user_id, ids, risky)
+	check_posts_later(db, ids)
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -187,10 +210,13 @@ export const edit_post = command(
 	}),
 	async ({ id, body, media }) => {
 		const { db, user_id } = await author()
+		await check_edited_post(db, user_id, await trust_level(db, user_id), body)
 		const result = await posts.update_post(db, user_id, id, body, media)
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')
 		if (result === 'locked') error(409, 'poll_locked')
+		// New text gets the same checks as a new post.
+		check_posts_later(db, [id])
 		await delete_unused_uploads(db, result.removed_uploads)
 		await get_post(id).refresh()
 	},

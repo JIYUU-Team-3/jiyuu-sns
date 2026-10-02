@@ -1,6 +1,7 @@
 import { read_image, type ImageKind } from '#lib/media'
 import type { getDb } from './db'
-import { delete_media, put_image } from './media'
+import { BlockedMediaError, delete_media, put_image } from './media'
+import { is_blocked_media } from './moderation/media'
 import { find_profile, handle_taken, save_profile } from './profiles'
 
 type Db = ReturnType<typeof getDb>
@@ -15,15 +16,26 @@ export type ImageChanges = Partial<Record<ImageKind, string | null>>
 const KINDS = ['avatar', 'banner'] as const
 
 /** Put each picked image in R2 and return the new URLs by kind; a failure leaves nothing behind. */
-async function upload_images(bucket: R2Bucket, user_id: string, images: Images) {
+async function upload_images(
+	db: Db,
+	bucket: R2Bucket,
+	user_id: string,
+	images: Images,
+): Promise<Urls | { blocked: ImageKind }> {
 	const urls: Urls = {}
+	let kind: ImageKind | undefined
 	try {
-		for (const kind of KINDS) {
+		for (kind of KINDS) {
 			const file = images[kind]
-			if (file) urls[kind] = await put_image(bucket, user_id, await read_image(file, kind))
+			if (file) {
+				urls[kind] = await put_image(bucket, user_id, await read_image(file, kind), (bytes) =>
+					is_blocked_media(db, bytes),
+				)
+			}
 		}
 	} catch (error) {
 		await delete_media(bucket, Object.values(urls))
+		if (error instanceof BlockedMediaError && kind) return { blocked: kind }
 		throw error
 	}
 	return urls
@@ -67,11 +79,12 @@ export async function save_profile_with_images(
 	draft: Draft,
 	images: Images,
 	removals: Removals = {},
-): Promise<'saved' | 'taken'> {
+): Promise<'saved' | 'taken' | { blocked: ImageKind }> {
 	if (await handle_taken(db, user_id, draft.handle)) return 'taken'
 
 	const before = await find_profile(db, user_id)
-	const urls = await upload_images(bucket, user_id, images)
+	const urls = await upload_images(db, bucket, user_id, images)
+	if ('blocked' in urls) return urls
 	const changes = image_changes(urls, removals)
 	const saved = await save_or_discard(bucket, urls, () =>
 		save_profile(db, user_id, { ...draft, ...changes }),

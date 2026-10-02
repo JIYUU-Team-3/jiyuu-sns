@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { refusal_message } from '#lib/moderation/refusals'
 	import { goto } from '$app/navigation'
 	import { m } from '#lib/paraglide/messages.js'
 	import { debounced } from '#lib/posts/composer/debounce.svelte'
@@ -37,8 +38,8 @@
 			})
 			onclose()
 			await goto(conversation_href(id))
-		} catch {
-			toast.show(m.toast_error())
+		} catch (cause) {
+			toast.show(refusal_message(cause, m.toast_error))
 		} finally {
 			pending = false
 		}

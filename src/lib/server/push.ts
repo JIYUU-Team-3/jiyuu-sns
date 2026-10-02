@@ -89,7 +89,13 @@ export type PushMessage = {
 	delivered?: boolean
 }
 
-type Event = { user_id: string; actor_id: string; type: NotificationType; post_id?: string }
+/** Moderation notices are written straight to the list and never pushed. */
+type Event = {
+	user_id: string
+	actor_id: string
+	type: Exclude<NotificationType, 'moderation'>
+	post_id?: string
+}
 
 const TITLES = {
 	like: m.push_like,

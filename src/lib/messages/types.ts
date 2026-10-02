@@ -1,10 +1,8 @@
 import type { Author } from '#lib/posts/types'
 
-export type MessageMediaKind = 'image' | 'gif' | 'file'
+export type MessageMediaKind = 'image' | 'gif'
 
-export type MessageMedia =
-	| { kind: 'image' | 'gif'; url: string; width: number; height: number }
-	| { kind: 'file'; url: string; name: string; size: number }
+export type MessageMedia = { kind: MessageMediaKind; url: string; width: number; height: number }
 
 export type Reaction = { emoji: string; count: number; mine: boolean }
 
@@ -13,6 +11,8 @@ export type MessageView = {
 	sender: Author
 	mine: boolean
 	body: string
+	/** Blocked domains the text mentions; links to them are drawn as plain text. */
+	blocked_hosts: string[]
 	media?: MessageMedia
 	reply_to?: {
 		id: string

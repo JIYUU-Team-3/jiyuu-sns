@@ -25,7 +25,13 @@
 	onMount(() => (hydrated = true))
 
 	const ready = $derived(
-		Object.keys(profile_errors({ name: name.trim(), handle: handle.trim(), bio })).length === 0,
+		Object.keys(
+			profile_errors(
+				{ name: name.trim(), handle: handle.trim(), bio },
+				data.me.handle,
+				data.moderator,
+			),
+		).length === 0,
 	)
 
 	// Null on a direct load, so saving then just replaces this page.
@@ -73,6 +79,8 @@
 	/>
 	<HandleField
 		bind:value={handle}
+		current={data.me.handle}
+		locked={data.moderator}
 		taken={form?.errors.handle === 'taken' ? form.draft.handle : undefined}
 	/>
 	<TextField

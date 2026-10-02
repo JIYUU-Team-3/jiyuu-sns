@@ -27,8 +27,11 @@ import {
 	user,
 } from './db/schema'
 import { shown_image } from './account-image'
+import { blocked_hosts_in } from './moderation/links'
+import { is_moderator } from './moderation/standing'
+import { TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
-import { unmuted_posts, visible_posts } from './safety'
+import { shown_to, unmuted_posts, visible_posts } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
@@ -54,16 +57,20 @@ const notified_mentions = (body: string) => extract_mentions(body).slice(0, MENT
 const parent = alias(post, 'parent')
 const parent_profile = alias(profile, 'parent_profile')
 
-export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id})`
+// The moderation gate lives beside the privacy one, which includes it; see `visible_posts`.
+export { shown_to }
+
+// Hidden replies aren't counted, so a count never hints at a post nobody else can see.
+export const reply_count = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id} and r.moderation = 'visible')`
 export const like_count = sql<number>`(select count(*) from post_like l where l.post_id = ${post.id})`
-const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId})`
+const continued = sql<number>`exists(select 1 from post r where r.reply_to_id = ${post.id} and r.author_id = ${post.authorId} and r.moderation = 'visible')`
 
 const THREAD_DEPTH = 100
 
 // Attachments come back as JSON arrays from correlated subqueries, so a page stays one statement.
 const media_json = sql<string>`(select json_group_array(json_object(
 	'position', m.position, 'kind', m.kind, 'url', m.url, 'width', m.width, 'height', m.height,
-	'alt', m.alt, 'name', m.name, 'size', m.size
+	'alt', m.alt
 )) from post_media m where m.post_id = ${post.id})`
 const poll_json = sql<string>`(select json_group_array(json_object(
 	'position', o.position, 'label', o.label,
@@ -91,6 +98,10 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			edited_at: post.editedAt,
 			reply_to_id: post.replyToId,
 			location: post.location,
+			moderation: post.moderation,
+			sensitive: post.sensitive,
+			blocked_hosts: blocked_hosts_in(post.body),
+			author_created_at: user.createdAt,
 			reply_audience: post.replyAudience,
 			viewer_handle: viewer
 				? sql<string | null>`(select h.handle from profile h where h.user_id = ${viewer})`
@@ -106,6 +117,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			author_name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 			author_handle: profile.handle,
 			author_image: shown_image,
+			author_moderator: is_moderator(user.id),
 			parent_handle: parent_profile.handle,
 			parent_author_id: parent.authorId,
 			continued,
@@ -136,15 +148,15 @@ function by_position<T>(json: string | null): T[] {
 
 /** SQL hands back a missing description as null; the client only knows set or unset. */
 function to_media(json: string | null): Media[] {
-	return by_position<Media & { alt: string | null; name: string | null; size: number | null }>(
-		json,
-	).map(({ alt, name, size, ...item }) => ({
-		...item,
-		alt: alt || undefined,
-		name: name ?? undefined,
-		size: size ?? undefined,
-	}))
+	return (
+		by_position<Media & { alt: string | null }>(json)
+			// A file attached while posts briefly took them is nothing a post can draw any more.
+			.filter((item) => SHOWN_KINDS.has(item.kind))
+			.map(({ alt, ...item }) => (alt ? { ...item, alt } : item))
+	)
 }
+
+const SHOWN_KINDS: ReadonlySet<string> = new Set(['image', 'gif', 'video'])
 
 function to_poll(row: Row): PollView | undefined {
 	if (!row.poll_ends_at) return undefined
@@ -167,6 +179,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 			name: row.author_name,
 			handle: row.author_handle ?? undefined,
 			image: row.author_image ?? undefined,
+			moderator: row.author_moderator ? true : undefined,
 		},
 		reply_to: row.reply_to_id
 			? {
@@ -183,6 +196,11 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		likes: row.likes,
 		liked: !!row.liked,
 		mine,
+		sensitive: row.sensitive,
+		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
+		warn_links: row.author_created_at.getTime() > Date.now() - TRUSTED_DAYS * 24 * 60 * 60 * 1000,
+		// Only its author is ever shown a hidden post, so only they learn its state.
+		moderation: row.moderation === 'visible' ? undefined : row.moderation,
 		reply_audience: row.reply_audience,
 		can_reply: may_reply(row.reply_audience, {
 			mine,
@@ -499,6 +517,8 @@ export type NewPost = {
 	media: Media[]
 	poll?: { options: string[]; days: PollDays }
 	location?: string
+	/** The author marked the media as sensitive, so it's blurred until a viewer opens it. */
+	sensitive?: boolean
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -568,6 +588,9 @@ export async function insert_thread(
 				authorId: author_id,
 				body: input.body,
 				location: input.location ?? null,
+				sensitive: !!input.sensitive,
+				// The automatic checks run right after; see `check_posts_later`.
+				checked: 'pending',
 				replyToId: parent_id ?? null,
 				isReply: !!parent_id,
 				replyAudience: audience,
@@ -634,7 +657,8 @@ export async function update_post(
 	const [owned] = await db
 		.select({ body: post.body, created_at: post.createdAt, reply_to_id: post.replyToId })
 		.from(post)
-		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
+		// A post a moderator limited or removed stays as it was reviewed.
+		.where(and(eq(post.id, id), eq(post.authorId, author_id), eq(post.moderation, 'visible')))
 		.limit(1)
 	if (!owned) return 'not_found'
 	if (body !== owned.body && (await has_votes(db, id))) return 'locked'
@@ -680,16 +704,16 @@ async function has_votes(db: Db, post_id: string) {
 /**
  * Delete the author's own post. Returns what it replied to, so that post's reply count can be
  * refreshed, and its photo and video URLs, so their files can be removed; undefined when the post isn't
- * theirs or doesn't exist.
+ * theirs or doesn't exist. `only_if` narrows the delete itself, so a check can't go stale before it.
  */
-export async function remove_post(db: Db, author_id: string, id: string) {
+export async function remove_post(db: Db, author_id: string, id: string, only_if?: SQL) {
 	const uploads = await db
 		.select({ url: postMedia.url })
 		.from(postMedia)
 		.where(and(eq(postMedia.postId, id), ne(postMedia.kind, 'gif')))
 	const [removed] = await db
 		.delete(post)
-		.where(and(eq(post.id, id), eq(post.authorId, author_id)))
+		.where(and(eq(post.id, id), eq(post.authorId, author_id), only_if))
 		.returning({ reply_to_id: post.replyToId })
 	if (!removed) return undefined
 	return { reply_to_id: removed.reply_to_id ?? undefined, uploads: uploads.map((u) => u.url) }
@@ -760,5 +784,7 @@ export async function vote(db: Db, user_id: string, post_id: string, position: n
 	await db.run(sql`insert or ignore into poll_vote (post_id, user_id, position)
 		select o.post_id, ${user_id}, o.position from poll_option o
 		join poll p on p.post_id = o.post_id
-		where o.post_id = ${post_id} and o.position = ${position} and p.ends_at > ${Date.now()}`)
+		join post on post.id = o.post_id
+		where o.post_id = ${post_id} and o.position = ${position} and p.ends_at > ${Date.now()}
+		and (post.moderation = 'visible' or post.author_id = ${user_id})`)
 }

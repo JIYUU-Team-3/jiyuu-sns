@@ -27,10 +27,27 @@ export const blocked_between = (a: Side, b: Side) =>
 const follows = (follower: Side, following: Side) =>
 	sql`exists(select 1 from follow f where f.follower_id = ${follower} and f.following_id = ${following})`
 
+/**
+ * The moderation half of who may see a post: anyone while it's visible; only its author once a
+ * moderator limits or removes it. Moderators look at hidden posts through `/mod/p/[id]`, so nothing
+ * here needs to know about roles. `visible_posts` includes it; use it alone only where the author's
+ * profile isn't joined and blocks and privacy don't apply.
+ */
+export function shown_to(viewer: string | undefined) {
+	const visible = eq(post.moderation, 'visible')
+	return viewer ? or(visible, eq(post.authorId, viewer)) : visible
+}
+
+/**
+ * Who may see a post, and the one filter every query that lists posts includes: not hidden by a
+ * moderator (`shown_to`), not across a block, and not a private account's unless the viewer
+ * follows it. Needs the author's `profile` joined.
+ */
 export function visible_posts(viewer: string | undefined) {
 	const open = sql`coalesce(${profile.isPrivate}, 0) = 0`
-	if (!viewer) return open
+	if (!viewer) return and(shown_to(viewer), open)
 	return and(
+		shown_to(viewer),
 		sql`not ${blocked_between(viewer, post.authorId)}`,
 		or(eq(post.authorId, viewer), open, follows(viewer, post.authorId)),
 	)
@@ -258,6 +275,10 @@ export type NewReport = {
 	note: string
 }
 
+/**
+ * Save a report. False when there's nobody or no such post to report; otherwise who it's about,
+ * and whether it's new: a person reports the same thing once, so a repeat saves nothing.
+ */
 export async function save_report(db: Db, me: string, input: NewReport) {
 	const them = await account_id(db, me, input.handle)
 	if (!them) return false
@@ -270,14 +291,15 @@ export async function save_report(db: Db, me: string, input: NewReport) {
 		if (!owned) return false
 	}
 	const post_id = input.post_id ?? null
-	await db.run(
+	const saved = await db.all(
 		sql`insert into report (id, reporter_id, user_id, post_id, reason, note)
 			select ${crypto.randomUUID()}, ${me}, ${them}, ${post_id}, ${input.reason}, ${input.note}
 			where not exists(
 				select 1 from report where reporter_id = ${me} and user_id = ${them} and post_id is ${post_id}
-			)`,
+			)
+			returning id`,
 	)
-	return true
+	return { user_id: them, fresh: saved.length > 0 }
 }
 
 export async function silenced(db: Db, pairs: { user_id: string; actor_id: string }[]) {

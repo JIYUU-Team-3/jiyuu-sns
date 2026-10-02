@@ -5,15 +5,18 @@ import {
 	integer,
 	primaryKey,
 	sqliteTable,
+	uniqueIndex,
 	text,
 } from 'drizzle-orm/sqlite-core'
 import { user } from './auth.schema'
 
-/** Same `timestamp_ms` style as the generated auth tables. */
-const created_at = () =>
-	integer('created_at', { mode: 'timestamp_ms' })
+/** Same `timestamp_ms` style as the generated auth tables, set when the row is written. */
+const written_at = (name: string) =>
+	integer(name, { mode: 'timestamp_ms' })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull()
+
+const created_at = () => written_at('created_at')
 
 /** The public side of an account: 1:1 with `user`, written by onboarding. */
 export const profile = sqliteTable('profile', {
@@ -55,15 +58,36 @@ export const post = sqliteTable(
 		createdAt: created_at(),
 		// Set only by an edit, so the "Edited" label never comes from an unrelated write.
 		editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+		/**
+		 * `limited` waits for a moderator and `removed` was taken down; both are shown to their author
+		 * only. See `shown_to` in `server/posts.ts` and docs/MODERATION.md.
+		 */
+		moderation: text('moderation', { enum: ['visible', 'limited', 'removed'] })
+			.notNull()
+			.default('visible'),
+		/** Media blurred until the viewer chooses to see it. Set by the author or a moderator. */
+		sensitive: integer('sensitive', { mode: 'boolean' }).notNull().default(false),
+		/** When a moderator removed it; the post is deleted for good a day later, unless appealed. */
+		removedAt: integer('removed_at', { mode: 'timestamp_ms' }),
+		/**
+		 * The automatic checks: `pending` until they run, `unchecked` when they couldn't (no budget,
+		 * no answer) and the hourly job should try again, `skipped` when there was nothing for them.
+		 * Posts from before the checks existed are `skipped`, so they're never queued all at once.
+		 */
+		checked: text('checked', { enum: ['pending', 'checked', 'unchecked', 'skipped'] })
+			.notNull()
+			.default('skipped'),
 	},
 	(table) => [
 		index('post_author_created_idx').on(table.authorId, table.createdAt),
 		index('post_reply_to_created_idx').on(table.replyToId, table.createdAt),
 		index('post_timeline_idx').on(table.isReply, table.createdAt),
+		// The hourly job's retry of posts the checks couldn't finish.
+		index('post_checked_idx').on(table.checked, table.createdAt),
 	],
 )
 
-/** Attachments on a post, in the order the author picked them. */
+/** Photos, GIFs and videos on a post, in the order the author picked them. */
 export const postMedia = sqliteTable(
 	'post_media',
 	{
@@ -72,12 +96,14 @@ export const postMedia = sqliteTable(
 			.references(() => post.id, { onDelete: 'cascade' }),
 		position: integer('position').notNull(),
 		/** `image` and `video` are uploads in R2; `gif` is a GIF from the picker's CDN. */
-		kind: text('kind', { enum: ['image', 'gif', 'video', 'file'] }).notNull(),
+		kind: text('kind', { enum: ['image', 'gif', 'video'] }).notNull(),
 		url: text('url').notNull(),
 		width: integer('width').notNull(),
 		height: integer('height').notNull(),
 		/** The author's description for screen readers; null when they didn't write one. */
 		alt: text('alt'),
+		// From the file attachments that were taken out again. Nothing writes these; they stay so
+		// the schema matches the database, where migration 0010 already added them.
 		name: text('name'),
 		size: integer('size'),
 	},
@@ -274,10 +300,14 @@ export const notification = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		type: text('type', {
-			enum: ['follow', 'like', 'reply', 'mention', 'follow_request'],
+			enum: ['follow', 'like', 'reply', 'mention', 'moderation', 'follow_request'],
 		}).notNull(),
 		// The liked post, or the reply or mention itself. Null for a follow.
 		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
+		/** For `moderation`: what a moderator did, which says why. */
+		actionId: text('action_id').references((): AnySQLiteColumn => moderationAction.id, {
+			onDelete: 'cascade',
+		}),
 		readAt: integer('read_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
 	},
@@ -350,10 +380,11 @@ export const message = sqliteTable(
 		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
 			onDelete: 'set null',
 		}),
-		mediaKind: text('media_kind', { enum: ['image', 'gif', 'file'] }),
+		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
 		mediaUrl: text('media_url'),
 		mediaWidth: integer('media_width'),
 		mediaHeight: integer('media_height'),
+		// Unused since file attachments were taken out; kept to match the database (migration 0010).
 		mediaName: text('media_name'),
 		mediaSize: integer('media_size'),
 		createdAt: created_at(),
@@ -378,5 +409,184 @@ export const messageReaction = sqliteTable(
 	},
 	(table) => [primaryKey({ columns: [table.messageId, table.userId] })],
 )
+
+/**
+ * An account's place in moderation: its role and any suspension. Only accounts with something to
+ * record have a row; no row is a member in good standing. See docs/MODERATION.md.
+ */
+export const accountStanding = sqliteTable('account_standing', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Set by `pnpm db:grant-moderator`, never by the app. Tied to the id, not the handle. */
+	role: text('role', { enum: ['member', 'moderator'] })
+		.notNull()
+		.default('member'),
+	/** When the current suspension began; null when the account isn't suspended. */
+	suspendedAt: integer('suspended_at', { mode: 'timestamp_ms' }),
+	/** When it ends; null with `suspendedAt` set is a permanent suspension. */
+	suspendedUntil: integer('suspended_until', { mode: 'timestamp_ms' }),
+	/** The rule broken, from `#lib/moderation/rules`. */
+	suspendReason: text('suspend_reason'),
+	/** The action that suspended it, which a review request is filed against. */
+	suspendActionId: text('suspend_action_id'),
+	/** Held to a new account's limits, by a moderator or a high behaviour score. */
+	restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
+	/** Who restricted it; a moderator's restriction is only lifted by a moderator. */
+	restrictedBy: text('restricted_by', { enum: ['moderator', 'score'] }),
+	/** The last behaviour score, 0 to 100, from `server/moderation/score.ts`. */
+	behaviourScore: integer('behaviour_score').notNull().default(0),
+	scoredAt: integer('scored_at', { mode: 'timestamp_ms' }),
+	updatedAt: written_at('updated_at'),
+})
+
+const target_kind = () => text('target_kind', { enum: ['post', 'profile', 'message'] }).notNull()
+
+/**
+ * Everything about one post, profile or message that needs a moderator: its reports and automatic
+ * flags together, so ten reports are one item in the queue. Reopened by the next report.
+ */
+export const moderationCase = sqliteTable(
+	'moderation_case',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		targetKind: target_kind(),
+		targetId: text('target_id').notNull(),
+		/** Whose content it is, so the queue can show their history. */
+		targetUserId: text('target_user_id').references(() => user.id, { onDelete: 'cascade' }),
+		status: text('status', { enum: ['open', 'actioned', 'dismissed'] })
+			.notNull()
+			.default('open'),
+		/** Higher first in the queue. */
+		priority: integer('priority').notNull().default(0),
+		reports: integer('reports').notNull().default(0),
+		/** The rule most reports or flags named. */
+		reason: text('reason'),
+		/** Results of automatic checks, as a JSON object keyed by check. */
+		flags: text('flags').notNull().default('{}'),
+		createdAt: created_at(),
+		updatedAt: written_at('updated_at'),
+		closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+	},
+	(table) => [
+		uniqueIndex('moderation_case_target_idx').on(table.targetKind, table.targetId),
+		index('moderation_case_queue_idx').on(table.status, table.priority, table.updatedAt),
+	],
+)
+
+/** Every moderator decision, and every automatic one, in order. Rows are never edited but to reverse. */
+export const moderationAction = sqliteTable(
+	'moderation_action',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		caseId: text('case_id').references(() => moderationCase.id, { onDelete: 'set null' }),
+		/** Null for an automatic action. */
+		moderatorId: text('moderator_id').references(() => user.id, { onDelete: 'set null' }),
+		action: text('action', {
+			enum: [
+				'dismiss',
+				'warn',
+				'sensitive',
+				'limit',
+				'remove',
+				'restore',
+				'suspend',
+				'unsuspend',
+				'block_domain',
+				'block_media',
+				'restrict',
+				'unrestrict',
+			],
+		}).notNull(),
+		reason: text('reason'),
+		/** Whether this counts as a strike against `targetUserId`. */
+		strike: integer('strike', { mode: 'boolean' }).notNull().default(false),
+		targetKind: text('target_kind', {
+			enum: ['post', 'profile', 'message', 'account', 'domain', 'media'],
+		}).notNull(),
+		targetId: text('target_id').notNull(),
+		targetUserId: text('target_user_id').references(() => user.id, { onDelete: 'cascade' }),
+		/** For a suspension, when it ends; null for permanent. */
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+		/** The moderator's own words, shown to the person affected. */
+		note: text('note'),
+		createdAt: created_at(),
+		reversedAt: integer('reversed_at', { mode: 'timestamp_ms' }),
+	},
+	(table) => [
+		index('moderation_action_user_idx').on(table.targetUserId, table.createdAt),
+		index('moderation_action_target_idx').on(table.targetKind, table.targetId),
+	],
+)
+
+/** A request to undo an action: one per action, so a suspension is reviewed once. */
+export const appeal = sqliteTable(
+	'appeal',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		actionId: text('action_id')
+			.notNull()
+			.unique()
+			.references(() => moderationAction.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		body: text('body').notNull(),
+		status: text('status', { enum: ['open', 'upheld', 'refused'] })
+			.notNull()
+			.default('open'),
+		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+		decidedAt: integer('decided_at', { mode: 'timestamp_ms' }),
+		createdAt: created_at(),
+	},
+	(table) => [index('appeal_status_idx').on(table.status, table.createdAt)],
+)
+
+/** Domains whose links are refused and no longer drawn as links. Covers their subdomains. */
+export const blockedDomain = sqliteTable('blocked_domain', {
+	domain: text('domain').primaryKey(),
+	/** Null when a check added it. */
+	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+	reason: text('reason'),
+	createdAt: created_at(),
+})
+
+/** SHA-256 of removed images, as stored after stripping, so the same file can't come back. */
+export const blockedMediaHash = sqliteTable('blocked_media_hash', {
+	sha256: text('sha256').primaryKey(),
+	addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: created_at(),
+})
+
+/**
+ * What the vision model said about a post photo while its post was being written, so the composer
+ * can warn its author and publishing doesn't ask again. The scores are null when the image was
+ * passed over by trust sampling; see `check_upload`.
+ */
+export const mediaCheck = sqliteTable('media_check', {
+	url: text('url').primaryKey(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	nudity: integer('nudity'),
+	violence: integer('violence'),
+	gore: integer('gore'),
+	createdAt: created_at(),
+})
+
+/** Neurons the automatic checks spent each UTC day, by kind, against `server/moderation/budget.ts`. */
+export const aiUsage = sqliteTable('ai_usage', {
+	/** `YYYY-MM-DD`, UTC, as Workers AI counts its free allocation. */
+	day: text('day').primaryKey(),
+	text: integer('text').notNull().default(0),
+	image: integer('image').notNull().default(0),
+	report: integer('report').notNull().default(0),
+})
 
 export * from './auth.schema'
