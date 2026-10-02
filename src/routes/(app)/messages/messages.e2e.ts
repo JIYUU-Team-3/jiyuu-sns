@@ -81,7 +81,11 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		await link.click()
 		expect((await downloaded).suggestedFilename()).toBe(name)
 		expect((await outsider_context.request.get(url)).status()).toBe(404)
-		expect((await page.request.delete(url)).status()).toBe(409)
+		expect(
+			(
+				await page.request.delete(url, { headers: { origin: new URL(page.url()).origin } })
+			).status(),
+		).toBe(409)
 
 		// Clipboard screenshots retain the existing inline photo preview.
 		const png = Buffer.from(

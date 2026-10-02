@@ -2,8 +2,9 @@ import { error } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
-import { is_gif_url } from '#lib/server/gifs'
-import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
+import { delete_media } from '#lib/server/media'
+import { checked_post_media } from '#lib/server/post-attachments'
+import { POST_UPLOAD_MAX_BYTES } from '#lib/media'
 import * as posts from '#lib/server/posts'
 import { member, signed_in } from '#lib/server/session'
 import { author_arg, feed_arg, replies_arg } from './args'
@@ -17,7 +18,6 @@ import {
 	poll_options,
 	THREAD_MAX,
 } from './rules'
-import type { Media } from './types'
 
 const Id = v.pipe(v.string(), v.uuid())
 // Better Auth ids aren't UUIDs, so only the length is bounded.
@@ -35,13 +35,23 @@ const Alt = v.pipe(
 	v.transform((alt) => alt || undefined),
 )
 
-const MediaInput = v.object({
-	kind: v.picklist(['image', 'gif', 'video']),
-	url: Url,
-	width: Size,
-	height: Size,
-	alt: Alt,
-})
+const MediaInput = v.variant('kind', [
+	v.object({
+		kind: v.picklist(['image', 'gif', 'video']),
+		url: Url,
+		width: Size,
+		height: Size,
+		alt: Alt,
+	}),
+	v.object({
+		kind: v.literal('file'),
+		url: Url,
+		width: v.literal(1),
+		height: v.literal(1),
+		name: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
+		size: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(POST_UPLOAD_MAX_BYTES.file)),
+	}),
+])
 
 const PostFields = {
 	body: Text,
@@ -76,15 +86,6 @@ const viewer = () => signed_in().user_id
 /** Every write goes through here: no session or no profile, no write. */
 const author = member
 
-/**
- * Photos and videos must be the author's own uploads, of the kind they claim to be; GIFs must
- * come from the picker's CDN.
- */
-function allowed_media({ kind, url }: Media, user_id: string) {
-	if (kind === 'gif') return is_gif_url(url)
-	return is_own_post_upload(url, user_id) && is_video_url(url) === (kind === 'video')
-}
-
 export const get_feed = query(
 	v.object({ tab: v.picklist(['for_you', 'following']), cursor: Cursor }),
 	({ tab, cursor }) => posts.feed_page(getRequestEvent().locals.db, viewer(), tab, cursor),
@@ -112,10 +113,11 @@ export const get_author_posts = query(
 
 type PostPayload = v.InferOutput<typeof PostInput>
 
-function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
-	if (!rest.media.every((media) => allowed_media(media, user_id))) error(400, 'Invalid media.')
+async function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
+	const media = await checked_post_media(env.MEDIA, user_id, rest.media)
 	return {
 		...rest,
+		media,
 		location: location || undefined,
 		poll: poll && { ...poll, options: poll_options(poll.options) },
 	}
@@ -123,7 +125,7 @@ function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 
 async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	const { db, user_id } = await author()
-	const prepared = inputs.map((input) => prepare(input, user_id))
+	const prepared = await Promise.all(inputs.map((input) => prepare(input, user_id)))
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
 	if (!ids) error(404, 'The post you replied to was deleted.')
 

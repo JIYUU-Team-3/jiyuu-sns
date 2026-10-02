@@ -41,6 +41,14 @@ Push notifications stay off while the VAPID keys are empty. Generate a pair with
 
 `wrangler types` bakes the keys from `.env` into `worker-configuration.d.ts`, so a `.env` must exist (placeholder values are fine) before `check` or `build`. That file is generated and git-ignored; every script that typechecks regenerates it.
 
+### Attachments
+
+Posts, replies and thread entries accept pasted files or files chosen with **Add files**.
+Images and supported videos keep their previews; other files show their name, size and a
+download link. Each post can hold up to four attachments, with a 5 MB limit per file or photo
+and a 50 MB limit for supported videos. DMs accept one attachment up to 5 MB. Post downloads
+require sign-in; DM downloads additionally require conversation membership or upload ownership.
+
 ### Local sign-in
 
 For local development without Google sign-in, set `DEV_AUTH_BYPASS="1"` and

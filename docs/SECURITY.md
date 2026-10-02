@@ -47,7 +47,7 @@ These are the ones that have already been broken once.
    `src/lib/server/rate-limit.ts`, bindings in `wrangler.jsonc`).
 10. **Inline images and videos have their metadata stripped by keep-list.** `strip-metadata.ts`
     and `strip-video.ts` keep only what draws the picture and refuse what they can't parse.
-    Other DM files retain their original bytes and metadata and are download-only: generated
+    Other post and DM files retain their original bytes and metadata and are download-only: generated
     `.bin` keys, `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
     Never render those files inline; keep the same session, membership, size and rate checks.
 11. **Server-only data stays server-only.** Email addresses are returned to their owner and nobody

@@ -5,6 +5,8 @@ import {
 	media_key,
 	is_own_message_upload,
 	put_message_file,
+	is_own_post_upload,
+	is_post_file_url,
 } from './media'
 
 const KEY = 'avatars/user_1/0b0e6c1e-5f7a-4c4e-9c1a-2d7f0f7f1a11.png'
@@ -24,6 +26,17 @@ describe('media_key', () => {
 	it('allows videos only on posts', () => {
 		expect(media_key('/media/posts/u/v-1.mp4')).toBe('posts/u/v-1.mp4')
 		expect(media_key('/media/avatars/u/v-1.mp4')).toBeUndefined()
+	})
+
+	it('accepts downloadable post files without extending profile image formats', () => {
+		const url = '/media/posts/alice/document.bin'
+		expect(media_key(url)).toBe('posts/alice/document.bin')
+		expect(is_own_post_upload(url, 'alice')).toBe(true)
+		expect(is_own_post_upload(url, 'bob')).toBe(false)
+		expect(is_post_file_url(url)).toBe(true)
+		expect(is_post_file_url('/media/posts/alice/photo.png')).toBe(false)
+		expect(media_key('/media/avatars/alice/document.bin')).toBeUndefined()
+		expect(media_key('/media/banners/alice/document.bin')).toBeUndefined()
 	})
 
 	it('recognizes private file keys without allowing arbitrary extensions or paths', () => {
