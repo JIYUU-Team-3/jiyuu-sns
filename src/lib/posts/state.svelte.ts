@@ -30,6 +30,8 @@ export const composer = {
  */
 export const deleted_posts = new SvelteSet<string>()
 
+export const hidden_authors = new SvelteSet<string>()
+
 export type PostContent = { body: string; media: Media[] }
 
 /** New text and photo order for posts edited in this tab, shown until their lists refetch. */

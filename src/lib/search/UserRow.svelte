@@ -10,17 +10,23 @@
 
 	/** The row's own follow state, so following from a list doesn't wait for a refetch. */
 	let followed = $derived(user.followed)
+	let requested = $derived(user.requested)
 	let pending = $state(false)
+
+	const active = $derived(followed || requested)
 
 	async function toggle() {
 		if (pending) return
-		const on = !followed
-		followed = on
+		const on = !active
+		const before = { followed, requested }
+		if (requested || (on && user.private)) requested = on
+		else followed = on
 		pending = true
 		try {
 			await set_follow({ handle: user.handle, on })
 		} catch {
-			followed = !on
+			followed = before.followed
+			requested = before.requested
 			toast.show(m.toast_error())
 		} finally {
 			pending = false
@@ -40,12 +46,19 @@
 	{#if !user.mine}
 		<button
 			type="button"
-			class="btn sm {followed ? 'btn-outline' : 'btn-ink'}"
-			aria-label={followed
-				? m.follow_unfollow_label({ handle: user.handle })
-				: m.follow_follow_label({ handle: user.handle })}
-			aria-pressed={followed}
-			onclick={toggle}>{followed ? m.follow_following() : m.follow_follow()}</button
+			class="btn sm {active ? 'btn-outline' : 'btn-ink'}"
+			aria-label={requested
+				? m.follow_cancel_label({ handle: user.handle })
+				: followed
+					? m.follow_unfollow_label({ handle: user.handle })
+					: m.follow_follow_label({ handle: user.handle })}
+			aria-pressed={active}
+			onclick={toggle}
+			>{requested
+				? m.follow_requested()
+				: followed
+					? m.follow_following()
+					: m.follow_follow()}</button
 		>
 	{/if}
 </div>

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Request } from '@playwright/test'
 import { sign_up } from './(app)/sign-up'
 
 /** A 1×1 PNG. */
@@ -126,4 +126,169 @@ test('uploads are refused once an account passes its limit @writes', async ({ pa
 	}
 	expect(statuses).toContain(400)
 	expect(statuses).toContain(429)
+})
+
+async function post_path(page: Page, text: string) {
+	await page.goto('/')
+	await page.waitForLoadState('networkidle')
+	const composer = page.locator('form.inline')
+	await composer.getByLabel('Post text').fill(text)
+	await composer
+		.locator('input[type="file"]')
+		.setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG })
+	await expect(composer.getByRole('button', { name: 'Remove' })).toHaveCount(1)
+	const post = composer.getByRole('button', { name: 'Post', exact: true })
+	await expect(post).toBeEnabled()
+	await post.click()
+	const card = page.locator('article.post', { hasText: text })
+	const photo = card.locator('img[src^="/media/posts/"]').first()
+	return {
+		path: (await card.locator('a[href*="/p/"]').first().getAttribute('href')) as string,
+		photo: (await photo.getAttribute('src')) as string,
+	}
+}
+
+async function blocks(page: Page, handle: string) {
+	await page.goto(`/u/${handle}`)
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: 'More', exact: true }).click()
+	await page.getByRole('menuitem', { name: `Block @${handle}` }).click()
+	await page.getByRole('dialog').getByRole('button', { name: 'Block', exact: true }).click()
+	await expect(page.getByText(`You blocked @${handle}`)).toBeVisible()
+}
+
+async function replay(page: Page, request: Request) {
+	const response = await page.request.post(request.url(), {
+		headers: { ...from_site(page), 'content-type': request.headers()['content-type'] },
+		data: request.postData() ?? '',
+	})
+	return response.json()
+}
+
+test('a private account and a blocker keep their posts from direct requests @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const alice = `e2e_va_${id}`
+	const pages: Page[] = []
+	for (const handle of [`e2e_vb_${id}`, `e2e_vc_${id}`]) {
+		const other = await (await browser.newContext()).newPage()
+		await sign_up(other, handle)
+		pages.push(other)
+	}
+	const [bob, carol] = pages
+	await sign_up(page, alice)
+	const loose = (await (await upload(page, PNG)).json()).url as string
+	expect((await page.request.get(loose)).ok()).toBe(true)
+	expect((await bob.request.get(loose)).status()).toBe(404)
+
+	const { path, photo } = await post_path(page, `Closed ${id}`)
+	expect((await bob.request.get(path)).status()).toBe(200)
+	expect((await bob.request.get(photo)).ok()).toBe(true)
+
+	await blocks(page, `e2e_vb_${id}`)
+	expect((await bob.request.get(path)).status()).toBe(404)
+	expect((await bob.request.get(photo)).status()).toBe(404)
+	expect((await carol.request.get(photo)).ok()).toBe(true)
+
+	await page.goto('/settings/privacy')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('switch', { name: /Private account/ }).click()
+	await expect(page.getByRole('switch', { name: /Private account/ })).toHaveAttribute(
+		'aria-checked',
+		'true',
+	)
+	expect((await carol.request.get(path)).status()).toBe(404)
+	expect((await carol.request.get(photo)).status()).toBe(404)
+	expect((await page.request.get(path)).status()).toBe(200)
+	expect((await page.request.get(photo)).ok()).toBe(true)
+
+	for (const other of pages) await other.context().close()
+})
+
+test('the posted pill leaves out someone the reader blocked @writes', async ({ page, browser }) => {
+	const id = unique()
+	const bob = `e2e_ub_${id}`
+	// Home asks who has posted since it loaded as soon as it's on screen.
+	const news = page.waitForRequest((request) => request.url().includes('/get_new_posts'))
+	await sign_up(page, `e2e_ua_${id}`)
+	const url = (await news).url()
+
+	const bob_page = await (await browser.newContext()).newPage()
+	await sign_up(bob_page, bob)
+	const composer = bob_page.locator('form.inline')
+	await composer.getByLabel('Post text').fill(`Pill ${id}`)
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	await expect(bob_page.getByText('Your post was sent.')).toBeVisible()
+	await bob_page.context().close()
+
+	const before = await (await page.request.get(url)).json()
+	expect(before.type).toBe('result')
+	expect(before.data).toContain(bob)
+
+	await blocks(page, bob)
+	const after = await (await page.request.get(url)).json()
+	expect(after.type).toBe('result')
+	expect(after.data).not.toContain(bob)
+})
+
+test('the server refuses a reply the author did not allow @writes', async ({ page, browser }) => {
+	const id = unique()
+	const bob = `e2e_wb_${id}`
+	const pages: Page[] = []
+	for (const handle of [bob, `e2e_wc_${id}`]) {
+		const other = await (await browser.newContext()).newPage()
+		await sign_up(other, handle)
+		pages.push(other)
+	}
+	const [bob_page, carol] = pages
+	await sign_up(page, `e2e_wa_${id}`)
+
+	const composer = page.locator('form.inline')
+	await composer.getByLabel('Post text').fill(`Just @${bob} ${id}`)
+	await composer.getByRole('button', { name: 'Everyone can reply' }).click()
+	await page.getByRole('menuitemradio', { name: 'Only people you mention can reply' }).click()
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	const card = page.locator('article.post', { hasText: `Just @${bob} ${id}` })
+	const path = (await card.locator('a[href*="/p/"]').first().getAttribute('href')) as string
+
+	await bob_page.goto(path)
+	await bob_page.waitForLoadState('networkidle')
+	const reply = bob_page.locator('form.reply')
+	await reply.getByLabel('Post text').fill(`Allowed ${id}`)
+	const sent = bob_page.waitForRequest((request) => request.url().includes('/create_post'))
+	await reply.getByRole('button', { name: 'Reply', exact: true }).click()
+	const request = await sent
+	await expect(bob_page.getByText('Your reply was sent.')).toBeVisible()
+
+	const refused = await replay(carol, request)
+	expect(refused).toMatchObject({ type: 'error', error: { status: 403 } })
+
+	for (const other of pages) await other.context().close()
+})
+
+test('a blocked person can no longer message the blocker @writes', async ({ page, browser }) => {
+	const id = unique()
+	const alice = `e2e_xa_${id}`
+	const bob = await (await browser.newContext()).newPage()
+	await sign_up(bob, `e2e_xb_${id}`)
+	await sign_up(page, alice)
+
+	await bob.goto(`/u/${alice}`)
+	await bob.waitForLoadState('networkidle')
+	const started = bob.waitForRequest((request) => request.url().includes('/start_conversation'))
+	await bob.getByRole('button', { name: `Message @${alice}` }).click()
+	const start = await started
+	await bob.getByLabel('Message', { exact: true }).fill(`Before ${id}`)
+	const sending = bob.waitForRequest((request) => request.url().includes('/send_message'))
+	await bob.keyboard.press('Enter')
+	const send = await sending
+	await bob.waitForResponse((response) => response.url().includes('/send_message'))
+
+	await blocks(page, `e2e_xb_${id}`)
+	expect(await replay(bob, send)).toMatchObject({ type: 'error', error: { status: 403 } })
+	expect(await replay(bob, start)).toMatchObject({ type: 'error', error: { status: 400 } })
+
+	await bob.context().close()
 })

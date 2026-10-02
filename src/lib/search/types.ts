@@ -5,6 +5,8 @@ export type UserView = Author & {
 	handle: string
 	bio: string
 	followed: boolean
+	private: boolean
+	requested: boolean
 	/** Whether this is the viewer. */
 	mine: boolean
 }

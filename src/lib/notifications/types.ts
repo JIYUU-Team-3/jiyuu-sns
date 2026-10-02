@@ -1,6 +1,6 @@
 import type { Author, PostView } from '#lib/posts/types'
 
-export type NotificationType = 'follow' | 'like' | 'reply' | 'mention'
+export type NotificationType = 'follow' | 'like' | 'reply' | 'mention' | 'follow_request'
 
 export type NotificationTab = 'all' | 'mentions'
 

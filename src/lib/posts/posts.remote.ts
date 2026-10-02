@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
+import { REPLY_AUDIENCES, type ReplyAudience } from '#lib/safety/rules'
 import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
@@ -60,14 +61,17 @@ const PostInput = v.pipe(
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
+const Audience = v.optional(v.picklist(REPLY_AUDIENCES), 'everyone')
+
 const NewPost = v.pipe(
-	v.object({ ...PostFields, reply_to: v.optional(Id) }),
+	v.object({ ...PostFields, reply_to: v.optional(Id), reply_audience: Audience }),
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
 const NewThread = v.object({
 	posts: v.pipe(v.array(PostInput), v.minLength(2), v.maxLength(THREAD_MAX)),
 	reply_to: v.optional(Id),
+	reply_audience: Audience,
 })
 
 /** Posts are for signed-in people only, so reading them needs a session too. */
@@ -130,11 +134,16 @@ function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 	}
 }
 
-async function publish(inputs: PostPayload[], reply_to: string | undefined) {
+async function publish(
+	inputs: PostPayload[],
+	reply_to: string | undefined,
+	audience: ReplyAudience,
+) {
 	const { db, user_id } = await author()
 	const prepared = inputs.map((input) => prepare(input, user_id))
-	const ids = await posts.insert_thread(db, user_id, prepared, reply_to)
+	const ids = await posts.insert_thread(db, user_id, prepared, reply_to, audience)
 	if (!ids) error(404, 'The post you replied to was deleted.')
+	if (ids === 'closed') error(403, 'replies_closed')
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -155,10 +164,12 @@ async function publish(inputs: PostPayload[], reply_to: string | undefined) {
 	return post
 }
 
-export const create_post = command(NewPost, ({ reply_to, ...input }) => publish([input], reply_to))
+export const create_post = command(NewPost, ({ reply_to, reply_audience, ...input }) =>
+	publish([input], reply_to, reply_audience),
+)
 
-export const create_thread = command(NewThread, ({ posts: inputs, reply_to }) =>
-	publish(inputs, reply_to),
+export const create_thread = command(NewThread, ({ posts: inputs, reply_to, reply_audience }) =>
+	publish(inputs, reply_to, reply_audience),
 )
 
 /**

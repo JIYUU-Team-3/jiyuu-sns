@@ -5,10 +5,13 @@
 	import AccentPicker from '#lib/settings/AccentPicker.svelte'
 	import { desktop } from '#lib/settings/clear.svelte'
 	import LanguagePicker from '#lib/settings/LanguagePicker.svelte'
+	import { privacy_href } from '#lib/settings/links'
 	import { prefs } from '#lib/settings/prefs.svelte'
+	import SettingRow from '#lib/settings/SettingRow.svelte'
 	import SettingsSection from '#lib/settings/SettingsSection.svelte'
 	import SwitchRow from '#lib/settings/SwitchRow.svelte'
 	import ThemePicker from '#lib/settings/ThemePicker.svelte'
+	import Icon from '#lib/ui/Icon.svelte'
 	import PageBar from '../PageBar.svelte'
 	import AboutLinks from './AboutLinks.svelte'
 	import AccountRows from './AccountRows.svelte'
@@ -23,6 +26,14 @@
 
 <SettingsSection id="settings-account" title={m.settings_account()}>
 	<AccountRows me={data.me} email={data.email} />
+</SettingsSection>
+
+<SettingsSection id="settings-privacy" title={m.settings_privacy()}>
+	<a class="link" href={privacy_href()}>
+		<SettingRow icon="shield" label={m.settings_privacy()} sub={m.settings_privacy_sub()}>
+			{#snippet end()}<Icon name="chev-right" size="sm" />{/snippet}
+		</SettingRow>
+	</a>
 </SettingsSection>
 
 <SettingsSection id="settings-display" title={m.settings_display()}>
@@ -76,6 +87,17 @@
 	/* PushToggle draws its own rule for the notifications page; the section has one already. */
 	.notify :global(.push) {
 		border-bottom: 0;
+	}
+	.link {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 12px 16px;
+		color: inherit;
+		transition: background-color 0.15s;
+	}
+	.link:hover {
+		background: var(--bg-2);
 	}
 	.note {
 		margin: 0;

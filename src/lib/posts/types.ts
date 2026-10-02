@@ -1,3 +1,5 @@
+import type { ReplyAudience } from '#lib/safety/rules'
+
 export type Author = {
 	id: string
 	/** Display name, falling back to the account name until onboarding saves a profile. */
@@ -45,6 +47,8 @@ export type PostView = {
 	liked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
+	reply_audience: ReplyAudience
+	can_reply: boolean
 }
 
 export type FeedTab = 'for_you' | 'following'

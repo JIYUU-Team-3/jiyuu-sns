@@ -64,6 +64,13 @@
       "when": 1790908760585,
       "tag": "0008_message_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790923621123,
+      "tag": "0009_privacy_and_safety",
+      "breakpoints": true
     }
   ]
 }

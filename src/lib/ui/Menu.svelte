@@ -30,7 +30,7 @@
 	let menu = $state<HTMLDivElement>()
 
 	const opener = () => wrap.firstElementChild as HTMLElement | null
-	const items = () => [...(menu?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+	const items = () => [...(menu?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
 
 	async function show() {
 		open = true

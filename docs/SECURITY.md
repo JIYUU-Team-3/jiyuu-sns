@@ -2,7 +2,7 @@
 
 For whoever works on Jiyuu next. It says what the app defends against, where each defence lives,
 what is still open, and the rules that keep new code from reopening old holes. Last reviewed
-2026-10-01.
+2026-10-02.
 
 ## The model in one paragraph
 
@@ -44,6 +44,15 @@ These are the ones that have already been broken once.
 11. **Server-only data stays server-only.** Email addresses are returned to their owner and nobody
     else. Don't return a whole `user` row from a `load` or a query; pick the fields.
 12. **A security fix comes with a test that fails without it.** See `src/routes/security.e2e.ts`.
+13. **Every post query filters with `visible_posts(viewer)`** from `src/lib/server/safety.ts`, so
+    blocks and private accounts hold. `page()`, `find_post` and `find_posts` already do; a new
+    `select_posts` call outside them must add it. Timelines and search also add
+    `unmuted_posts(viewer)`, and people lists add `visible_people(viewer)`. The same goes for
+    anything else that shows a post: push previews and post photos and videos check it too.
+14. **A follow or request is only written if the SQL that writes it checks privacy and blocks.**
+    Don't read the state first and insert afterwards; a block or a privacy change can land in
+    between. Raw `db.run(sql…)` with parameters fails inside `db.batch` on D1, so use the query
+    builder there.
 
 ## Where each defence lives
 
@@ -64,6 +73,9 @@ These are the ones that have already been broken once.
 | Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                                                                | `posts/text.ts`                                                  |
 | Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader                                             | `server/messages.ts`, `routes/media/[...key]`                    |
 | Listening in on someone else's chat       | Live sockets need a signed one-minute ticket made after a membership check, a same-site Origin; caps on sockets, frame size and typing rate | `server/live.ts`, `server/live-ticket.ts`, `server/chat-room.ts` |
+| Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report                                                | `server/safety.ts`, `server/follows.ts`                          |
+| Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval                                             | `server/safety.ts`, `server/posts.ts`                            |
+| Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                                                                | `server/posts.ts` (`insert_thread`)                              |
 | Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                                                                        | `.github/workflows/`                                             |
 
 ## Known gaps, most important first
@@ -96,13 +108,12 @@ look next.
 
 ### Code — not done yet
 
-1. **No block, mute or report.** Rate limits slow harassment; nothing lets its target stop it.
-   This is the largest missing safety feature, and direct messages make it sharper: anyone can
-   message anyone, and anyone can put up to 49 people in a group without asking them. A direct
-   chat can't be left at all. Until blocking exists, consider limiting who can start a chat
-   (people you follow, or who follow you) and letting people leave or hide a direct chat.
-2. **No moderation or admin role.** Nobody can remove someone else's post or suspend an account
-   except by editing the database.
+1. **Blocks don't reach group chats.** A block stops direct chats both ways, but anyone can still
+   put up to 49 people in a group without asking them, blocked or not, and a direct chat can't be
+   left. Consider asking before adding someone to a group.
+2. **No moderation or admin role.** Reports are stored in the `report` table, but nobody reviews
+   them, and nobody can remove someone else's post or suspend an account except by editing the
+   database.
 3. **No account deletion or data export.** The schema cascades correctly from `user`, but nothing
    calls it, and R2 objects would be left behind.
 4. **Uploads that are never attached stay in R2.** The composer deletes what it discards, but a
@@ -152,7 +163,8 @@ look next.
 ## Checking it yourself
 
 - `pnpm exec playwright test src/routes/security.e2e.ts` — signed-out reads, chats closed to outsiders, writes without a
-  profile, avatar URLs, upload rate limit.
+  profile, avatar URLs, upload rate limit, blocked and private posts, reply limits, messaging a
+  blocker.
 - `pnpm audit` — runs in CI and before commits that touch dependencies.
 - The server the tests run against has `ALLOW_EMAIL_SIGNUP=1` (`.env.e2e`). To see what production
   does, run `wrangler dev` without `.env.e2e`: `POST /api/auth/sign-up/email` answers 400.
