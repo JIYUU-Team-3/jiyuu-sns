@@ -1,9 +1,11 @@
+import type { ReplyAudience } from '#lib/safety/rules'
 import { THREAD_MAX } from '../rules'
 import { Draft } from './draft.svelte'
 
 export class Thread {
 	posts = $state<Draft[]>([])
 	focus = $state(0)
+	audience = $state<ReplyAudience>('everyone')
 
 	constructor(first = new Draft()) {
 		this.posts = [first]
@@ -44,5 +46,6 @@ export class Thread {
 	#reset() {
 		this.posts = [this.posts[0]]
 		this.focus = 0
+		this.audience = 'everyone'
 	}
 }

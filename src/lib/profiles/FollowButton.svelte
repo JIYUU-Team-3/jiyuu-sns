@@ -13,8 +13,10 @@
 	/** Off right after a toggle, so a fresh follow reads "Following" until the pointer or focus leaves. */
 	let armed = $state(true)
 
+	const active = $derived(profile.followed || profile.requested)
 	const warn = $derived(profile.followed && armed && (hovered || focused))
 	const label = $derived.by(() => {
+		if (profile.requested) return m.follow_requested()
 		if (!profile.followed) return profile.follows_you ? m.follow_follow_back() : m.follow_follow()
 		return warn ? m.follow_unfollow() : m.follow_following()
 	})
@@ -23,16 +25,20 @@
 
 	async function toggle() {
 		if (pending) return
-		const on = !profile.followed
+		const on = !active
 		armed = false
 		pending = true
 		try {
 			await set_follow({ handle: profile.handle, on }).updates(
-				get_profile(profile.handle).withOverride((current) => ({
-					...current,
-					followed: on,
-					followers: current.followers + (on ? 1 : -1),
-				})),
+				get_profile(profile.handle).withOverride((current) =>
+					current.requested || (on && current.private)
+						? { ...current, requested: on }
+						: {
+								...current,
+								followed: on,
+								followers: current.followers + (on ? 1 : -1),
+							},
+				),
 			)
 		} catch {
 			toast.show(m.toast_error())
@@ -64,10 +70,12 @@
 <!-- Not `disabled` while pending: a disabled button misses the pointer leaving, which re-arms it. -->
 <button
 	type="button"
-	class={['btn', 'follow', profile.followed ? 'btn-outline' : 'btn-ink', warn && 'warn']}
-	aria-label={profile.followed
-		? m.follow_unfollow_label({ handle: profile.handle })
-		: m.follow_follow_label({ handle: profile.handle })}
+	class={['btn', 'follow', active ? 'btn-outline' : 'btn-ink', warn && 'warn']}
+	aria-label={profile.requested
+		? m.follow_cancel_label({ handle: profile.handle })
+		: profile.followed
+			? m.follow_unfollow_label({ handle: profile.handle })
+			: m.follow_follow_label({ handle: profile.handle })}
 	aria-disabled={pending}
 	onclick={toggle}
 	onpointerenter={enter}
