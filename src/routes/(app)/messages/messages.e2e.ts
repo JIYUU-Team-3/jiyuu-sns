@@ -137,7 +137,7 @@ test('a message turns delivered once a push reaches the other person @writes', a
 	await bob_context.close()
 })
 
-test('typing shows live, a sent message arrives at once, and the socket is members-only @writes', async ({
+test('typing shows live with a face, messages and reactions arrive at once, and the socket is members-only @writes', async ({
 	page,
 	browser,
 }) => {
@@ -168,11 +168,20 @@ test('typing shows live, a sent message arrives at once, and the socket is membe
 		await field.pressSequentially('x')
 		await expect(bubble).toBeVisible({ timeout: 1_000 })
 	}).toPass({ timeout: 20_000 })
+	await expect(bubble.locator('.av')).toHaveCount(1)
 
 	await field.fill(hello)
 	await field.press('Enter')
 	await expect(bob_page.locator('.msg', { hasText: hello })).toBeVisible({ timeout: 3_000 })
 	await expect(bubble).toBeHidden()
+
+	const received = bob_page.locator('.msg', { hasText: hello })
+	await received.hover()
+	await received.getByRole('button', { name: 'React', exact: true }).click()
+	await bob_page.getByRole('button', { name: 'React with 👍' }).click()
+	await expect(
+		page.locator('.msg', { hasText: hello }).getByRole('button', { name: /👍 1/ }),
+	).toBeVisible({ timeout: 3_000 })
 
 	const origin = new URL(page.url()).origin
 	const live = (headers: Record<string, string>, ticket = 'junk') =>

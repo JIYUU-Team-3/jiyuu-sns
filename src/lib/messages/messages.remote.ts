@@ -113,6 +113,7 @@ export const react_to_message = command(
 		const { db, user_id } = await chatter()
 		const result = await messages.react(db, user_id, id, emoji)
 		if (!result) error(404, 'Message not found.')
+		waitUntil(live(result.conversation_id, { kind: 'refresh' }))
 		await get_messages(messages_arg(result.conversation_id)).refresh()
 		return result.reactions
 	},
