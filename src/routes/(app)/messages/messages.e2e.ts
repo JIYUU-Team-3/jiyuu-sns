@@ -120,6 +120,8 @@ test('a message turns delivered once a push reaches the other person @writes', a
 	const bob_page = await bob_context.newPage()
 	await sign_up(page, alice)
 	await sign_up(bob_page, `e2e_ddb_${id}`)
+	// New accounts can only start a chat with someone who follows them.
+	await follow(page, `e2e_ddb_${id}`)
 	const delivered = { headers: { origin: new URL(page.url()).origin } }
 	const stranger = await browser.newContext()
 	expect((await stranger.request.post('/messages/delivered', delivered)).status()).toBe(401)
@@ -156,6 +158,8 @@ test('typing shows live, a sent message arrives at once, and the socket is membe
 	await sign_up(bob_page, `e2e_ltb_${id}`)
 	await sign_up(carol_page, `e2e_ltc_${id}`)
 	await sign_up(page, alice)
+	// New accounts can only start a chat with someone who follows them.
+	await follow(page, `e2e_ltb_${id}`)
 
 	await bob_page.goto(`/u/${alice}`)
 	await bob_page.waitForLoadState('networkidle')
