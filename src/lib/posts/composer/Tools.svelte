@@ -1,19 +1,28 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
-	import type { Draft } from './draft.svelte'
-	import { pick_files } from './pick'
+	import { toast } from '#lib/ui/toasts.svelte'
+	import { MEDIA_MAX } from '../rules'
+	import type { Draft, PickResult } from './draft.svelte'
 	import { POST_UPLOAD_ACCEPT } from './upload'
 
 	let { draft }: { draft: Draft } = $props()
 
 	let file_input: HTMLInputElement
 
+	/** One toast for whatever was left out, most important reason first. */
+	function report({ skipped, over_limit }: PickResult) {
+		if (over_limit) toast.show(m.composer_media_limit({ count: MEDIA_MAX }))
+		else if (skipped.includes('size')) toast.show(m.composer_media_too_big())
+		else if (skipped.includes('duration')) toast.show(m.composer_video_too_long())
+		else if (skipped.includes('type')) toast.show(m.composer_media_type())
+	}
+
 	async function onchange() {
 		const files = [...(file_input.files ?? [])]
 		// Let the same file be picked again after it's removed.
 		file_input.value = ''
-		await pick_files(draft, files)
+		report(await draft.add_files(files))
 	}
 </script>
 
@@ -29,12 +38,12 @@
 	<button
 		type="button"
 		class="icon-btn"
-		aria-label={m.composer_add_files()}
-		title={m.composer_add_files()}
+		aria-label={m.composer_add_photos()}
+		title={m.composer_add_photos()}
 		disabled={draft.media_room <= 0}
 		onclick={() => file_input.click()}
 	>
-		<Icon name="plus" />
+		<Icon name="image" />
 	</button>
 	<button
 		type="button"

@@ -10,7 +10,6 @@ import {
 import type { PostContent } from '../state.svelte'
 import { is_upload, type Gif, type Media, type MediaKind } from '../types'
 import type { CropBox } from './crop-box'
-import { attachment_name } from '#lib/files'
 import {
 	discard_upload,
 	is_sensitive_upload,
@@ -34,8 +33,6 @@ export type DraftMedia = {
 	url?: string
 	width: number
 	height: number
-	name?: string
-	size?: number
 	/** The description (alt text) screen readers announce; blank for none. */
 	alt: string
 	state: 'uploading' | 'ready' | 'failed'
@@ -64,7 +61,7 @@ export const croppable = (item: DraftMedia) =>
 	item.kind === 'image' && !!item.original && item.original.type !== 'image/gif'
 
 /** A picked file that passed the checks, with its size and kind. */
-type Accepted = { file: File; kind: 'image' | 'video' | 'file'; size?: VideoProbe }
+type Accepted = { file: File; kind: 'image' | 'video'; size?: VideoProbe }
 
 /** One post being written: text plus photos, GIFs and videos, a poll, a place. */
 export class Draft {
@@ -77,13 +74,9 @@ export class Draft {
 	panel = $state<Panel>()
 	/** Editing a published post, where the sensitive mark isn't offered. */
 	editing = false
-	checking = $state(0)
-	#generation = 0
 
 	readonly trimmed = $derived(this.text.trim())
-	readonly uploading = $derived(
-		this.checking > 0 || this.media.some((item) => item.state === 'uploading'),
-	)
+	readonly uploading = $derived(this.media.some((item) => item.state === 'uploading'))
 	readonly failed = $derived(this.media.some((item) => item.state === 'failed'))
 	readonly problem = $derived(
 		draft_problem({ body: this.trimmed, media: this.media, poll: this.poll }),
@@ -137,19 +130,14 @@ export class Draft {
 	)
 
 	/** The photos, GIFs and videos as `create_post` and `edit_post` take them, once `ready`. */
-	media_payload() {
-		return this.media.map(({ kind, url, width, height, alt, name, size }) => {
-			if (kind === 'file')
-				return {
-					kind,
-					url: url!,
-					width: 1 as const,
-					height: 1 as const,
-					name: name!,
-					size: size!,
-				}
-			return { kind, url: url!, width, height, alt: alt.trim() || undefined }
-		})
+	media_payload(): Media[] {
+		return this.media.map(({ kind, url, width, height, alt }) => ({
+			kind,
+			url: url!,
+			width,
+			height,
+			alt: alt.trim() || undefined,
+		}))
 	}
 
 	/** What `create_post` takes, once `ready`. */
@@ -187,15 +175,7 @@ export class Draft {
 	/** Start uploading what fits; the rest is reported, not silently dropped. */
 	async add_files(files: File[]): Promise<PickResult> {
 		const skipped: UploadProblem[] = []
-		const generation = this.#generation
-		this.checking++
-		let checked
-		try {
-			checked = await Promise.all(files.map(accept))
-		} finally {
-			this.checking--
-		}
-		if (generation !== this.#generation) return { skipped, over_limit: false }
+		const checked = await Promise.all(files.map(accept))
 		const fitting = checked.filter((result): result is Accepted => {
 			if ('problem' in result) skipped.push(result.problem)
 			return !('problem' in result)
@@ -216,7 +196,6 @@ export class Draft {
 			alt: '',
 			state: 'uploading',
 			original: file,
-			...(kind === 'file' && { name: attachment_name(file.name), size: file.size }),
 		})
 		void this.#upload(key, file)
 	}
@@ -305,7 +284,6 @@ export class Draft {
 
 	/** Empty the draft after publishing: its uploads now belong to the post. */
 	clear() {
-		this.#generation++
 		for (const item of this.media) {
 			if (is_upload(item.kind) && !item.existing) URL.revokeObjectURL(item.preview)
 		}
@@ -326,10 +304,10 @@ export class Draft {
 
 /** Check one picked file; a video is probed for its size and length first. */
 async function accept(file: File): Promise<Accepted | { problem: UploadProblem }> {
-	const problem = await upload_problem(file)
+	const problem = upload_problem(file)
 	if (problem) return { problem }
-	const kind = await upload_kind(file)
-	if (kind !== 'video') return { file, kind }
+	const kind = upload_kind(file)!
+	if (kind === 'image') return { file, kind }
 	const size = await probe_video(file).catch(() => undefined)
 	const unusable = size ? video_problem(size) : 'type'
 	return unusable ? { problem: unusable } : { file, kind, size }

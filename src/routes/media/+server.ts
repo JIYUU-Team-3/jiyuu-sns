@@ -1,8 +1,8 @@
 import { error, json } from '@sveltejs/kit'
 import { env } from 'cloudflare:workers'
-import { POST_UPLOAD_MAX_BYTES, read_image, sniff_post_upload } from '#lib/media'
+import { picked_file, POST_UPLOAD_MAX_BYTES, read_image, sniff_post_upload } from '#lib/media'
 import { read_form } from '#lib/server/form'
-import { BlockedMediaError, put_file, put_image, put_video } from '#lib/server/media'
+import { BlockedMediaError, put_image, put_video } from '#lib/server/media'
 import { is_blocked_media } from '#lib/server/moderation/media'
 import { find_profile } from '#lib/server/profiles'
 import { limit } from '#lib/server/rate-limit'
@@ -12,7 +12,7 @@ import { VIDEO_MAX_SECONDS } from '#lib/posts/rules'
 import type { RequestHandler } from './$types'
 
 /**
- * An attachment for a post, uploaded as soon as it's picked so publishing only sends URLs.
+ * A photo or video for a post, uploaded as soon as it's picked so publishing only sends URLs.
  * Returns the `/media/posts/<user>/…` URL that `create_post` accepts from this user.
  */
 export const POST: RequestHandler = async ({ locals, request }) => {
@@ -22,15 +22,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		error(403, 'Finish setting up your profile.')
 	// The biggest thing this takes is a video; anything larger is refused before it's read.
 	const form = await read_form(request, POST_UPLOAD_MAX_BYTES.video)
-	const file = form.get('file')
-	if (!(file instanceof File)) error(400, 'No file.')
+	const file = picked_file(form.get('file'))
+	if (!file) error(400, 'No file.')
 	// The bytes decide the kind, and the kind decides the size limit.
-	const kind = await sniff_post_upload(file)
+	const kind = (await sniff_post_upload(file)) ?? error(415, 'type')
 	if (file.size > POST_UPLOAD_MAX_BYTES[kind]) error(413, 'size')
-	if (kind === 'file') {
-		const url = await put_file(env.MEDIA, 'posts', locals.user.id, file)
-		return json({ url }, { status: 201 })
-	}
 
 	try {
 		const url =

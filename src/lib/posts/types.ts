@@ -11,25 +11,16 @@ export type Author = {
 	moderator?: boolean
 }
 
-export type MediaKind = 'image' | 'gif' | 'video' | 'file'
+export type MediaKind = 'image' | 'gif' | 'video'
 
-/** Attachments are our uploads in R2; picker GIFs come from the CDN. */
+/** Photos and videos are our uploads in R2; GIFs come from the picker's CDN. */
 export const is_upload = (kind: MediaKind) => kind !== 'gif'
 
 /**
- * A post attachment. Visual media have dimensions and optional alt text; other files have
- * their download name and byte size, with placeholder dimensions of 1 × 1.
+ * A photo or video (uploaded to R2) or a GIF (from the picker's CDN), with its size for layout
+ * and the author's description (alt text), if they wrote one.
  */
-export type Media = {
-	kind: MediaKind
-	url: string
-	width: number
-	height: number
-	alt?: string
-	/** General files are downloads, with server-verified names and byte sizes. */
-	name?: string
-	size?: number
-}
+export type Media = { kind: MediaKind; url: string; width: number; height: number; alt?: string }
 
 export type PollView = {
 	options: { label: string; votes: number }[]

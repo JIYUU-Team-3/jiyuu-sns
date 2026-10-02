@@ -70,7 +70,7 @@ const THREAD_DEPTH = 100
 // Attachments come back as JSON arrays from correlated subqueries, so a page stays one statement.
 const media_json = sql<string>`(select json_group_array(json_object(
 	'position', m.position, 'kind', m.kind, 'url', m.url, 'width', m.width, 'height', m.height,
-	'alt', m.alt, 'name', m.name, 'size', m.size
+	'alt', m.alt
 )) from post_media m where m.post_id = ${post.id})`
 const poll_json = sql<string>`(select json_group_array(json_object(
 	'position', o.position, 'label', o.label,
@@ -148,14 +148,9 @@ function by_position<T>(json: string | null): T[] {
 
 /** SQL hands back a missing description as null; the client only knows set or unset. */
 function to_media(json: string | null): Media[] {
-	return by_position<Media & { alt: string | null; name: string | null; size: number | null }>(
-		json,
-	).map(({ alt, name, size, ...item }) => ({
-		...item,
-		alt: alt || undefined,
-		name: name ?? undefined,
-		size: size ?? undefined,
-	}))
+	return by_position<Media & { alt: string | null }>(json).map(({ alt, ...item }) =>
+		alt ? { ...item, alt } : item,
+	)
 }
 
 function to_poll(row: Row): PollView | undefined {

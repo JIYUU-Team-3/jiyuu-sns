@@ -45,11 +45,8 @@ These are the ones that have already been broken once.
    fetches, N needs a hard number.
 9. **New endpoints that write or call a third party get a rate limit** (`limit()` in
    `src/lib/server/rate-limit.ts`, bindings in `wrangler.jsonc`).
-10. **Inline images and videos have their metadata stripped by keep-list.** `strip-metadata.ts`
-    and `strip-video.ts` keep only what draws the picture and refuse what they can't parse.
-    Other post and DM files retain their original bytes and metadata and are download-only: generated
-    `.bin` keys, `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
-    Never render those files inline; keep the same session, membership, size and rate checks.
+10. **Metadata is stripped by keep-list.** `strip-metadata.ts` and `strip-video.ts` keep only what
+    draws the picture and refuse what they can't parse. A new format follows the same shape.
 11. **Server-only data stays server-only.** Email addresses are returned to their owner and nobody
     else. Don't return a whole `user` row from a `load` or a query; pick the fields.
 12. **A security fix comes with a test that fails without it.** See `src/routes/security.e2e.ts`.
