@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	accountStanding,
 	appeal,
+	block,
 	moderationAction,
 	notification,
 	post,
@@ -11,13 +12,21 @@ import {
 	postTag,
 } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
-import { author_page, feed_page, find_post, replies_page, remove_post, set_like } from '../posts'
+import { save_report } from '../safety'
+import {
+	author_page,
+	can_see_post_media,
+	feed_page,
+	find_post,
+	replies_page,
+	remove_post,
+	set_like,
+} from '../posts'
 import { find_profile_by_handle } from '../profiles'
 import { search_people, search_posts, trending_tags } from '../search'
 import { notifications_page } from '../notifications'
 import { find_standing } from './standing'
 import {
-	media_shown_to,
 	moderate_post,
 	post_notice,
 	purge_removed_posts,
@@ -114,10 +123,26 @@ describe('a removed post', () => {
 	})
 
 	it('hides its media from others', async () => {
-		expect(await media_shown_to(db, '/media/posts/alice/a.jpg', 'bob')).toBe(true)
+		expect(await can_see_post_media(db, 'bob', '/media/posts/alice/a.jpg')).toBe(true)
 		await remove()
-		expect(await media_shown_to(db, '/media/posts/alice/a.jpg', 'bob')).toBe(false)
-		expect(await media_shown_to(db, '/media/posts/alice/a.jpg', 'alice')).toBe(true)
+		expect(await can_see_post_media(db, 'bob', '/media/posts/alice/a.jpg')).toBe(false)
+		expect(await can_see_post_media(db, 'alice', '/media/posts/alice/a.jpg')).toBe(true)
+	})
+
+	it('stays hidden from someone the author blocked, removed or not', async () => {
+		await db.insert(block).values({ blockerId: 'alice', blockedId: 'bob' })
+		expect(await find_post(db, 'bob', 'p1')).toBeUndefined()
+		expect(await can_see_post_media(db, 'bob', '/media/posts/alice/a.jpg')).toBe(false)
+		await remove()
+		expect(await find_post(db, 'bob', 'p1')).toBeUndefined()
+		expect((await find_post(db, 'alice', 'p1'))?.moderation).toBe('removed')
+	})
+
+	it('saves one person’s report of it once, so a repeat adds nothing to the queue', async () => {
+		const report = { handle: 'alice', post_id: 'p1', reason: 'spam' as const, note: '' }
+		expect(await save_report(db, 'bob', report)).toEqual({ user_id: 'alice', fresh: true })
+		expect(await save_report(db, 'bob', report)).toEqual({ user_id: 'alice', fresh: false })
+		expect(await save_report(db, 'bob', { ...report, handle: 'nobody' })).toBe(false)
 	})
 
 	it('takes no likes from others, and its hidden replies are not counted', async () => {

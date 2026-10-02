@@ -1,3 +1,5 @@
+import type { ReplyAudience } from '#lib/safety/rules'
+
 export type Author = {
 	id: string
 	/** Display name, falling back to the account name until onboarding saves a profile. */
@@ -9,16 +11,25 @@ export type Author = {
 	moderator?: boolean
 }
 
-export type MediaKind = 'image' | 'gif' | 'video'
+export type MediaKind = 'image' | 'gif' | 'video' | 'file'
 
-/** Photos and videos are our uploads in R2; GIFs come from the picker's CDN. */
+/** Attachments are our uploads in R2; picker GIFs come from the CDN. */
 export const is_upload = (kind: MediaKind) => kind !== 'gif'
 
 /**
- * A photo or video (uploaded to R2) or a GIF (from the picker's CDN), with its size for layout
- * and the author's description (alt text), if they wrote one.
+ * A post attachment. Visual media have dimensions and optional alt text; other files have
+ * their download name and byte size, with placeholder dimensions of 1 × 1.
  */
-export type Media = { kind: MediaKind; url: string; width: number; height: number; alt?: string }
+export type Media = {
+	kind: MediaKind
+	url: string
+	width: number
+	height: number
+	alt?: string
+	/** General files are downloads, with server-verified names and byte sizes. */
+	name?: string
+	size?: number
+}
 
 export type PollView = {
 	options: { label: string; votes: number }[]
@@ -58,6 +69,8 @@ export type PostView = {
 	 * (New accounts can't post links at all; this covers the ones that just became able to.)
 	 */
 	warn_links: boolean
+	reply_audience: ReplyAudience
+	can_reply: boolean
 }
 
 export type FeedTab = 'for_you' | 'following'

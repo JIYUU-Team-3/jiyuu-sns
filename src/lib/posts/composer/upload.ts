@@ -1,22 +1,19 @@
-import { IMAGE_ACCEPT, POST_UPLOAD_MAX_BYTES, VIDEO_ACCEPT, type PostUploadKind } from '#lib/media'
+import { POST_UPLOAD_MAX_BYTES, sniff_post_upload, type PostUploadKind } from '#lib/media'
 import { VIDEO_MAX_SECONDS } from '../rules'
 
 export type UploadProblem = 'type' | 'size' | 'duration'
 
-/** The file picker's `accept`: photos and videos. */
-export const POST_UPLOAD_ACCEPT = `${IMAGE_ACCEPT},${VIDEO_ACCEPT}`
+/** Every file is accepted; supported images and videos get inline previews. */
+export const POST_UPLOAD_ACCEPT = '*/*'
 
-/** A picked file's kind by its claimed type; the server sniffs the bytes again either way. */
-export function upload_kind(file: File): PostUploadKind | undefined {
-	if (IMAGE_ACCEPT.split(',').includes(file.type)) return 'image'
-	if (VIDEO_ACCEPT.split(',').includes(file.type)) return 'video'
-	return undefined
+/** A picked file's kind from its bytes, using the same detector as the server. */
+export function upload_kind(file: File): Promise<PostUploadKind> {
+	return sniff_post_upload(file)
 }
 
 /** A quick check before uploading; a video's length is checked once it's probed. */
-export function upload_problem(file: File): UploadProblem | undefined {
-	const kind = upload_kind(file)
-	if (!kind) return 'type'
+export async function upload_problem(file: File): Promise<UploadProblem | undefined> {
+	const kind = await upload_kind(file)
 	if (file.size > POST_UPLOAD_MAX_BYTES[kind]) return 'size'
 	return undefined
 }
@@ -51,7 +48,7 @@ export function video_problem(probe: VideoProbe): UploadProblem | undefined {
 	return probe.seconds > VIDEO_MAX_SECONDS ? 'duration' : undefined
 }
 
-/** Upload one photo or video; resolves to its `/media/posts/…` URL. */
+/** Upload one attachment; resolves to its `/media/posts/…` URL. */
 export async function upload_media(file: File): Promise<string> {
 	const body = new FormData()
 	body.set('file', file)

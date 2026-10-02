@@ -1,8 +1,10 @@
 import type { Author } from '#lib/posts/types'
 
-export type MessageMediaKind = 'image' | 'gif'
+export type MessageMediaKind = 'image' | 'gif' | 'file'
 
-export type MessageMedia = { kind: MessageMediaKind; url: string; width: number; height: number }
+export type MessageMedia =
+	| { kind: 'image' | 'gif'; url: string; width: number; height: number }
+	| { kind: 'file'; url: string; name: string; size: number }
 
 export type Reaction = { emoji: string; count: number; mine: boolean }
 

@@ -30,6 +30,7 @@ export const profile = sqliteTable('profile', {
 	avatarUrl: text('avatar_url'),
 	/** A `/media/…` upload, or null for the plain fallback colour. */
 	bannerUrl: text('banner_url'),
+	isPrivate: integer('is_private', { mode: 'boolean' }).notNull().default(false),
 	createdAt: created_at(),
 })
 
@@ -51,6 +52,9 @@ export const post = sqliteTable(
 		isReply: integer('is_reply', { mode: 'boolean' }).notNull().default(false),
 		/** A place name picked from the location search, shown under the post. */
 		location: text('location'),
+		replyAudience: text('reply_audience', { enum: ['everyone', 'following', 'mentioned'] })
+			.notNull()
+			.default('everyone'),
 		createdAt: created_at(),
 		// Set only by an edit, so the "Edited" label never comes from an unrelated write.
 		editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
@@ -83,7 +87,7 @@ export const post = sqliteTable(
 	],
 )
 
-/** Photos, GIFs and videos on a post, in the order the author picked them. */
+/** Attachments on a post, in the order the author picked them. */
 export const postMedia = sqliteTable(
 	'post_media',
 	{
@@ -92,12 +96,14 @@ export const postMedia = sqliteTable(
 			.references(() => post.id, { onDelete: 'cascade' }),
 		position: integer('position').notNull(),
 		/** `image` and `video` are uploads in R2; `gif` is a GIF from the picker's CDN. */
-		kind: text('kind', { enum: ['image', 'gif', 'video'] }).notNull(),
+		kind: text('kind', { enum: ['image', 'gif', 'video', 'file'] }).notNull(),
 		url: text('url').notNull(),
 		width: integer('width').notNull(),
 		height: integer('height').notNull(),
 		/** The author's description for screen readers; null when they didn't write one. */
 		alt: text('alt'),
+		name: text('name'),
+		size: integer('size'),
 	},
 	(table) => [primaryKey({ columns: [table.postId, table.position] })],
 )
@@ -157,6 +163,91 @@ export const follow = sqliteTable(
 	],
 )
 
+export const followRequest = sqliteTable(
+	'follow_request',
+	{
+		requesterId: text('requester_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		targetId: text('target_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: created_at(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.requesterId, table.targetId] }),
+		index('follow_request_target_idx').on(table.targetId, table.createdAt),
+	],
+)
+
+export const block = sqliteTable(
+	'block',
+	{
+		blockerId: text('blocker_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		blockedId: text('blocked_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: created_at(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.blockerId, table.blockedId] }),
+		index('block_blocked_idx').on(table.blockedId),
+	],
+)
+
+export const mute = sqliteTable(
+	'mute',
+	{
+		muterId: text('muter_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		mutedId: text('muted_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: created_at(),
+	},
+	(table) => [primaryKey({ columns: [table.muterId, table.mutedId] })],
+)
+
+export const mutedTerm = sqliteTable(
+	'muted_term',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		term: text('term').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.term] })],
+)
+
+export const report = sqliteTable(
+	'report',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		reporterId: text('reporter_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		postId: text('post_id').references(() => post.id, { onDelete: 'set null' }),
+		reason: text('reason', {
+			enum: ['spam', 'harassment', 'hate', 'violence', 'sexual', 'self_harm', 'other'],
+		}).notNull(),
+		note: text('note').notNull().default(''),
+		createdAt: created_at(),
+	},
+	(table) => [
+		index('report_reporter_idx').on(table.reporterId, table.userId),
+		index('report_created_idx').on(table.createdAt),
+	],
+)
+
 export const postLike = sqliteTable(
 	'post_like',
 	{
@@ -206,7 +297,9 @@ export const notification = sqliteTable(
 		actorId: text('actor_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		type: text('type', { enum: ['follow', 'like', 'reply', 'mention', 'moderation'] }).notNull(),
+		type: text('type', {
+			enum: ['follow', 'like', 'reply', 'mention', 'moderation', 'follow_request'],
+		}).notNull(),
 		// The liked post, or the reply or mention itself. Null for a follow.
 		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
 		/** For `moderation`: what a moderator did, which says why. */
@@ -285,10 +378,12 @@ export const message = sqliteTable(
 		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
 			onDelete: 'set null',
 		}),
-		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
+		mediaKind: text('media_kind', { enum: ['image', 'gif', 'file'] }),
 		mediaUrl: text('media_url'),
 		mediaWidth: integer('media_width'),
 		mediaHeight: integer('media_height'),
+		mediaName: text('media_name'),
+		mediaSize: integer('media_size'),
 		createdAt: created_at(),
 	},
 	(table) => [

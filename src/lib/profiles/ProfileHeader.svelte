@@ -11,6 +11,7 @@
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href } from './links'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import ProfileMenu from './ProfileMenu.svelte'
 	import type { ProfileView } from './types'
 
 	let { profile }: { profile: ProfileView } = $props()
@@ -43,14 +44,23 @@
 			{#if profile.mine}
 				<a class="btn btn-outline" href={edit_profile_href()}>{m.profile_edit()}</a>
 			{:else}
-				<MessageButton user_id={profile.id} handle={profile.handle} />
-				<FollowButton {profile} />
+				<ProfileMenu {profile} />
+				{#if !profile.blocked && !profile.blocks_you}
+					<MessageButton user_id={profile.id} handle={profile.handle} />
+					<FollowButton {profile} />
+				{/if}
 			{/if}
 		</span>
 	</div>
 	<h2 class="name">
 		{profile.name}
 		{#if profile.moderator}<ModeratorBadge />{/if}
+		{#if profile.private}
+			<span class="lock" title={m.profile_private()}>
+				<Icon name="lock" size="sm" />
+				<span class="label">{m.profile_private()}</span>
+			</span>
+		{/if}
 	</h2>
 	<div class="handle">
 		@{profile.handle}
@@ -150,6 +160,20 @@
 		margin: 12px 0 0;
 		letter-spacing: -0.01em;
 		overflow-wrap: anywhere;
+	}
+	.lock {
+		display: inline-flex;
+		vertical-align: -2px;
+		margin-left: 4px;
+		color: var(--text-2);
+	}
+	.lock .label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.handle {
 		display: flex;

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, ne, notExists, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, notExists } from 'drizzle-orm'
 import { is_rule, strike_outcome, type Rule } from '#lib/moderation/rules'
 import type { getDb } from '../db'
 import {
@@ -414,20 +414,4 @@ export async function purge_post(db: Db, post_id: string) {
 	// Still removed at the moment of the delete: a post restored meanwhile stays.
 	const removed = await remove_post(db, row.author_id, post_id, eq(post.moderation, 'removed'))
 	return removed ? unused_uploads(db, removed.uploads) : []
-}
-
-/** Whether `url` is on a post that `viewer` may see, for serving media of hidden posts. */
-export async function media_shown_to(db: Db, url: string, viewer: string) {
-	const [row] = await db
-		.select({ one: sql<number>`1` })
-		.from(postMedia)
-		.innerJoin(post, eq(post.id, postMedia.postId))
-		.where(
-			and(
-				eq(postMedia.url, url),
-				sql`(${post.moderation} = 'visible' or ${post.authorId} = ${viewer})`,
-			),
-		)
-		.limit(1)
-	return !!row
 }

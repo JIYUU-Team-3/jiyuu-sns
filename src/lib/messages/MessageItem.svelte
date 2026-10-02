@@ -6,6 +6,7 @@
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { format_clock } from './format'
+	import { file_size } from './files'
 	import { REACTIONS } from './rules'
 	import type { MessageView, Reaction } from './types'
 
@@ -38,7 +39,14 @@
 
 	const ref = $derived(message.reply_to)
 	const ref_text = $derived(
-		ref ? ref.body || (ref.media_kind === 'gif' ? m.dm_gif() : m.dm_photo()) : '',
+		ref
+			? ref.body ||
+					(ref.media_kind === 'file'
+						? m.dm_file()
+						: ref.media_kind === 'gif'
+							? m.dm_gif()
+							: m.dm_photo())
+			: '',
 	)
 
 	$effect(() => {
@@ -96,16 +104,23 @@
 			</button>
 		{/if}
 		{#if message.media}
-			<div class="media" style:aspect-ratio="{message.media.width} / {message.media.height}">
-				<img
-					src={message.media.url}
-					alt={message.media.kind === 'gif' ? m.post_gif_label() : m.dm_photo()}
-					width={message.media.width}
-					height={message.media.height}
-					loading="lazy"
-				/>
-				{#if message.media.kind === 'gif'}<span class="badge" aria-hidden="true">GIF</span>{/if}
-			</div>
+			{#if message.media.kind === 'file'}
+				<a class="file-attachment" href={message.media.url} download={message.media.name}>
+					<span>{message.media.name}</span>
+					<small>{file_size(message.media.size)} · {m.dm_download()}</small>
+				</a>
+			{:else}
+				<div class="media" style:aspect-ratio="{message.media.width} / {message.media.height}">
+					<img
+						src={message.media.url}
+						alt={message.media.kind === 'gif' ? m.post_gif_label() : m.dm_photo()}
+						width={message.media.width}
+						height={message.media.height}
+						loading="lazy"
+					/>
+					{#if message.media.kind === 'gif'}<span class="badge" aria-hidden="true">GIF</span>{/if}
+				</div>
+			{/if}
 		{/if}
 		{#if message.body}
 			<div class="bubble"><PostText body={message.body} blocked={message.blocked_hosts} /></div>
@@ -165,6 +180,22 @@
 </div>
 
 <style>
+	.file-attachment {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 12px 16px;
+		border-radius: 16px;
+		background: var(--bg-3);
+		color: var(--text);
+		overflow-wrap: anywhere;
+	}
+	.file-attachment small {
+		color: var(--text-2);
+	}
+	.file-attachment:hover {
+		background: var(--accent-soft);
+	}
 	.msg {
 		display: flex;
 		gap: 8px;

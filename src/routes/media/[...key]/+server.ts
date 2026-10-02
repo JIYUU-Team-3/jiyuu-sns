@@ -10,12 +10,12 @@ import {
 	is_post_key,
 } from '#lib/server/media'
 import { can_see_media, media_in_use } from '#lib/server/messages'
-import { media_shown_to } from '#lib/server/moderation/posts'
+import { can_see_post_media } from '#lib/server/posts'
 import type { RequestHandler } from './$types'
 
 /**
  * Uploaded avatars, banners, post photos and videos. Like profiles and posts, they're for
- * signed-in people only. Byte ranges are served so videos can seek, and Safari plays them at all.
+ * signed-in people only, and a post's photos and videos only for people who can see the post. Byte ranges are served so videos can seek, and Safari plays them at all.
  */
 export const GET: RequestHandler = async ({ locals, params, request }) => {
 	if (!locals.user) error(401, 'Sign in to continue.')
@@ -27,24 +27,27 @@ export const GET: RequestHandler = async ({ locals, params, request }) => {
 			(await can_see_media(locals.db, locals.user.id, url))
 		if (!allowed) error(404, 'Not found.')
 	}
-	// A post's photos and videos go with the post: a hidden post's are its author's and the
-	// moderators' only, and an upload no post uses yet is its uploader's.
+	// A post's photos and videos go with the post: only people who can see it, which for a post a
+	// moderator hid is its author and the moderators. An upload no post uses yet is its uploader's.
 	if (is_post_key(params.key)) {
 		const allowed =
 			is_own_post_upload(url, locals.user.id) ||
 			locals.standing?.role === 'moderator' ||
-			(await media_shown_to(locals.db, url, locals.user.id))
+			(await can_see_post_media(locals.db, locals.user.id, url))
 		if (!allowed) error(404, 'Not found.')
 	}
 
 	const object = await get_object(params.key, request.headers)
 	if (!object) error(404, 'Not found.')
 
-	const range = byte_range(object)
+	const range = request.headers.has('range') ? byte_range(object) : undefined
 	return new Response(object.body, {
 		status: range ? 206 : 200,
 		headers: {
 			'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+			...(object.httpMetadata?.contentDisposition && {
+				'content-disposition': object.httpMetadata.contentDisposition,
+			}),
 			'content-length': String(range ? range.end - range.start + 1 : object.size),
 			...(range && { 'content-range': `bytes ${range.start}-${range.end}/${object.size}` }),
 			'accept-ranges': 'bytes',

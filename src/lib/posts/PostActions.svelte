@@ -47,7 +47,9 @@
 	<button
 		type="button"
 		class="act reply"
-		aria-label={label(m.action_reply(), post.replies)}
+		aria-label={label(post.can_reply ? m.action_reply() : m.action_reply_limited(), post.replies)}
+		title={post.can_reply ? undefined : m.action_reply_limited()}
+		disabled={!post.can_reply}
 		onclick={() => composer.open({ kind: 'reply', post })}
 	>
 		<span class="hit"><Icon name="reply" size={focus ? 'md' : 'sm'} /></span>
@@ -107,6 +109,10 @@
 		padding-right: 8px;
 		transition: color 0.15s;
 	}
+	.act:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
 	.hit {
 		display: grid;
 		place-items: center;
@@ -118,12 +124,12 @@
 	.cnt {
 		min-width: 1ch;
 	}
-	.reply:hover,
+	.reply:hover:enabled,
 	.share:hover,
 	.bm:hover {
 		color: var(--accent-text);
 	}
-	.reply:hover .hit,
+	.reply:hover:enabled .hit,
 	.share:hover .hit,
 	.bm:hover .hit {
 		background: var(--accent-soft);

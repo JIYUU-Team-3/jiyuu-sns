@@ -8,6 +8,7 @@
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
+	import { block } from '#lib/safety/actions'
 	import type { ProfileTab } from '#lib/profiles/types'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import Tabs from '#lib/ui/Tabs.svelte'
@@ -20,6 +21,8 @@
 	const count = $derived(format_count(profile.posts, getLocale()))
 
 	let tab = $state<ProfileTab>('posts')
+
+	const shut = $derived(profile.private && !profile.followed && !profile.mine)
 
 	const TABS: [ProfileTab, () => string][] = [
 		['posts', m.profile_tab_posts],
@@ -37,39 +40,63 @@
 
 <ProfileHeader {profile} />
 
-<div class="tabbar"><Tabs tabs={TABS} bind:value={tab} /></div>
-
-{#key `${profile.id}:${tab}`}
-	<div role="tabpanel">
-		<PostList
-			load={(cursor) => get_author_posts(author_arg(profile.id, tab, cursor))}
-			show_replying={tab === 'replies'}
+{#if profile.blocked}
+	<EmptyState
+		title={m.profile_blocked_title({ handle: profile.handle })}
+		body={m.profile_blocked_body()}
+	>
+		<button
+			type="button"
+			class="btn btn-outline"
+			onclick={() => block({ id: profile.id, handle: profile.handle }, false, false)}
+			>{m.profile_unblock()}</button
 		>
-			{#snippet empty()}
-				{#if tab === 'replies'}
-					<EmptyState
-						title={m.profile_empty_replies_title()}
-						body={m.profile_empty_replies_body()}
-					/>
-				{:else if profile.mine}
-					<EmptyState
-						title={m.profile_posts_empty_mine_title()}
-						body={m.profile_posts_empty_mine_body()}
-					>
-						<button
-							type="button"
-							class="btn btn-primary"
-							onclick={() => composer.open({ kind: 'new' })}
-							>{m.profile_posts_empty_mine_action()}</button
+	</EmptyState>
+{:else if profile.blocks_you}
+	<EmptyState
+		title={m.profile_blocks_you_title({ handle: profile.handle })}
+		body={m.profile_blocks_you_body({ handle: profile.handle })}
+	/>
+{:else if shut}
+	<EmptyState
+		title={m.profile_protected_title()}
+		body={m.profile_protected_body({ handle: profile.handle })}
+	/>
+{:else}
+	<div class="tabbar"><Tabs tabs={TABS} bind:value={tab} /></div>
+
+	{#key `${profile.id}:${tab}`}
+		<div role="tabpanel">
+			<PostList
+				load={(cursor) => get_author_posts(author_arg(profile.id, tab, cursor))}
+				show_replying={tab === 'replies'}
+			>
+				{#snippet empty()}
+					{#if tab === 'replies'}
+						<EmptyState
+							title={m.profile_empty_replies_title()}
+							body={m.profile_empty_replies_body()}
+						/>
+					{:else if profile.mine}
+						<EmptyState
+							title={m.profile_posts_empty_mine_title()}
+							body={m.profile_posts_empty_mine_body()}
 						>
-					</EmptyState>
-				{:else}
-					<EmptyState title={m.profile_posts_empty_title()} body={m.profile_posts_empty_body()} />
-				{/if}
-			{/snippet}
-		</PostList>
-	</div>
-{/key}
+							<button
+								type="button"
+								class="btn btn-primary"
+								onclick={() => composer.open({ kind: 'new' })}
+								>{m.profile_posts_empty_mine_action()}</button
+							>
+						</EmptyState>
+					{:else}
+						<EmptyState title={m.profile_posts_empty_title()} body={m.profile_posts_empty_body()} />
+					{/if}
+				{/snippet}
+			</PostList>
+		</div>
+	{/key}
+{/if}
 
 <style>
 	.tabbar {

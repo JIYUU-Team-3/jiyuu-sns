@@ -9,6 +9,7 @@
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { current_time } from '#lib/posts/state.svelte'
 	import { profile_href } from '#lib/profiles/links'
+	import Avatar from '#lib/ui/Avatar.svelte'
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Menu from '#lib/ui/Menu.svelte'
@@ -110,12 +111,10 @@
 	let typing_sent = 0
 	let last_poll = 0
 
-	const typers = $derived(
-		convo.members.filter((member) => typing.has(member.id)).map((member) => member.name),
-	)
+	const typers = $derived(convo.members.filter((member) => typing.has(member.id)))
 	const typing_label = $derived(
 		typers.length === 1
-			? m.dm_typing({ name: typers[0] })
+			? m.dm_typing({ name: typers[0].name })
 			: m.dm_typing_many({ count: typers.length }),
 	)
 
@@ -391,6 +390,11 @@
 		{/each}
 		{#if typers.length}
 			<div class="typing" role="status">
+				<span class="typers" aria-hidden="true">
+					{#each typers.slice(0, 3) as typer (typer.id)}
+						<Avatar name={typer.name} seed={typer.id} image={typer.image} size={32} />
+					{/each}
+				</span>
 				<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
 				<span class:sr={!convo.group}>{typing_label}</span>
 			</div>
@@ -493,6 +497,15 @@
 		margin-top: 6px;
 		color: var(--text-2);
 		font-size: 13px;
+		animation: rise 0.2s var(--ease-out);
+	}
+	.typers {
+		display: flex;
+		flex: none;
+	}
+	.typers :global(.av + .av) {
+		margin-left: -10px;
+		box-shadow: 0 0 0 2px var(--bg);
 	}
 	.dots {
 		display: flex;
@@ -526,7 +539,14 @@
 			opacity: 1;
 		}
 	}
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
+	}
 	@media (prefers-reduced-motion: reduce) {
+		.typing,
 		.dots i {
 			animation: none;
 		}

@@ -4,7 +4,7 @@ import { BETTER_AUTH_SECRET } from '$app/env/private'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
-import { is_own_message_upload } from '#lib/server/media'
+import { is_message_file_url, is_own_message_upload, media_key } from '#lib/server/media'
 import type { Nudge } from '#lib/server/chat-room'
 import { mark_delivered_live, nudge } from '#lib/server/live'
 import { sign_ticket } from '#lib/server/live-ticket'
@@ -18,6 +18,7 @@ import { GROUP_NAME_MAX, MEMBER_MAX, message_problem, REACTIONS } from './rules'
 import { clean_text } from '#lib/posts/clean'
 import { follows, is_limited, trust_level } from '#lib/server/moderation/trust'
 import { check_message } from '#lib/server/moderation/write'
+import { MESSAGE_FILE_MAX_BYTES } from './files'
 
 const Id = v.pipe(v.string(), v.uuid())
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
@@ -67,12 +68,20 @@ const NewMessage = v.pipe(
 			v.maxLength(8000),
 		),
 		media: v.optional(
-			v.object({
-				kind: v.picklist(['image', 'gif']),
-				url: v.pipe(v.string(), v.maxLength(2048)),
-				width: Size,
-				height: Size,
-			}),
+			v.variant('kind', [
+				v.object({
+					kind: v.picklist(['image', 'gif']),
+					url: v.pipe(v.string(), v.maxLength(2048)),
+					width: Size,
+					height: Size,
+				}),
+				v.object({
+					kind: v.literal('file'),
+					url: v.pipe(v.string(), v.maxLength(2048)),
+					name: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
+					size: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MESSAGE_FILE_MAX_BYTES)),
+				}),
+			]),
 		),
 		reply_to: v.optional(Id),
 	}),
@@ -85,13 +94,23 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 		const ok =
 			input.media.kind === 'gif'
 				? is_gif_url(input.media.url)
-				: is_own_message_upload(input.media.url, user_id)
+				: is_own_message_upload(input.media.url, user_id) &&
+					is_message_file_url(input.media.url) === (input.media.kind === 'file')
 		if (!ok) error(400, 'Invalid media.')
+		if (input.media.kind === 'file') {
+			const key = media_key(input.media.url)
+			const stored = key ? await env.MEDIA.head(key) : null
+			if (!stored?.customMetadata?.name || stored.size > MESSAGE_FILE_MAX_BYTES)
+				error(400, 'Invalid media.')
+			input.media.name = stored.customMetadata.name
+			input.media.size = stored.size
+		}
 	}
 	// Only the links' host names are checked; nobody reads the message itself.
 	await check_message(db, user_id, await trust_level(db, user_id), input.body)
 	const sent = await messages.send_message(db, user_id, id, input)
 	if (sent === 'not_found') error(404, 'Conversation not found.')
+	if (sent === 'blocked') error(403, 'blocked')
 	waitUntil(live(id, { kind: 'refresh' }))
 	waitUntil(
 		push_direct_message(db, {
@@ -124,6 +143,7 @@ export const react_to_message = command(
 		const { db, user_id } = await chatter()
 		const result = await messages.react(db, user_id, id, emoji)
 		if (!result) error(404, 'Message not found.')
+		waitUntil(live(result.conversation_id, { kind: 'refresh' }))
 		await get_messages(messages_arg(result.conversation_id)).refresh()
 		return result.reactions
 	},

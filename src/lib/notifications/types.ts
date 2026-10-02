@@ -1,7 +1,8 @@
 import type { Rule } from '#lib/moderation/rules'
 import type { Author, PostView } from '#lib/posts/types'
 
-export type NotificationType = 'follow' | 'like' | 'reply' | 'mention' | 'moderation'
+export type NotificationType =
+	'follow' | 'like' | 'reply' | 'mention' | 'moderation' | 'follow_request'
 
 export type NotificationTab = 'all' | 'mentions'
 

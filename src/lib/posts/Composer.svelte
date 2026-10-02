@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { refusal_message } from '#lib/moderation/refusals'
-	import { onMount } from 'svelte'
+	import { onDestroy, onMount } from 'svelte'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
@@ -9,11 +9,13 @@
 	import { toast } from '#lib/ui/toasts.svelte'
 	import CharCounter from './CharCounter.svelte'
 	import Attachments from './composer/Attachments.svelte'
+	import AudiencePicker from './composer/AudiencePicker.svelte'
 	import type { Draft } from './composer/draft.svelte'
 	import Editor from './composer/Editor.svelte'
 	import MediaTray from './composer/MediaTray.svelte'
 	import { Thread } from './composer/thread.svelte'
 	import Tools from './composer/Tools.svelte'
+	import { pick_files } from './composer/pick'
 	import { format_age } from './format'
 	import { post_href } from './links'
 	import { create_post, create_thread, edit_post } from './posts.remote'
@@ -51,8 +53,8 @@
 	const many = $derived(thread.posts.length > 1)
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
-	// The reply box under a post stays a quick text reply.
-	const attachments = $derived(!editing && variant !== 'reply')
+	const attachments = $derived(!editing)
+	const audience = $derived(!editing && !reply_to)
 
 	const editors: Editor[] = []
 	let busy = $state(false)
@@ -80,9 +82,10 @@
 
 	async function publish() {
 		const thread_post = many
+		const reply_audience = audience ? thread.audience : undefined
 		const post = thread_post
-			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id })
-			: await create_post({ ...draft.payload(), reply_to: reply_to?.id })
+			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id, reply_audience })
+			: await create_post({ ...draft.payload(), reply_to: reply_to?.id, reply_audience })
 		thread.clear()
 		if (!reply_to) timeline.published(post)
 		const message = reply_to
@@ -132,7 +135,15 @@
 		}
 	}
 
+	function onpaste(event: ClipboardEvent, post: Draft) {
+		const files = [...(event.clipboardData?.files ?? [])]
+		if (!attachments || !files.length) return
+		event.preventDefault()
+		void pick_files(post, files)
+	}
+
 	onMount(() => (hydrated = true))
+	onDestroy(() => thread.discard())
 </script>
 
 {#snippet editor_field(post: Draft, i: number)}
@@ -144,6 +155,7 @@
 		autofocus={variant === 'modal' && i === thread.focus}
 		self={me.id}
 		{onkeydown}
+		onpaste={(event) => onpaste(event, post)}
 	/>
 	{#if attachments}
 		<Attachments draft={post} oninsert={(text) => editors[i].insert(text)} />
@@ -222,6 +234,9 @@
 					{/if}
 				</div>
 			{/each}
+			{#if audience}
+				<div class="audience"><AudiencePicker bind:value={thread.audience} /></div>
+			{/if}
 			{#if editing}
 				<div class="editing-note"><Icon name="pencil" size="xs" />{m.composer_editing_note()}</div>
 			{/if}
@@ -255,7 +270,10 @@
 		{/if}
 		<div class="col">
 			{@render editor_field(draft, 0)}
-			{#if variant === 'inline'}
+			{#if variant === 'inline' && audience && draft.dirty}
+				<div class="audience inline-audience"><AudiencePicker bind:value={thread.audience} /></div>
+			{/if}
+			{#if variant === 'inline' || variant === 'reply'}
 				<div class="row-end">
 					<Tools {draft} />
 					<span class="grow"></span>
@@ -264,10 +282,6 @@
 				</div>
 			{/if}
 		</div>
-		{#if variant === 'reply'}
-			{#if draft.text}<CharCounter {length} />{/if}
-			{@render submit_button()}
-		{/if}
 	{/if}
 </form>
 
@@ -362,6 +376,12 @@
 	.add-thread:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+	.audience {
+		padding: 8px 0 0 52px;
+	}
+	.inline-audience {
+		padding: 4px 0 0;
 	}
 	.editing-note {
 		display: flex;

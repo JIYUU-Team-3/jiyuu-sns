@@ -36,7 +36,10 @@ export const search_suggestions = query(Query, async (q) =>
 
 export const get_trending = query(
 	v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20)),
-	(limit) => search.trending_tags(signed_in().db, limit),
+	(limit) => {
+		const { db, user_id } = signed_in()
+		return search.trending_tags(db, limit, user_id)
+	},
 )
 
 export const get_who_to_follow = query(

@@ -13,6 +13,7 @@ import type {
 import { direct_key, MEMBER_MAX } from '#lib/messages/rules'
 import { shown_image } from './account-image'
 import type { getDb } from './db'
+import { blocked_between, is_blocked } from './safety'
 import {
 	conversation,
 	conversationMember,
@@ -226,6 +227,8 @@ export async function messages_page(
 			media_url: message.mediaUrl,
 			media_width: message.mediaWidth,
 			media_height: message.mediaHeight,
+			media_name: message.mediaName,
+			media_size: message.mediaSize,
 			created_at: message.createdAt,
 			reply_id: parent.id,
 			reply_sender_id: parent.senderId,
@@ -320,12 +323,21 @@ async function receipts_for(db: Db, me: string, conversation_id: string): Promis
 }
 
 function to_media(row: {
-	media_kind: 'image' | 'gif' | null
+	media_kind: 'image' | 'gif' | 'file' | null
 	media_url: string | null
 	media_width: number | null
 	media_height: number | null
+	media_name: string | null
+	media_size: number | null
 }): MessageMedia | undefined {
 	if (!row.media_kind || !row.media_url) return undefined
+	if (row.media_kind === 'file')
+		return {
+			kind: 'file',
+			url: row.media_url,
+			name: row.media_name ?? 'file',
+			size: row.media_size ?? 0,
+		}
 	return {
 		kind: row.media_kind,
 		url: row.media_url,
@@ -367,8 +379,9 @@ export async function send_message(
 	me: string,
 	conversation_id: string,
 	input: NewMessage,
-): Promise<string | 'not_found'> {
+): Promise<string | 'not_found' | 'blocked'> {
 	if (!(await is_member(db, me, conversation_id))) return 'not_found'
+	if (await direct_blocked(db, me, conversation_id)) return 'blocked'
 	if (input.reply_to) {
 		const [target] = await db
 			.select({ id: message.id })
@@ -388,8 +401,10 @@ export async function send_message(
 			replyToId: input.reply_to ?? null,
 			mediaKind: input.media?.kind ?? null,
 			mediaUrl: input.media?.url ?? null,
-			mediaWidth: input.media?.width ?? null,
-			mediaHeight: input.media?.height ?? null,
+			mediaWidth: input.media && input.media.kind !== 'file' ? input.media.width : null,
+			mediaHeight: input.media && input.media.kind !== 'file' ? input.media.height : null,
+			mediaName: input.media?.kind === 'file' ? input.media.name : null,
+			mediaSize: input.media?.kind === 'file' ? input.media.size : null,
 			createdAt: now,
 		}),
 		db.update(conversation).set({ lastMessageAt: now }).where(eq(conversation.id, conversation_id)),
@@ -404,6 +419,23 @@ export async function send_message(
 			),
 	])
 	return id
+}
+
+async function direct_blocked(db: Db, me: string, conversation_id: string) {
+	const [row] = await db
+		.select({ id: conversationMember.userId })
+		.from(conversationMember)
+		.innerJoin(conversation, eq(conversation.id, conversationMember.conversationId))
+		.where(
+			and(
+				eq(conversationMember.conversationId, conversation_id),
+				eq(conversation.isGroup, false),
+				ne(conversationMember.userId, me),
+				blocked_between(me, conversationMember.userId),
+			),
+		)
+		.limit(1)
+	return !!row
 }
 
 export async function mark_read(db: Db, me: string, conversation_id: string) {
@@ -510,6 +542,7 @@ export async function start_conversation(
 	if (found.length !== others.length) return 'invalid'
 
 	if (others.length === 1) {
+		if (await is_blocked(db, me, others[0])) return 'invalid'
 		const key = direct_key(me, others[0])
 		await db
 			.insert(conversation)

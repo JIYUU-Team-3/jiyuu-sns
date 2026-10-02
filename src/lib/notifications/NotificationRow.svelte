@@ -7,6 +7,7 @@
 	import PostCard from '#lib/posts/PostCard.svelte'
 	import { current_time } from '#lib/posts/state.svelte'
 	import { profile_href } from '#lib/profiles/links'
+	import { privacy_href } from '#lib/settings/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { rule_label } from '#lib/moderation/labels'
 	import Icon from '#lib/ui/Icon.svelte'
@@ -15,11 +16,18 @@
 	let { item }: { item: NotificationView } = $props()
 
 	const href = $derived.by(() => {
+		if (item.type === 'follow_request') return privacy_href()
 		if (item.type === 'follow')
 			return item.actor.handle ? profile_href(item.actor.handle) : undefined
 		return item.post_id ? post_href(item.post_id) : undefined
 	})
-	const message = $derived(item.type === 'like' ? m.notifications_like : m.notifications_follow)
+	const message = $derived(
+		item.type === 'like'
+			? m.notifications_like
+			: item.type === 'follow_request'
+				? m.notifications_follow_request
+				: m.notifications_follow,
+	)
 
 	/** A moderator's action, told without naming the moderator: the post page has the details. */
 	const moderation_text = $derived.by(() => {
@@ -38,7 +46,7 @@
 	/** Like a post card, the whole row opens its target unless the click hit a link. */
 	function open(event: MouseEvent) {
 		if ((event.target as Element).closest('a, button')) return
-		if (href) goto(href)
+		if (href) void goto(href)
 	}
 </script>
 
@@ -113,7 +121,8 @@
 	.n-ico.like {
 		color: var(--like);
 	}
-	.n-ico.follow {
+	.n-ico.follow,
+	.n-ico.follow_request {
 		color: var(--accent-text);
 	}
 	.n-ico.moderation {

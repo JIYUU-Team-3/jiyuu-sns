@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte'
 	import type { RemoteQuery } from '$app/server'
 	import PostCard from './PostCard.svelte'
-	import { deleted_posts } from './state.svelte'
+	import { deleted_posts, hidden_authors } from './state.svelte'
 	import type { PostPage, PostView } from './types'
 
 	let {
@@ -25,7 +25,10 @@
 
 	const page = $derived(await query)
 	const posts = $derived(
-		page.posts.filter((post: PostView) => !deleted_posts.has(post.id) && !hide?.has(post.id)),
+		page.posts.filter(
+			(post: PostView) =>
+				!deleted_posts.has(post.id) && !hide?.has(post.id) && !hidden_authors.has(post.author.id),
+		),
 	)
 
 	/** How far below the screen the next page starts loading, so it's there before the reader is. */

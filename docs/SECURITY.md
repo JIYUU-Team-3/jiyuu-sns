@@ -2,7 +2,7 @@
 
 For whoever works on Jiyuu next. It says what the app defends against, where each defence lives,
 what is still open, and the rules that keep new code from reopening old holes. Last reviewed
-2026-10-01.
+2026-10-02.
 
 ## The model in one paragraph
 
@@ -13,6 +13,12 @@ Everything the browser sends is untrusted, including the arguments of remote fun
 `width`, `height`, `kind` and URLs of attached media.
 
 ## Rules for new code
+
+Local development can explicitly opt into `DEV_AUTH_BYPASS=1`. The hook only substitutes the
+local developer account when `$app/env.dev` is true and the request origin is loopback HTTP.
+Production builds ignore the flag, and a real session takes precedence. Ownership, profile and
+DM membership checks still use the account's real local database id. Leave this flag off for
+security and authentication tests.
 
 These are the ones that have already been broken once.
 
@@ -39,18 +45,29 @@ These are the ones that have already been broken once.
    fetches, N needs a hard number.
 9. **New endpoints that write or call a third party get a rate limit** (`limit()` in
    `src/lib/server/rate-limit.ts`, bindings in `wrangler.jsonc`).
-10. **Metadata is stripped by keep-list.** `strip-metadata.ts` and `strip-video.ts` keep only what
-    draws the picture and refuse what they can't parse. A new format follows the same shape.
+10. **Inline images and videos have their metadata stripped by keep-list.** `strip-metadata.ts`
+    and `strip-video.ts` keep only what draws the picture and refuse what they can't parse.
+    Other post and DM files retain their original bytes and metadata and are download-only: generated
+    `.bin` keys, `application/octet-stream`, `Content-Disposition: attachment`, and `nosniff`.
+    Never render those files inline; keep the same session, membership, size and rate checks.
 11. **Server-only data stays server-only.** Email addresses are returned to their owner and nobody
     else. Don't return a whole `user` row from a `load` or a query; pick the fields.
 12. **A security fix comes with a test that fails without it.** See `src/routes/security.e2e.ts`.
-13. **Every query that lists posts includes `shown_to(viewer)`** from `server/posts.ts`, so a post a
-    moderator limited or removed reaches its author only. That covers feeds, threads, search, tag
-    counts and anything new. Moderators read hidden posts through `/mod`, never by widening it.
-14. **Moderation tools start with `moderator()`** (remote functions) or `require_moderator(locals)`
+13. **Every post query filters with `visible_posts(viewer)`** from `src/lib/server/safety.ts`, so
+    blocks and private accounts hold, and a post a moderator limited or removed reaches its author
+    only (it includes `shown_to`). `page()`, `find_post` and `find_posts` already do; a new
+    `select_posts` call outside them must add it. Timelines and search also add
+    `unmuted_posts(viewer)`, and people lists add `visible_people(viewer)`. The same goes for
+    anything else that shows a post: push previews and post photos and videos check it too.
+    Moderators read hidden posts through `/mod`, never by widening it.
+14. **A follow or request is only written if the SQL that writes it checks privacy and blocks.**
+    Don't read the state first and insert afterwards; a block or a privacy change can land in
+    between. Raw `db.run(sql…)` with parameters fails inside `db.batch` on D1, so use the query
+    builder there.
+15. **Moderation tools start with `moderator()`** (remote functions) or `require_moderator(locals)`
     (loads and form actions), and the role comes from `account_standing` by user id. A suspended
     account is turned away in `hooks.server.ts` and again in `signed_in()`; keep both.
-15. **Posts and messages pass the write checks** in `server/moderation/write.ts` before they're
+16. **Posts and messages pass the write checks** in `server/moderation/write.ts` before they're
     saved: text cleaning, the spam rules and the link checks. A new way to publish text uses them.
 
 ## Where each defence lives
@@ -79,6 +96,9 @@ These are the ones that have already been broken once.
 | Spam and fake accounts                    | Trust levels, new-account limits, repeat refusal, hourly behaviour score                                                                    | `server/moderation/trust.ts`, `score.ts`                         |
 | Harmful posts and images                  | Llama Guard and a vision model after posting, within a daily budget; moderator queue                                                        | `server/moderation/checks.ts`, `/mod`                            |
 | A removed image coming back               | SHA-256 blocklist on every upload path                                                                                                      | `server/moderation/media.ts`                                     |
+| Harassment by a known account             | Block (both ways: posts, follows, replies, likes, notifications, direct chats), mute, report                                                | `server/safety.ts`, `server/follows.ts`                          |
+| Reading a private account's posts         | `visible_posts` in every post query, push preview and post media request; follows need approval                                             | `server/safety.ts`, `server/posts.ts`                            |
+| Unwanted replies                          | The post's reply audience is checked on the server before a reply is written                                                                | `server/posts.ts` (`insert_thread`)                              |
 | Poisoned CI dependencies                  | Actions pinned to commits, safe-chain, `pnpm audit`, frozen lockfile                                                                        | `.github/workflows/`                                             |
 
 ## Known gaps, most important first
@@ -111,12 +131,9 @@ look next.
 
 ### Code — not done yet
 
-1. **No block, mute or report.** Rate limits slow harassment; nothing lets its target stop it.
-   This is the largest missing safety feature, and #21 builds it. Reports feed the moderation
-   queue through `on_report` in `server/moderation/cases.ts`. Until blocking exists: new and
-   restricted accounts can only start a chat with people who follow them, but an established
-   account can still message anyone, and anyone can put up to 49 people in a group. A direct
-   chat can't be left at all.
+1. **Blocks don't reach group chats.** A block stops direct chats both ways, but anyone can still
+   put up to 49 people in a group without asking them, blocked or not, and a direct chat can't be
+   left. Consider asking before adding someone to a group.
 2. **One moderator, no admin UI for roles.** `@jiyuu_org` moderates (see docs/MODERATION.md); more
    are added with `pnpm db:grant-moderator`. The automatic checks only read English text.
 3. **No account deletion or data export.** The schema cascades correctly from `user`, but nothing
@@ -168,7 +185,8 @@ look next.
 ## Checking it yourself
 
 - `pnpm exec playwright test src/routes/security.e2e.ts` — signed-out reads, chats closed to outsiders, writes without a
-  profile, avatar URLs, upload rate limit.
+  profile, avatar URLs, upload rate limit, blocked and private posts, reply limits, messaging a
+  blocker.
 - `pnpm audit` — runs in CI and before commits that touch dependencies.
 - The server the tests run against has `ALLOW_EMAIL_SIGNUP=1` (`.env.e2e`). To see what production
   does, run `wrangler dev` without `.env.e2e`: `POST /api/auth/sign-up/email` answers 400.

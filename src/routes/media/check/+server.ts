@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit'
 import { read_form } from '#lib/server/form'
-import { is_own_post_upload, is_video_url } from '#lib/server/media'
+import { is_own_post_upload, is_post_file_url, is_video_url } from '#lib/server/media'
 import { check_deps } from '#lib/server/moderation/after-write'
 import { check_upload } from '#lib/server/moderation/checks'
 import { find_profile } from '#lib/server/profiles'
@@ -17,7 +17,13 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!(await find_profile(locals.db, locals.user.id)))
 		error(403, 'Finish setting up your profile.')
 	const url = (await read_form(request, 4096)).get('url')
-	if (typeof url !== 'string' || !is_own_post_upload(url, locals.user.id) || is_video_url(url))
+	// Photos only: a video or an attached file is nothing the vision model can look at.
+	if (
+		typeof url !== 'string' ||
+		!is_own_post_upload(url, locals.user.id) ||
+		is_video_url(url) ||
+		is_post_file_url(url)
+	)
 		error(400, 'Invalid media.')
 	const sensitive = await check_upload(locals.db, check_deps(), locals.user.id, url)
 	return json({ sensitive })

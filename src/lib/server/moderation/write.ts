@@ -37,7 +37,7 @@ async function links_checked(db: Db, user_id: string, body: string, trust: Trust
 	return result
 }
 
-type Draft = { body: string; media: { kind: 'image' | 'gif' | 'video'; url: string }[] }
+type Draft = { body: string; media: { kind: 'image' | 'gif' | 'video' | 'file'; url: string }[] }
 
 /**
  * Everything a new post or thread must pass before it's saved: the pace and the media allowed for
