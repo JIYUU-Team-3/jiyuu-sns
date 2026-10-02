@@ -6,9 +6,10 @@ async function paste_file(field: Locator, name: string, type: string, bytes: num
 		(element, { name, type, bytes }) => {
 			const clipboardData = new DataTransfer()
 			clipboardData.items.add(new File([new Uint8Array(bytes)], name, { type }))
-			element.dispatchEvent(
-				new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
-			)
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+			// Firefox ignores clipboardData in the constructor (Mozilla bug 2027025).
+			Object.defineProperty(event, 'clipboardData', { value: clipboardData })
+			element.dispatchEvent(event)
 		},
 		{ name, type, bytes },
 	)
@@ -45,7 +46,8 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		await field.evaluate((element) => {
 			const clipboardData = new DataTransfer()
 			clipboardData.setData('text/plain', 'ordinary text')
-			const event = new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true })
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+			Object.defineProperty(event, 'clipboardData', { value: clipboardData })
 			if (!element.dispatchEvent(event)) throw new Error('Text paste was prevented')
 		})
 		await expect(field).toHaveValue('Caption stays')

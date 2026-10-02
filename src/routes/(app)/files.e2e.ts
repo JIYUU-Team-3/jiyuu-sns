@@ -6,9 +6,10 @@ async function paste(field: Locator, name: string, content: string, type = 'text
 		(element, data) => {
 			const clipboardData = new DataTransfer()
 			clipboardData.items.add(new File([data.content], data.name, { type: data.type }))
-			element.dispatchEvent(
-				new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
-			)
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+			// Firefox ignores clipboardData in the constructor (Mozilla bug 2027025).
+			Object.defineProperty(event, 'clipboardData', { value: clipboardData })
+			element.dispatchEvent(event)
 		},
 		{ name, content, type },
 	)
@@ -30,12 +31,9 @@ test('paste files into posts and replies, keep downloads private, and clean remo
 	await field.evaluate((element) => {
 		const clipboardData = new DataTransfer()
 		clipboardData.setData('text/plain', 'ordinary text')
-		if (
-			!element.dispatchEvent(
-				new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
-			)
-		)
-			throw new Error('Text paste was prevented')
+		const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+		Object.defineProperty(event, 'clipboardData', { value: clipboardData })
+		if (!element.dispatchEvent(event)) throw new Error('Text paste was prevented')
 	})
 	const uploaded = page.waitForResponse(
 		(response) => response.url().endsWith('/media') && response.request().method() === 'POST',
