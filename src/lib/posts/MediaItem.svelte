@@ -29,8 +29,10 @@
 	{#if item.kind === 'video'}
 		<PostVideo {item} {label} />
 	{:else}
+		<!-- A GIF comes from GIPHY's CDN, which needn't learn which page it was seen on. -->
 		<img
 			src={item.url}
+			referrerpolicy="no-referrer"
 			alt={item.alt || (item.kind === 'gif' ? m.post_gif_label() : label)}
 			width={item.width}
 			height={item.height}

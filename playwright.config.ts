@@ -17,7 +17,7 @@ const baseURL = externalBaseURL ?? 'http://127.0.0.1:4173'
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-	/* E2E specs live next to the routes they cover, e.g. src/routes/demo/playwright/page.svelte.e2e.ts. */
+	/* E2E specs live next to the routes they cover, e.g. src/routes/(public)/login/login.e2e.ts. */
 	testDir: './src',
 	testMatch: '**/*.e2e.{ts,js}',
 	/* Run tests in files in parallel */
@@ -26,8 +26,8 @@ export default defineConfig({
 	forbidOnly: !!process.env.CI,
 	/* Retry on CI only */
 	retries: process.env.CI ? 2 : 0,
-	/* Opt out of parallel tests on CI. */
-	workers: process.env.CI ? 1 : undefined,
+	/* Two at a time on CI: the runners have four cores, and one of them is the server. */
+	workers: process.env.CI ? 2 : undefined,
 	/* Reporter to use. See https://playwright.dev/docs/test-reporters */
 	reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'html',
 	/* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */

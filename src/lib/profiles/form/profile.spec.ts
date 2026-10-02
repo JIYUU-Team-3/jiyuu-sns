@@ -59,6 +59,22 @@ describe('read_profile', () => {
 		expect(draft.bio).toHaveLength(160)
 	})
 
+	it("drops control characters and bidi overrides, keeping a bio's line breaks", () => {
+		const data = new FormData()
+		data.set('name', 'Mika\u202Eakanat\u2066\u0000 Tanaka')
+		data.set('handle', 'mika')
+		data.set('bio', 'line one\nline two\u202E')
+		const draft = read_profile(data)
+		expect(draft.name).toBe('Mika akanat   Tanaka')
+		expect(draft.bio).toBe('line one\nline two')
+	})
+
+	it('keeps the joiners an emoji is written with', () => {
+		const data = new FormData()
+		data.set('name', '\u{1F469}\u200D\u{1F4BB} Mika')
+		expect(read_profile(data).name).toBe('\u{1F469}\u200D\u{1F4BB} Mika')
+	})
+
 	it('reads missing fields as empty', () => {
 		expect(read_profile(new FormData())).toEqual({ name: '', handle: '', bio: '' })
 	})

@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit'
-import { picked_file } from '#lib/media'
+import { IMAGE_MAX_BYTES, picked_file } from '#lib/media'
 import {
 	image_errors,
 	profile_errors,
@@ -10,6 +10,9 @@ import type { getDb } from './db'
 import { save_profile_with_images } from './profile-images'
 
 type Db = ReturnType<typeof getDb>
+
+/** The most a profile form can carry: one avatar and one banner. */
+export const PROFILE_FORM_MAX_BYTES = IMAGE_MAX_BYTES.avatar + IMAGE_MAX_BYTES.banner
 
 /**
  * Check and save a submitted profile form, from onboarding or the edit page. Returns the saved

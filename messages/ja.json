@@ -428,9 +428,9 @@
 	"dm_too_long": "メッセージは{count}文字までです。",
 	"dm_photo_size": "写真は5MBまでです。",
 	"dm_deleted_account": "削除されたアカウント",
-	"dm_file": "????",
-	"dm_add_file": "???????",
-	"dm_sent_file": "???????????",
-	"dm_file_size": "?????5 MB?????",
-	"dm_download": "??????"
+	"dm_file": "ファイル",
+	"dm_add_file": "ファイルを追加",
+	"dm_sent_file": "ファイルを送信しました",
+	"dm_file_size": "ファイルは5 MBまでです。",
+	"dm_download": "ダウンロード"
 }

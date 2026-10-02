@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit'
 import { APIError } from 'better-auth/api'
+import { limit } from '#lib/server/rate-limit'
 import { home_href, onboarding_href } from '../links'
 import type { Actions, PageServerLoad } from './$types'
 
@@ -31,7 +32,9 @@ export const load: PageServerLoad = ({ locals }) => {
 }
 
 export const actions: Actions = {
-	google: async ({ locals }) => {
+	google: async ({ locals, getClientAddress }) => {
+		// Each start stores a state row, so an address can only start so many a minute.
+		await limit('AUTH_LIMIT', getClientAddress())
 		const url = await google_consent_url(locals.auth)
 		if (!url) return fail(502, { google_failed: true })
 		return redirect(302, url, { external: [GOOGLE_ORIGIN] })

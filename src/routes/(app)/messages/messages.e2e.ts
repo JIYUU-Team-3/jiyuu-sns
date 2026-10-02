@@ -60,7 +60,9 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		await expect(compose.getByText(name, { exact: true })).toBeVisible()
 		await expect(field).toHaveValue('Caption stays')
 		await expect(send).toBeEnabled()
+		const stored = page.waitForResponse((response) => response.url().includes('/send_message'))
 		await send.click()
+		await stored
 		const link = page.locator('.msg').getByRole('link', { name: new RegExp(name) })
 		await expect(link).toBeVisible()
 		await page.reload()
@@ -75,6 +77,9 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		expect(response.headers()['content-disposition']).toContain('attachment;')
 		expect(response.headers()['content-disposition']).toContain(encodeURIComponent(name))
 		expect(await response.text()).toBe(content)
+		const downloaded = page.waitForEvent('download')
+		await link.click()
+		expect((await downloaded).suggestedFilename()).toBe(name)
 		expect((await outsider_context.request.get(url)).status()).toBe(404)
 		expect((await page.request.delete(url)).status()).toBe(409)
 
@@ -105,6 +110,7 @@ test('paste and send DM files, keep image previews, and restrict downloads @writ
 		await expect(send).toBeDisabled()
 		await expect.poll(async () => (await page.request.get(picked_url)).status()).toBe(404)
 		const oversized = await page.request.post('/media/messages', {
+			headers: { origin: new URL(page.url()).origin },
 			multipart: {
 				file: {
 					name: 'large.bin',
@@ -140,8 +146,12 @@ test('message someone, react and reply, and the badge clears once read @writes',
 	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
 	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
 	await bob_page.getByLabel('Message', { exact: true }).fill(hello)
+	// The chat shows a message before the server has it, so wait for the server too: Alice's
+	// unread badge only counts what was stored.
+	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
 	await bob_page.keyboard.press('Enter')
 	await expect(bob_page.locator('.chat').getByText(hello)).toBeVisible()
+	await stored
 
 	await page.goto('/')
 	const nav = page.locator('nav.side')

@@ -10,3 +10,7 @@ allowBuilds:
 overrides:
   '@esbuild-kit/core-utils>esbuild': '^0.25.0'
   'miniflare>undici': '^7.29.1'
+  # svelte pins devalue 5.9.2, which six advisories cover (GHSA-j22f-vq7h-c4qm and others,
+  # fixed in 5.9.3). SvelteKit already resolves a patched one; this brings svelte's copy along.
+  # Drop it once svelte depends on >=5.9.3 itself.
+  'svelte>devalue': '^5.9.3'

@@ -17,6 +17,7 @@ describe('DM files', () => {
 	it('keeps Unicode filenames while removing paths and control characters', () => {
 		expect(message_file_name('C:\\folder\\資料\r\n.pdf')).toBe('資料.pdf')
 		expect(message_file_name('../../notes.pdf')).toBe('notes.pdf')
+		expect(message_file_name('notes\u202e\u2066.pdf')).toBe('notes.pdf')
 		expect(message_file_name('')).toBe('file')
 		expect(message_file_name('x'.repeat(300))).toHaveLength(255)
 	})

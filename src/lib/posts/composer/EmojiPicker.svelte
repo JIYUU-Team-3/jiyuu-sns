@@ -5,7 +5,8 @@
 
 	let { onpick }: { onpick: (emoji: string) => void } = $props()
 
-	const DATA = 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@^1'
+	// An exact version: a range would load whatever was published last, unreviewed.
+	const DATA = 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1.8.0'
 
 	/** Japanese gets Japanese names and search; Khmer has no emoji data, so it uses English. */
 	const japanese = getLocale() === 'ja'

@@ -29,6 +29,37 @@ export default defineConfig({
 			// tests get throwaway in-memory bindings instead.
 			adapter: adapter({ platformProxy: { persist: !process.env.VITEST } }),
 			experimental: { remoteFunctions: true },
+			// What a page may load and where it may send things. SvelteKit adds a nonce for its own
+			// inline script. Inline styles are allowed because Svelte's `style:` directives are
+			// inline styles; scripts are not.
+			csp: {
+				directives: {
+					'default-src': ['self'],
+					'script-src': ['self'],
+					'style-src': ['self', 'unsafe-inline'],
+					// GIPHY's CDN for GIFs, Google's for account photos, GitHub's for the team page.
+					'img-src': [
+						'self',
+						'data:',
+						'blob:',
+						'https://*.giphy.com',
+						'https://*.googleusercontent.com',
+						'https://github.com',
+						'https://avatars.githubusercontent.com',
+					],
+					'media-src': ['self', 'blob:'],
+					// The emoji picker loads its emoji list from jsDelivr.
+					'connect-src': ['self', 'https://cdn.jsdelivr.net'],
+					'font-src': ['self', 'data:'],
+					'worker-src': ['self'],
+					'manifest-src': ['self'],
+					'object-src': ['none'],
+					'base-uri': ['self'],
+					// Signing in posts to our own action, which redirects to Google.
+					'form-action': ['self', 'https://accounts.google.com'],
+					'frame-ancestors': ['none'],
+				},
+			},
 		}),
 
 		// The `paraglide` script in package.json compiles the same output for
@@ -52,6 +83,10 @@ export default defineConfig({
 						enabled: true,
 						provider: playwright(),
 						instances: [{ browser: 'chromium', headless: true }],
+						// Vitest's default, 63315, sits in the range Windows hands out in blocks to
+						// Hyper-V, WSL and Docker at boot; a reserved port refuses to open and the
+						// whole run fails. Windows never reserves ports this low.
+						api: 5183,
 					},
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**'],
