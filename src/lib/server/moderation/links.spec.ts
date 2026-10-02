@@ -48,7 +48,10 @@ describe('blocklist', () => {
 		const db = test_db()
 		await db.insert(blockedDomain).values({ domain: 'evil.example' })
 		const blocked = await blocked_hosts(db, ['evil.example', 'cdn.evil.example', 'notevil.example'])
-		expect([...blocked].sort()).toEqual(['cdn.evil.example', 'evil.example'])
+		expect([...blocked].sort((a, b) => a.localeCompare(b))).toEqual([
+			'cdn.evil.example',
+			'evil.example',
+		])
 	})
 })
 

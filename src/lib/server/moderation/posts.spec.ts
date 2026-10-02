@@ -19,7 +19,9 @@ import {
 	post_notice,
 	purge_removed_posts,
 	REMOVED_KEPT_MS,
+	refuse_removal_review,
 	request_post_review,
+	uphold_removal_review,
 } from './posts'
 
 let db: TestDb
@@ -190,5 +192,28 @@ describe('purge_removed_posts', () => {
 	it('leaves visible and limited posts alone', async () => {
 		await moderate_post(db, { moderator_id: 'mod', post_id: 'p1', action: 'limit' })
 		expect((await purge_removed_posts(db, now + 10 * REMOVED_KEPT_MS)).purged).toBe(0)
+	})
+})
+
+describe('deciding a removal review', () => {
+	it('acts on the removal it was about, never a newer one', async () => {
+		const old = (await remove())!.action_id
+		await moderate_post(db, { moderator_id: 'mod', post_id: 'p1', action: 'restore' })
+		const current = (await remove())!.action_id
+
+		// The old removal was already undone: upholding or refusing it changes nothing.
+		expect(await refuse_removal_review(db, 'p1', old)).toEqual([])
+		await uphold_removal_review(db, 'mod', 'p1', old)
+		expect((await find_post(db, 'alice', 'p1'))?.moderation).toBe('removed')
+
+		await uphold_removal_review(db, 'mod', 'p1', current)
+		expect((await find_post(db, 'bob', 'p1'))?.moderation).toBeUndefined()
+	})
+
+	it('keeps a post whose review was upheld out of the purge', async () => {
+		await remove()
+		await request_post_review(db, 'alice', 'p1', 'please')
+		await db.update(appeal).set({ status: 'upheld' })
+		expect((await purge_removed_posts(db, now + 2 * REMOVED_KEPT_MS)).purged).toBe(0)
 	})
 })

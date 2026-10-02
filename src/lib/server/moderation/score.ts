@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import type { getDb } from '../db'
 import {
 	accountStanding,
@@ -164,7 +164,10 @@ export async function run_scores(db: Db, now = Date.now()) {
 		if (known?.role === 'moderator') continue
 		const found = await signals(db, user_id, now)
 		const score = score_of(found)
-		const restrict = score >= SCORE_THRESHOLD && !known?.restricted
+		const restrict =
+			score >= SCORE_THRESHOLD &&
+			!known?.restricted &&
+			!(await lifted_lately(db, user_id, now - DAY))
 		await db
 			.insert(accountStanding)
 			.values({
@@ -199,6 +202,26 @@ export async function run_scores(db: Db, now = Date.now()) {
 		)
 	}
 	return { scored: ids.length, restricted }
+}
+
+/**
+ * Whether a moderator lifted a restriction on this account since `since`. The score reads the
+ * last day of activity, so for that day it would only restrict the account again.
+ */
+async function lifted_lately(db: Db, user_id: string, since: number) {
+	const [row] = await db
+		.select({ id: moderationAction.id })
+		.from(moderationAction)
+		.where(
+			and(
+				eq(moderationAction.targetUserId, user_id),
+				eq(moderationAction.action, 'unrestrict'),
+				isNotNull(moderationAction.moderatorId),
+				gt(moderationAction.createdAt, new Date(since)),
+			),
+		)
+		.limit(1)
+	return !!row
 }
 
 /** A moderator restricts or frees an account. Freeing also clears a score's restriction. */

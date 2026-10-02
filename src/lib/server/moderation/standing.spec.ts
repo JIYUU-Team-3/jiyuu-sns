@@ -10,6 +10,7 @@ import {
 	request_review,
 	strike_counts,
 	suspend,
+	uphold_suspension_review,
 } from './standing'
 
 let db: TestDb
@@ -62,7 +63,10 @@ describe('suspend', () => {
 			.select()
 			.from(moderationAction)
 			.where(eq(moderationAction.targetUserId, 'alice'))
-		expect(actions.map((row) => row.action).sort()).toEqual(['suspend', 'unsuspend'])
+		expect(actions.map((row) => row.action).sort((a, b) => a.localeCompare(b))).toEqual([
+			'suspend',
+			'unsuspend',
+		])
 		expect(actions.find((row) => row.action === 'suspend')?.reversedAt).not.toBeNull()
 	})
 
@@ -133,5 +137,27 @@ describe('request_review', () => {
 			note: undefined,
 			review: undefined,
 		})
+	})
+})
+
+describe('uphold_suspension_review', () => {
+	it('lifts the suspension it was about, never a newer one', async () => {
+		const first = (await suspend(db, {
+			moderator_id: 'mod',
+			user_id: 'alice',
+			reason: 'spam',
+			days: 1,
+		}))!
+		const second = (await suspend(db, {
+			moderator_id: 'mod',
+			user_id: 'alice',
+			reason: 'harassment',
+			days: 30,
+		}))!
+		await uphold_suspension_review(db, 'mod', 'alice', first)
+		expect((await find_standing(db, 'alice')).suspension?.action_id).toBe(second)
+
+		await uphold_suspension_review(db, 'mod', 'alice', second)
+		expect((await find_standing(db, 'alice')).suspension).toBeUndefined()
 	})
 })

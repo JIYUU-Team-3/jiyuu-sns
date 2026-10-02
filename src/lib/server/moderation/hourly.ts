@@ -1,4 +1,4 @@
-import { and, eq, gt, like, notInArray } from 'drizzle-orm'
+import { and, desc, eq, gt, like, lt, notInArray, or } from 'drizzle-orm'
 import type { getDb } from '../db'
 import { post } from '../db/schema'
 import { delete_media } from '../media'
@@ -17,6 +17,8 @@ export const HOURLY = {
 	/** Posts the checks couldn't finish, retried from the last two days. */
 	retries: 20,
 	retry_window: 48 * HOUR,
+	/** A `pending` post younger than this may still be checked by the request that posted it. */
+	pending_grace: 10 * 60 * 1000,
 	/** Recent posts read for links, and distinct hosts looked up. */
 	link_posts: 300,
 	link_hosts: 50,
@@ -38,7 +40,17 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 		.select({ id: post.id })
 		.from(post)
 		.where(
-			and(eq(post.checked, 'unchecked'), gt(post.createdAt, new Date(now - HOURLY.retry_window))),
+			and(
+				// `pending` ones too, once they're older than any check still running after the response.
+				or(
+					eq(post.checked, 'unchecked'),
+					and(
+						eq(post.checked, 'pending'),
+						lt(post.createdAt, new Date(now - HOURLY.pending_grace)),
+					),
+				),
+				gt(post.createdAt, new Date(now - HOURLY.retry_window)),
+			),
 		)
 		.limit(HOURLY.retries)
 	for (const row of pending) await check_post(db, deps, row.id)
@@ -53,6 +65,8 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 				notInArray(post.moderation, ['removed']),
 			),
 		)
+		// Newest first: a domain is likeliest to have turned bad since it was posted recently.
+		.orderBy(desc(post.createdAt))
 		.limit(HOURLY.link_posts)
 	const posts_by_host = new Map<string, typeof recent>()
 	for (const row of recent) {

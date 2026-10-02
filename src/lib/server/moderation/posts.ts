@@ -268,7 +268,8 @@ export async function purge_removed_posts(db: Db, now = Date.now(), limit = 100)
 			and(
 				eq(moderationAction.targetKind, 'post'),
 				eq(moderationAction.targetId, post.id),
-				eq(appeal.status, 'open'),
+				// An upheld review is about to restore the post; it must not be purged meanwhile.
+				inArray(appeal.status, ['open', 'upheld']),
 			),
 		)
 	const due = await db
@@ -289,6 +290,55 @@ export async function purge_removed_posts(db: Db, now = Date.now(), limit = 100)
 		if (removed) unused.push(...(await unused_uploads(db, removed.uploads)))
 	}
 	return { purged: due.length, unused }
+}
+
+/**
+ * Undo one removal after its review is upheld. The post comes back only if that removal is still
+ * the one in force; otherwise only that action, and its strike, is reversed.
+ */
+export async function uphold_removal_review(
+	db: Db,
+	moderator_id: string,
+	post_id: string,
+	action_id: string,
+) {
+	if ((await current_removal(db, post_id)) === action_id) {
+		await moderate_post(db, { moderator_id, post_id, action: 'restore' })
+		return
+	}
+	await db
+		.update(moderationAction)
+		.set({ reversedAt: new Date() })
+		.where(and(eq(moderationAction.id, action_id), isNull(moderationAction.reversedAt)))
+}
+
+/**
+ * Delete a removed post now that its review is refused, if that removal is still the one in force.
+ * Returns the uploads to delete from R2.
+ */
+export async function refuse_removal_review(db: Db, post_id: string, action_id: string) {
+	if ((await current_removal(db, post_id)) !== action_id) return []
+	return purge_post(db, post_id)
+}
+
+/** The removal in force on a post, if it's removed. */
+async function current_removal(db: Db, post_id: string) {
+	const [current] = await db
+		.select({ id: moderationAction.id })
+		.from(moderationAction)
+		.innerJoin(post, eq(post.id, moderationAction.targetId))
+		.where(
+			and(
+				eq(moderationAction.targetKind, 'post'),
+				eq(moderationAction.targetId, post_id),
+				inArray(moderationAction.action, ['remove', 'limit']),
+				isNull(moderationAction.reversedAt),
+				eq(post.moderation, 'removed'),
+			),
+		)
+		.orderBy(desc(moderationAction.createdAt))
+		.limit(1)
+	return current?.id
 }
 
 /** Delete one removed post now, after a refused review. */

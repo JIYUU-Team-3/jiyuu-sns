@@ -120,6 +120,13 @@ describe('check_post', () => {
 		expect(usage.text).toBeGreaterThan(5000)
 	})
 
+	it('gives back the reservation when a call fails for another reason', async () => {
+		await add_post('p', 'newbie', 'Some English words to check')
+		expect(await check_post(db, deps(workers_ai('', undefined, 500)), 'p')).toBe('unchecked')
+		const [usage] = await db.select().from(aiUsage)
+		expect(usage.text).toBe(0)
+	})
+
 	it('blurs a suggestive image and hides an explicit one', async () => {
 		await add_post('p', 'newbie', '', true)
 		await check_post(db, deps(workers_ai('safe', '{"nudity":2,"violence":0,"gore":0}')), 'p')

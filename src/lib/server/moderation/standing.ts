@@ -145,6 +145,45 @@ export async function lift_suspension(
 	])
 }
 
+/**
+ * Undo one suspension after its review is upheld. Only that action is reversed, and the account is
+ * freed only if that is still the suspension in force: a newer one, for something else, stays.
+ */
+export async function uphold_suspension_review(
+	db: Db,
+	moderator_id: string,
+	user_id: string,
+	action_id: string,
+) {
+	const now = new Date()
+	await db.batch([
+		db
+			.update(accountStanding)
+			.set({
+				suspendedAt: null,
+				suspendedUntil: null,
+				suspendReason: null,
+				suspendActionId: null,
+				updatedAt: now,
+			})
+			.where(
+				and(eq(accountStanding.userId, user_id), eq(accountStanding.suspendActionId, action_id)),
+			),
+		db
+			.update(moderationAction)
+			.set({ reversedAt: now })
+			.where(and(eq(moderationAction.id, action_id), isNull(moderationAction.reversedAt))),
+		db.insert(moderationAction).values({
+			moderatorId: moderator_id,
+			action: 'unsuspend',
+			targetKind: 'account',
+			targetId: user_id,
+			targetUserId: user_id,
+			note: 'Review upheld',
+		}),
+	])
+}
+
 /** Strikes not reversed: inside the window, and in all. */
 export async function strike_counts(db: Db, user_id: string, now = Date.now()) {
 	const live = and(

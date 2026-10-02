@@ -67,7 +67,7 @@ export function test_db() {
 	sqlite.exec('pragma foreign_keys = on')
 	for (const file of readdirSync(MIGRATIONS)
 		.filter((name) => name.endsWith('.sql'))
-		.sort()) {
+		.sort((a, b) => a.localeCompare(b))) {
 		for (const statement of readFileSync(join(MIGRATIONS, file), 'utf8').split(
 			'--> statement-breakpoint',
 		)) {

@@ -23,6 +23,8 @@ describe('run_hourly', () => {
 		await db.insert(post).values([
 			{ id: 'gone', authorId: 'alice', body: 'removed' },
 			{ id: 'retry', authorId: 'alice', body: 'not checked yet', checked: 'unchecked' },
+			// Left `pending` by a check that never finished; a day later it's retried too.
+			{ id: 'stuck', authorId: 'alice', body: 'never checked', checked: 'pending' },
 			{ id: 'link', authorId: 'alice', body: 'read https://turned-bad.example/x' },
 			{ id: 'fine', authorId: 'alice', body: 'read https://fine.example/x' },
 		])
@@ -39,10 +41,16 @@ describe('run_hourly', () => {
 			{ bucket, enabled: false, lookup: resolver('turned-bad.example') },
 			later,
 		)
-		expect(summary).toMatchObject({ purged: 1, retried: 1, hosts: 2, blocked: 1, restricted: 0 })
+		expect(summary).toMatchObject({ purged: 1, retried: 2, hosts: 2, blocked: 1, restricted: 0 })
 
 		const left = await db.select({ id: post.id, checked: post.checked }).from(post)
-		expect(left.map((row) => row.id).sort()).toEqual(['fine', 'link', 'retry'])
+		expect(left.map((row) => row.id).sort((a, b) => a.localeCompare(b))).toEqual([
+			'fine',
+			'link',
+			'retry',
+			'stuck',
+		])
+		expect(left.find((row) => row.id === 'stuck')?.checked).toBe('skipped')
 		// With Workers AI off the retry settles as skipped, so it isn't tried forever.
 		expect(left.find((row) => row.id === 'retry')?.checked).toBe('skipped')
 		expect(await db.select().from(blockedDomain)).toEqual([

@@ -138,3 +138,13 @@ describe('which accounts are scored', () => {
 		expect(await run_scores(db, now)).toEqual({ scored: 200, restricted: 1 })
 	})
 })
+
+describe('a moderator lifting a score restriction', () => {
+	it('holds for the day the score reads', async () => {
+		await burst('spammer', 15)
+		await run_scores(db, now)
+		await set_restricted(db, 'mod', 'spammer', false)
+		expect(await run_scores(db, now + 60 * 60_000)).toMatchObject({ restricted: 0 })
+		expect(await trust_level(db, 'spammer')).not.toBe('restricted')
+	})
+})

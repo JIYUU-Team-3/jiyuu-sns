@@ -21,9 +21,8 @@ function later(task: () => Promise<unknown>) {
 
 /** New or edited posts, in order. */
 export function check_posts_later(db: Db, post_ids: string[], budget: 'text' | 'report' = 'text') {
-	later(async () => {
-		for (const id of post_ids) await check_post(db, deps(), id, budget)
-	})
+	// One post's failure leaves it `pending` for the hourly job; the rest of the thread still runs.
+	for (const id of post_ids) later(async () => check_post(db, deps(), id, budget))
 }
 
 /** A profile whose bio, photo or banner just changed. */

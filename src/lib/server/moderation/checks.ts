@@ -73,7 +73,10 @@ async function ask(
 		await settle(db, kind, estimate, neurons(model, answer.usage))
 		return answer
 	} catch (error) {
+		// Out of quota: stop for the day. Any other failure cost nothing, so its reservation goes
+		// back; otherwise an outage would use up the budget on calls that never ran.
 		if (error instanceof QuotaError) await exhaust(db)
+		else await settle(db, kind, estimate, 0)
 		return undefined
 	}
 }
@@ -171,7 +174,7 @@ export async function check_post(
 		else if (worst(scores) >= 2) flagged.push({ url, scores })
 	}
 	if (flagged.length) {
-		const most = flagged.reduce((a, b) => (worst(b.scores) > worst(a.scores) ? b : a))
+		const most = flagged.reduce((a, b) => (worst(b.scores) > worst(a.scores) ? b : a), flagged[0])
 		await moderate_post(db, { moderator_id: null, post_id, action: 'sensitive' })
 		if (worst(most.scores) >= 3) {
 			const reason = image_rule(most.scores)
