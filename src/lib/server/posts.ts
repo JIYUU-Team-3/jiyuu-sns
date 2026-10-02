@@ -29,8 +29,9 @@ import {
 import { shown_image } from './account-image'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
-import { TRUSTED_DAYS } from './moderation/trust'
+import { NEW_DAYS, TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
+import { CANDIDATES_MAX, FLOOD_WINDOW, slotted, type Signals } from './ranking'
 import { shown_to, unmuted_posts, visible_posts } from './safety'
 
 type Db = ReturnType<typeof getDb>
@@ -258,34 +259,85 @@ function decode_rank_cursor(cursor: string | undefined) {
 	return { as_of, offset: Math.min(offset, OFFSET_MAX) }
 }
 
-async function ranked_page(
-	db: Db,
-	viewer: string | undefined,
-	cursor: string | undefined,
-): Promise<FeedPage> {
-	const { as_of, offset } = decode_rank_cursor(cursor) ?? { as_of: Date.now(), offset: 0 }
+/**
+ * What `server/ranking.ts` reads about the newest `CANDIDATES_MAX` top-level posts the viewer may
+ * see. A restricted account's posts are left out unless the viewer follows it.
+ */
+async function rank_signals(db: Db, viewer: string | undefined, as_of: number): Promise<Signals[]> {
 	const followed = viewer
-		? sql`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${post.authorId})`
-		: sql`0`
-	const age = sql`((${as_of} - ${post.createdAt}) / 3600000.0 + 2)`
-	const score = sql`(1.0 + ${like_count} + 2 * ${reply_count} + 3 * ${followed}) / (${age} * ${age})`
-	const rows = await select_posts(db, viewer)
+		? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${post.authorId})`
+		: sql<number>`0`
+	const mine = viewer ? sql<number>`${post.authorId} = ${viewer}` : sql<number>`0`
+	const restricted = (account: SQL) =>
+		sql`exists(select 1 from account_standing s where s.user_id = ${account} and s.restricted = 1)`
+	// A like counts once the account behind it is past its first days and isn't restricted, so
+	// throwaway accounts can't lift a post. The count shown on the post stays the real one.
+	const likes = sql<number>`(select count(*) from post_like l join "user" u on u.id = l.user_id
+		where l.post_id = ${post.id} and l.user_id != ${post.authorId}
+			and u.created_at <= ${as_of - NEW_DAYS * DAY_MS}and not ${restricted(sql`l.user_id`)})`
+	const replies = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id}
+		and r.moderation = 'visible' and r.author_id != ${post.authorId})`
+	const earlier = sql<number>`(select count(*) from post q where q.author_id = ${post.authorId}
+		and q.is_reply = 0 and q.created_at < ${post.createdAt}
+		and q.created_at >= ${post.createdAt} - ${FLOOD_WINDOW})`
+	const behaviour = sql<number>`coalesce((select s.behaviour_score from account_standing s where s.user_id = ${post.authorId}), 0)`
+	const reports = sql<number>`coalesce((select k.reports from moderation_case k
+		where k.target_kind = 'post' and k.target_id = ${post.id} and k.status = 'open'), 0)`
+	const rows = await db
+		.select({
+			id: post.id,
+			created_at: post.createdAt,
+			likes,
+			replies,
+			followed,
+			mine,
+			earlier,
+			behaviour,
+			reports,
+		})
+		.from(post)
+		.leftJoin(profile, eq(profile.userId, post.authorId))
 		.where(
 			and(
 				visible_posts(viewer),
 				unmuted_posts(viewer),
 				eq(post.isReply, false),
 				lte(post.createdAt, new Date(as_of)),
+				sql`(${followed} or ${mine} or not ${restricted(sql`${post.authorId}`)})`,
 			),
 		)
-		.orderBy(desc(score), desc(post.createdAt), desc(post.id))
-		.limit(PAGE_SIZE + 1)
-		.offset(offset)
-	const result = last_at_cap(
-		to_page(rows, viewer, () => `${as_of}:${offset + PAGE_SIZE}`),
-		offset,
+		.orderBy(desc(post.createdAt), desc(post.id))
+		.limit(CANDIDATES_MAX)
+	return rows.map((row) => ({
+		...row,
+		created_at: row.created_at.getTime(),
+		followed: !!row.followed,
+		mine: !!row.mine,
+	}))
+}
+
+/** "For you": new, popular and rising posts dealt into slots; see `server/ranking.ts`. */
+async function ranked_page(
+	db: Db,
+	viewer: string | undefined,
+	cursor: string | undefined,
+): Promise<FeedPage> {
+	const { as_of, offset } = decode_rank_cursor(cursor) ?? { as_of: Date.now(), offset: 0 }
+	const order = slotted(await rank_signals(db, viewer, as_of), as_of)
+	const ids = order.slice(offset, offset + PAGE_SIZE)
+	if (!ids.length) return { posts: [], as_of }
+	const rows = await select_posts(db, viewer).where(
+		and(visible_posts(viewer), inArray(post.id, ids)),
 	)
-	return { ...result, as_of }
+	const found = new Map(rows.map((row) => [row.id, row]))
+	return {
+		posts: ids.flatMap((id) => {
+			const row = found.get(id)
+			return row ? [to_view(row, viewer)] : []
+		}),
+		next: order.length > offset + PAGE_SIZE ? `${as_of}:${offset + PAGE_SIZE}` : undefined,
+		as_of,
+	}
 }
 
 /** An offset page, with no next page once that would start past `OFFSET_MAX`. */
