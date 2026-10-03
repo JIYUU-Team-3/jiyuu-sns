@@ -219,7 +219,12 @@ jobs:
       # src/hooks.server.ts binds D1 on every request.
       - name: Migrate the local database
         run: pnpm run db:migrate:local
-      - run: pnpm exec playwright test
+      # PRs run Chromium only to keep the loop short; the gate in front of a deploy
+      # (workflow_call) runs all three browsers.
+      - name: Playwright tests
+        env:
+          PROJECTS: ${{ github.event_name == 'pull_request' && '--project=chromium' || '' }}
+        run: pnpm exec playwright test $PROJECTS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() }}
         with:

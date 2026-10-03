@@ -111,6 +111,7 @@ const quote_json = (viewer: string | undefined) => sql<string | null>`(select js
 	'id', q.id, 'body', q.body, 'created_at', q.created_at,
 	'author_id', qu.id, 'author_name', coalesce(qp.display_name, qu.name), 'author_handle', qp.handle,
 	'author_image', ${image_of(sql`qp.avatar_url`, sql`qu.image`)},
+	'author_moderator', ${is_moderator(sql`qu.id`)},
 	'sensitive', ${viewer ? sql`q.sensitive and q.author_id != ${viewer}` : sql`q.sensitive`},
 	'media', json(${media_of(sql`q.id`)})
 ) from post q join "user" qu on qu.id = q.author_id left join profile qp on qp.user_id = q.author_id
@@ -231,6 +232,7 @@ type QuoteRow = {
 	author_name: string
 	author_handle: string | null
 	author_image: string | null
+	author_moderator: number
 	sensitive: number
 	media: Positioned<MediaRow>[]
 }
@@ -246,6 +248,7 @@ function to_quoted(json: string): QuotedPost {
 			name: row.author_name,
 			handle: row.author_handle ?? undefined,
 			image: row.author_image ?? undefined,
+			moderator: row.author_moderator ? true : undefined,
 		},
 		media: to_media(row.media),
 		sensitive: !!row.sensitive,

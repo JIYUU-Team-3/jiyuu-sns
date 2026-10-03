@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, isNull, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, isNull, sql, type SQL } from 'drizzle-orm'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { STRIKE_WINDOW_DAYS, type Rule } from '#lib/moderation/rules'
 import type { getDb } from '../db'
@@ -18,7 +18,7 @@ export type Standing = { role: 'member' | 'moderator'; suspension?: Suspension }
 const DAY = 24 * 60 * 60 * 1000
 
 /** Whether the account in `user_id` moderates, for queries that list people beside their names. */
-export const is_moderator = (user_id: AnySQLiteColumn) =>
+export const is_moderator = (user_id: AnySQLiteColumn | SQL) =>
 	sql<number>`exists(select 1 from account_standing s where s.user_id = ${user_id} and s.role = 'moderator')`
 
 /** A row's suspension, if it is in force at `now`. An ended one needs no job to lift it. */

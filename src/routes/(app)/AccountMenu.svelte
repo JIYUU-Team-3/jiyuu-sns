@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state'
 	import { mod_href } from '#lib/moderation/links'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import { bookmarks_href } from '#lib/posts/links'
 	import type { Author } from '#lib/posts/types'
@@ -24,7 +25,12 @@
 		{:else}
 			<button type="button" class="acct-chip" aria-label={m.app_account_menu()} {...props}>
 				<Avatar name={me.name} seed={me.id} image={me.image} />
-				<span class="who"><b>{me.name}</b><span>@{me.handle}</span></span>
+				<span class="who">
+					<span class="name"
+						><b>{me.name}</b>{#if page.data.moderator}<ModeratorBadge />{/if}</span
+					>
+					<span class="handle">@{me.handle}</span>
+				</span>
 				<span class="chev"><Icon name="more" size="sm" /></span>
 			</button>
 		{/if}
@@ -76,14 +82,23 @@
 		flex: 1;
 		line-height: 1.25;
 	}
-	.who b,
-	.who span {
+	.name {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.name b,
+	.handle {
 		display: block;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.who span {
+	/* A long name gives way to the badge, not the other way round. */
+	.name b {
+		min-width: 0;
+	}
+	.handle {
 		color: var(--text-2);
 		font-size: 14px;
 	}

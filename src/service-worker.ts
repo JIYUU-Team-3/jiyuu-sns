@@ -10,6 +10,8 @@
 
 import { acknowledge, deliver } from '#lib/messages/delivery'
 import { draw_push_icon, type Face } from '#lib/notifications/push-icon'
+import { logo_colours } from '#lib/notifications/push-theme'
+import { DEFAULT_PREFS, parse_prefs, PREFS_COOKIE } from '#lib/settings/prefs'
 
 const sw = self as unknown as ServiceWorkerGlobalScope
 
@@ -43,11 +45,27 @@ type PushMessage = {
 
 const LOGO = '/icon-192.png'
 
+/**
+ * This device's display preferences, from the cookie the page keeps, so the icon's logo is in the
+ * theme chosen here. Defaults where the browser has no cookie store in a service worker.
+ */
+async function device_prefs() {
+	try {
+		const store = (sw as { cookieStore?: { get(name: string): Promise<{ value: string } | null> } })
+			.cookieStore
+		const cookie = await store?.get(PREFS_COOKIE)
+		return cookie ? parse_prefs(decodeURIComponent(cookie.value)) : DEFAULT_PREFS
+	} catch {
+		return DEFAULT_PREFS
+	}
+}
+
 /** The sender's photo with the logo, or just the logo when it can't be drawn. */
 async function icon_for(message: PushMessage) {
 	if (!message.faces?.length) return LOGO
 	try {
-		return (await draw_push_icon(message.faces, { origin: sw.location.origin, logo: LOGO })) ?? LOGO
+		const logo = logo_colours(await device_prefs())
+		return (await draw_push_icon(message.faces, { origin: sw.location.origin, logo })) ?? LOGO
 	} catch {
 		return LOGO
 	}
