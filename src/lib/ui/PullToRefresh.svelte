@@ -17,10 +17,10 @@
 	const TRIGGER = 64
 	/** Where the content waits while the refresh runs. */
 	const HOLD = 52
-	/** The most the content follows the finger. */
-	const MAX = 96
-	/** The content moves this much per pixel of finger travel. */
-	const RESIST = 0.5
+	/** The content eases toward this and never passes it, however far the finger goes. */
+	const MAX = 150
+	/** The content moves this much per pixel at the start of the pull; it slows from there. */
+	const RESIST = 0.7
 	/** Finger travel before the gesture picks an axis. */
 	const SLOP = 10
 	/** The spinner shows at least this long, so a fast refresh still reads as one. */
@@ -37,6 +37,9 @@
 	const editable = (target: EventTarget | null) =>
 		target instanceof Element &&
 		!!target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+
+	/** Rubber band: follows the finger at first, then tightens smoothly instead of hitting a wall. */
+	const rubber = (travel: number) => MAX * (1 - Math.exp(-Math.max(0, travel) * (RESIST / MAX)))
 
 	async function refresh() {
 		refreshing = true
@@ -79,7 +82,7 @@
 			}
 			event.preventDefault()
 			dragging = true
-			pull = Math.min(MAX, Math.max(0, dy * RESIST))
+			pull = rubber(dy)
 		}
 
 		const oncancel = () => {
@@ -115,10 +118,13 @@
 		style:opacity={progress}
 	>
 		{#if refreshing}
-			<span class="spin" role="status" aria-label={m.ptr_refreshing()}><Icon name="refresh" /></span
+			<span class="badge spin" role="status" aria-label={m.ptr_refreshing()}
+				><Icon name="refresh" /></span
 			>
 		{:else}
-			<span style:rotate="{progress * 270}deg"><Icon name="refresh" /></span>
+			<span class="badge" style:rotate="{progress * 270}deg" style:scale={0.5 + progress * 0.5}
+				><Icon name="refresh" /></span
+			>
 		{/if}
 	</div>
 	<!-- No transform at rest, so nothing inside gets a new containing block for good. -->
@@ -155,21 +161,42 @@
 		color: var(--accent-text);
 	}
 	.content {
-		transition: transform 0.35s var(--ease-out);
+		transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
 	}
 	.dragging .indicator,
 	.dragging .content {
 		transition: color 0.15s;
 	}
-	.indicator span {
+	.badge {
 		display: grid;
+		transition:
+			rotate 0.35s var(--ease-out),
+			scale 0.35s var(--ease-out);
 	}
+	.dragging .badge {
+		transition: none;
+	}
+	/* Picks up from where the pull left the arrow (270deg) so the hand-off doesn't jump. */
 	.spin {
-		animation: spin 0.8s linear infinite;
+		rotate: 270deg;
+		scale: 1;
+		animation:
+			pop 0.3s var(--ease-out),
+			spin 0.8s linear infinite;
+	}
+	@keyframes pop {
+		from {
+			scale: 0.7;
+		}
 	}
 	@keyframes spin {
 		to {
-			rotate: 360deg;
+			rotate: 630deg;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.spin {
+			animation: none;
 		}
 	}
 </style>
