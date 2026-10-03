@@ -820,5 +820,13 @@
 	"post_translate_failed": "មិនអាចបកប្រែការបង្ហោះនេះបានទេ។ សូមព្យាយាមម្តងទៀតនៅពេលក្រោយ។",
 	"language_en": "ភាសាអង់គ្លេស",
 	"language_ja": "ភាសាជប៉ុន",
-	"language_km": "ភាសាខ្មែរ"
+	"language_km": "ភាសាខ្មែរ",
+	"notifications_group_add": "{#name/} បានបន្ថែមអ្នកទៅក្នុងក្រុម “{group}”",
+	"notifications_group_add_unnamed": "{#name/} បានបន្ថែមអ្នកទៅក្នុងក្រុមមួយ",
+	"notifications_group_remove": "{#name/} បានដកអ្នកចេញពីក្រុម “{group}”",
+	"notifications_group_remove_unnamed": "{#name/} បានដកអ្នកចេញពីក្រុមមួយ",
+	"push_group_add": "{name} បានបន្ថែមអ្នកទៅក្នុងក្រុម “{group}”",
+	"push_group_add_unnamed": "{name} បានបន្ថែមអ្នកទៅក្នុងក្រុមមួយ",
+	"push_group_remove": "{name} បានដកអ្នកចេញពីក្រុម “{group}”",
+	"push_group_remove_unnamed": "{name} បានដកអ្នកចេញពីក្រុមមួយ"
 }

@@ -9,6 +9,7 @@ import type { Nudge } from '#lib/server/chat-room'
 import { INBOX, inbox_room, mark_delivered_live, nudge, nudge_inboxes } from '#lib/server/live'
 import { sign_ticket } from '#lib/server/live-ticket'
 import * as messages from '#lib/server/messages'
+import { notify_group } from '#lib/server/notifications'
 import { push_direct_message } from '#lib/server/push'
 import { limit } from '#lib/server/rate-limit'
 import { member, signed_in } from '#lib/server/session'
@@ -151,6 +152,8 @@ export const start_conversation = command(
 		await only_followers(db, user_id, user_ids)
 		const id = await messages.start_conversation(db, user_id, user_ids, name)
 		if (id === 'invalid') error(400, 'Invalid members.')
+		// Only a group tells the people in it; a direct chat shows up once something is said.
+		await notify_group(db, user_id, id, 'group_add', user_ids)
 		waitUntil(inboxes(db, id))
 		await get_conversations(conversations_arg()).refresh()
 		return id
@@ -214,6 +217,7 @@ export const add_group_members = command(
 		if (added === 'not_found') error(404, 'Conversation not found.')
 		if (added === 'invalid') error(400, 'Invalid members.')
 		if (added === 'full') error(409, 'group_full')
+		await notify_group(db, user_id, id, 'group_add', added)
 		waitUntil(live(id, { kind: 'group' }))
 		await group_changed(id)
 	},
@@ -226,6 +230,7 @@ export const remove_group_member = command(
 		// One answer for "not yours to remove" and "not there", so roles can't be probed.
 		if (!(await messages.remove_member(db, user_id, id, target)))
 			error(404, 'Conversation not found.')
+		await notify_group(db, user_id, id, 'group_remove', [target])
 		waitUntil(live(id, { kind: 'kick', user_id: target }).then(() => live(id, { kind: 'group' })))
 		await group_changed(id)
 	},

@@ -101,11 +101,10 @@
 		dialog {
 			padding: 0;
 		}
-		dialog[open]:not(.sm) {
-			align-items: stretch;
-		}
 		.modal:not(.sm) {
 			width: 100%;
+			/* At least the screen, and as tall as its content: stretched to the screen instead, a
+			   long list ran past the end of the surface. */
 			min-height: 100dvh;
 			padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 			box-sizing: border-box;

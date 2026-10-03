@@ -820,5 +820,13 @@
 	"post_translate_failed": "Couldn’t translate this post. Try again later.",
 	"language_en": "English",
 	"language_ja": "Japanese",
-	"language_km": "Khmer"
+	"language_km": "Khmer",
+	"notifications_group_add": "{#name/} added you to the group “{group}”",
+	"notifications_group_add_unnamed": "{#name/} added you to a group",
+	"notifications_group_remove": "{#name/} removed you from the group “{group}”",
+	"notifications_group_remove_unnamed": "{#name/} removed you from a group",
+	"push_group_add": "{name} added you to the group “{group}”",
+	"push_group_add_unnamed": "{name} added you to a group",
+	"push_group_remove": "{name} removed you from the group “{group}”",
+	"push_group_remove_unnamed": "{name} removed you from a group"
 }

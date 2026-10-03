@@ -820,5 +820,13 @@
 	"post_translate_failed": "このポストを翻訳できませんでした。しばらくしてからもう一度お試しください。",
 	"language_en": "英語",
 	"language_ja": "日本語",
-	"language_km": "クメール語"
+	"language_km": "クメール語",
+	"notifications_group_add": "{#name/} さんがあなたをグループ「{group}」に追加しました",
+	"notifications_group_add_unnamed": "{#name/} さんがあなたをグループに追加しました",
+	"notifications_group_remove": "{#name/} さんがあなたをグループ「{group}」から削除しました",
+	"notifications_group_remove_unnamed": "{#name/} さんがあなたをグループから削除しました",
+	"push_group_add": "{name} さんがあなたをグループ「{group}」に追加しました",
+	"push_group_add_unnamed": "{name} さんがあなたをグループに追加しました",
+	"push_group_remove": "{name} さんがあなたをグループ「{group}」から削除しました",
+	"push_group_remove_unnamed": "{name} さんがあなたをグループから削除しました"
 }
