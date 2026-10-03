@@ -212,8 +212,8 @@
 <style>
 	.compose {
 		border-top: 1px solid var(--line);
-		padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-		background: var(--page-bg);
+		padding: 8px 12px calc(8px + var(--chat-inset, env(safe-area-inset-bottom)));
+		background: var(--bg);
 	}
 	.replying {
 		display: flex;
@@ -309,6 +309,11 @@
 		line-height: 20px;
 		max-height: 132px;
 		field-sizing: content;
+	}
+	@media (pointer: coarse) {
+		textarea {
+			font-size: 16px;
+		}
 	}
 	textarea::placeholder {
 		color: var(--text-3);

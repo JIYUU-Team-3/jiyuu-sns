@@ -209,3 +209,49 @@ test('typing shows live with a face, messages and reactions arrive at once, and 
 	await bob_page.context().close()
 	await carol_page.context().close()
 })
+
+test('on a phone the chat stays in view above the keyboard @writes', async ({ page, browser }) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dmk_${id}`
+	const bob = `e2e_dml_${id}`
+
+	const phone = await browser.newContext({ viewport: { width: 390, height: 664 }, hasTouch: true })
+	await phone.addInitScript(() => {
+		const viewport = Object.assign(new EventTarget(), { height: innerHeight, offsetTop: 0 })
+		Object.defineProperty(window, 'visualViewport', { value: viewport, configurable: true })
+		Object.assign(window, {
+			keyboard(height: number) {
+				viewport.height = innerHeight - height
+				viewport.offsetTop = 120
+				viewport.dispatchEvent(new Event('resize'))
+			},
+		})
+	})
+	const bob_page = await phone.newPage()
+	await sign_up(page, alice)
+	await sign_up(bob_page, bob)
+	await follow(page, bob)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	const field = bob_page.getByLabel('Message', { exact: true })
+	await field.focus()
+	const coarse = await bob_page.evaluate(() => matchMedia('(pointer: coarse)').matches)
+	if (coarse) await expect(field).toHaveCSS('font-size', '16px')
+
+	await bob_page.evaluate(() =>
+		(window as unknown as { keyboard: (h: number) => void }).keyboard(300),
+	)
+	const bar = bob_page.locator('.pane header.bar')
+	const compose = bob_page.locator('form.compose')
+	await expect(compose).toHaveCSS('padding-bottom', '8px')
+	await expect(async () => {
+		expect((await bar.boundingBox())?.y).toBe(120)
+		const box = await compose.boundingBox()
+		expect((box?.y ?? 0) + (box?.height ?? 0)).toBe(120 + 664 - 300)
+	}).toPass()
+
+	await phone.close()
+})
