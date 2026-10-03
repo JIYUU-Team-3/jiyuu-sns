@@ -49,7 +49,7 @@
 </script>
 
 <div class="photo">
-	<div class="avwrap">
+	<div class="avwrap" data-morph="avatar">
 		<span class="av" style:--h={avatar_hue(seed)} aria-hidden="true">
 			{#if shown}
 				<!-- Google's photo host can refuse requests that carry a referrer. -->

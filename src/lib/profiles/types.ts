@@ -1,4 +1,5 @@
 import type { Author } from '#lib/posts/types'
+import type { UserView } from '#lib/search/types'
 import type { Birthday } from './details'
 
 export type ProfileView = Author & {
@@ -27,3 +28,12 @@ export type ProfileView = Author & {
 }
 
 export type ProfileTab = 'posts' | 'replies' | 'likes'
+
+/** Which of an account's follow lists: who it follows, or who follows it. */
+export type FollowSide = 'following' | 'followers'
+
+export type PeoplePage = {
+	people: UserView[]
+	/** Pass back as `cursor` for the next page; undefined on the last one. */
+	next?: string
+}

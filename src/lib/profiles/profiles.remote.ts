@@ -1,17 +1,25 @@
 import { error } from '@sveltejs/kit'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
-import { set_follow as save_follow } from '#lib/server/follows'
-import { find_profile_by_handle } from '#lib/server/profiles'
+import { follows_arg } from '#lib/posts/args'
+import {
+	list_follows,
+	remove_follower as drop_follower,
+	set_follow as save_follow,
+} from '#lib/server/follows'
+import { find_profile, find_profile_by_handle } from '#lib/server/profiles'
 import {
 	follows_last_hour,
 	is_limited,
 	LIMITED_FOLLOWS_PER_HOUR,
 	trust_level,
 } from '#lib/server/moderation/trust'
+import { limit } from '#lib/server/rate-limit'
 import { member, signed_in } from '#lib/server/session'
 
 const Handle = v.pipe(v.string(), v.regex(/^[a-z0-9_.]{3,20}$/))
+const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
+const Cursor = v.optional(v.pipe(v.string(), v.maxLength(160)))
 
 export const get_profile = query(Handle, async (handle) => {
 	const { db, user_id } = signed_in()
@@ -35,3 +43,25 @@ export const set_follow = command(
 		await get_profile(handle).refresh()
 	},
 )
+
+/** Who an account follows, or who follows it, at a pace scrolling reaches and a scraper doesn't. */
+export const get_follows = query(
+	v.object({ id: UserId, side: v.picklist(['following', 'followers']), cursor: Cursor }),
+	async ({ id, side, cursor }) => {
+		const { db, user_id } = signed_in()
+		await limit('LOOKUP_LIMIT', user_id)
+		return list_follows(db, user_id, id, side, cursor)
+	},
+)
+
+export const remove_follower = command(v.object({ handle: Handle }), async ({ handle }) => {
+	const { db, user_id } = await member()
+	if (!(await drop_follower(db, user_id, handle))) return
+	// Your follower count and theirs both move, and the list it was removed from.
+	const mine = await find_profile(db, user_id)
+	await Promise.all([
+		get_follows(follows_arg(user_id, 'followers')).refresh(),
+		get_profile(handle).refresh(),
+		mine && get_profile(mine.handle).refresh(),
+	])
+})

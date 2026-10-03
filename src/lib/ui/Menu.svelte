@@ -113,6 +113,8 @@
 		box-shadow: var(--shadow-pop);
 		border: 1px solid var(--line);
 		padding: 6px 0;
+		max-height: calc(100dvh - 16px);
+		overflow-y: auto;
 		animation: popin 0.16s var(--ease-out);
 		cursor: default;
 	}

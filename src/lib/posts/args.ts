@@ -1,4 +1,4 @@
-import type { ProfileTab } from '#lib/profiles/types'
+import type { FollowSide, ProfileTab } from '#lib/profiles/types'
 import type { FeedTab } from './types'
 
 /*
@@ -15,3 +15,6 @@ export const author_arg = (id: string, tab: ProfileTab, cursor?: string) =>
 	cursor ? { id, tab, cursor } : { id, tab }
 
 export const bookmarks_arg = (cursor?: string) => (cursor ? { cursor } : {})
+
+export const follows_arg = (id: string, side: FollowSide, cursor?: string) =>
+	cursor ? { id, side, cursor } : { id, side }

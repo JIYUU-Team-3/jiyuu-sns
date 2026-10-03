@@ -7,9 +7,9 @@
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import NumberRoll from '#lib/ui/NumberRoll.svelte'
-	import { toast } from '#lib/ui/toasts.svelte'
+	import { lists_open } from './access'
 	import FollowButton from './FollowButton.svelte'
-	import { edit_profile_href } from './links'
+	import { edit_profile_href, followers_href, following_href } from './links'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import { search_href } from '#lib/search/links'
 	import { place_key } from '#lib/search/place'
@@ -22,7 +22,18 @@
 
 	const locale = $derived(getLocale())
 
-	const soon = () => toast.show(m.toast_coming_soon())
+	const counts = $derived([
+		{
+			href: following_href(profile.handle),
+			parts: m.profile_following.parts(),
+			value: profile.following,
+		},
+		{
+			href: followers_href(profile.handle),
+			parts: m.profile_followers.parts(),
+			value: profile.followers,
+		},
+	])
 
 	/** Balloons on the day, in the viewer's own calendar; checked after load so SSR doesn't guess. */
 	let birthday_today = $state(false)
@@ -43,13 +54,13 @@
 {/snippet}
 
 <div class="banner">
-	<div class="fill">
+	<div class="fill" data-morph="banner">
 		{#if profile.banner}<img src={profile.banner} alt="" />{/if}
 	</div>
 </div>
-<section class="top">
+<section class="top" data-clip-rise="80">
 	<div class="head">
-		<span class="ring">
+		<span class="ring" data-morph="avatar">
 			<Avatar name={profile.name} seed={profile.id} image={profile.image} size={134} />
 		</span>
 		<span class="actions">
@@ -110,14 +121,15 @@
 	{/if}
 	<!-- Keyed so another profile's counts replace these rather than roll from them. -->
 	{#key profile.id}
+		<!-- The lists open to whoever may see the posts; to anyone else the counts are plain text. -->
 		<div class="counts num">
-			<!-- The follow lists don't exist yet. -->
-			<button type="button" onclick={soon}
-				>{@render count(m.profile_following.parts(), profile.following)}</button
-			>
-			<button type="button" onclick={soon}
-				>{@render count(m.profile_followers.parts(), profile.followers)}</button
-			>
+			{#each counts as { href, parts, value } (href)}
+				{#if lists_open(profile)}
+					<a {href}>{@render count(parts, value)}</a>
+				{:else}
+					<span>{@render count(parts, value)}</span>
+				{/if}
+			{/each}
 		</div>
 	{/key}
 </section>
@@ -305,17 +317,12 @@
 		margin-top: 12px;
 		color: var(--text-2);
 	}
-	.counts button {
-		font: inherit;
+	.counts a {
 		color: inherit;
-		background: none;
-		border: 0;
-		padding: 0;
-		cursor: pointer;
 	}
 	/* The roll's boxes are inline-blocks, which a parent's underline skips; they draw their own. */
-	.counts button:hover,
-	.counts button:hover :global(:is(.roll, .roll > span)) {
+	.counts a:hover,
+	.counts a:hover :global(:is(.roll, .roll > span)) {
 		text-decoration: underline;
 	}
 	.counts b {

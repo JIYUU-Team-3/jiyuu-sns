@@ -564,9 +564,60 @@ img {
 		outline-width: 0;
 	}
 }
+/*
+ * Transparent mode has no page colour to paint the ring in, so there the ring is dropped and the
+ * flying banner is cut instead: a hole that follows the avatar from its place on one page to
+ * its place on the other (the endpoints come from morph.ts).
+ */
+@property --morph-x {
+	syntax: '<length-percentage>';
+	inherits: false;
+	initial-value: 0%;
+}
+@property --morph-y {
+	syntax: '<length-percentage>';
+	inherits: false;
+	initial-value: 0%;
+}
+@property --morph-r {
+	syntax: '<length>';
+	inherits: false;
+	initial-value: 0px;
+}
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+	:root[data-clear]::view-transition-image-pair(profile-avatar) {
+		outline: none;
+		animation: none;
+	}
+	:root[data-clear]::view-transition-image-pair(profile-banner) {
+		mask: radial-gradient(
+			circle at var(--morph-x) var(--morph-y),
+			transparent calc(var(--morph-r) - 0.5px),
+			#000 calc(var(--morph-r) + 0.5px)
+		);
+		animation: 0.4s var(--ease-out) both banner-gap-size;
+	}
+}
+@keyframes banner-gap-size {
+	from {
+		--morph-x: var(--morph-from-x);
+		--morph-y: var(--morph-from-y);
+		--morph-r: var(--morph-from-r);
+	}
+	to {
+		--morph-x: var(--morph-to-x);
+		--morph-y: var(--morph-to-y);
+		--morph-r: var(--morph-to-r);
+	}
+}
 /* Only those two move; the rest of the page swaps at once instead of crossfading. This is the
-   app's only view transition, so the root can be switched off globally. */
-::view-transition-old(root),
+   app's only view transition, so the root can be switched off globally. The old page is hidden
+   outright, not just left unanimated: in transparent mode the new page has no background, so a
+   visible old snapshot would show through it for the whole morph. */
+::view-transition-old(root) {
+	animation: none;
+	opacity: 0;
+}
 ::view-transition-new(root) {
 	animation: none;
 }

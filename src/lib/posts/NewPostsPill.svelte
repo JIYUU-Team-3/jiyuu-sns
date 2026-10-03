@@ -5,7 +5,7 @@
 	import Icon from '#lib/ui/Icon.svelte'
 	import { feed_arg } from './args'
 	import { get_feed, get_new_posts } from './posts.remote'
-	import { timeline } from './state.svelte'
+	import { refresh_feed } from './refresh'
 	import type { FeedTab } from './types'
 
 	let { tab }: { tab: FeedTab } = $props()
@@ -58,8 +58,7 @@
 	async function show() {
 		loading = true
 		try {
-			await get_feed(feed_arg(tab)).refresh()
-			timeline.reload()
+			await refresh_feed(tab)
 		} finally {
 			loading = false
 		}

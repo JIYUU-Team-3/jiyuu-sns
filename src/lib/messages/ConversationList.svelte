@@ -3,6 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
+	import PullToRefresh from '#lib/ui/PullToRefresh.svelte'
 	import { conversations_arg } from './args'
 	import ConversationPage from './ConversationPage.svelte'
 	import { get_conversations } from './messages.remote'
@@ -12,6 +13,14 @@
 
 	let q = $state('')
 	let cursors = $state<(string | undefined)[]>([undefined])
+	/** Bumped by a refresh, so a first page stuck on its error snippet gets a fresh boundary. */
+	let generation = $state(0)
+
+	async function refresh() {
+		await get_conversations(conversations_arg()).refresh()
+		cursors = [undefined]
+		generation++
+	}
 
 	onMount(() => {
 		const timer = setInterval(() => {
@@ -49,42 +58,44 @@
 	</label>
 </header>
 
-<nav aria-label={m.dm_list_label()}>
-	{#each cursors as cursor, i (cursor ?? '')}
-		<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- the boundary passes the error first -->
-		{#snippet failed(_error: unknown, reset: () => void)}
-			<div class="notice">
-				<span>{m.list_error()}</span>
-				<button
-					type="button"
-					onclick={async () => {
-						await get_conversations(conversations_arg(cursor)).refresh()
-						reset()
-					}}>{m.feed_retry()}</button
-				>
-			</div>
-		{/snippet}
+<PullToRefresh onrefresh={refresh}>
+	<nav aria-label={m.dm_list_label()}>
+		{#each cursors as cursor, i (`${generation}:${cursor ?? ''}`)}
+			<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- the boundary passes the error first -->
+			{#snippet failed(_error: unknown, reset: () => void)}
+				<div class="notice">
+					<span>{m.list_error()}</span>
+					<button
+						type="button"
+						onclick={async () => {
+							await get_conversations(conversations_arg(cursor)).refresh()
+							reset()
+						}}>{m.feed_retry()}</button
+					>
+				</div>
+			{/snippet}
 
-		<svelte:boundary {failed}>
-			<ConversationPage
-				query={get_conversations(conversations_arg(cursor))}
-				{q}
-				{active}
-				first={i === 0}
-				last={i === cursors.length - 1}
-				onmore={(next) => cursors.push(next)}
-			>
-				{#snippet empty()}
-					<EmptyState title={m.dm_empty_title()} body={m.dm_empty_body()}>
-						<button type="button" class="btn btn-primary" onclick={() => new_message.show()}
-							>{m.dm_new()}</button
-						>
-					</EmptyState>
-				{/snippet}
-			</ConversationPage>
-		</svelte:boundary>
-	{/each}
-</nav>
+			<svelte:boundary {failed}>
+				<ConversationPage
+					query={get_conversations(conversations_arg(cursor))}
+					{q}
+					{active}
+					first={i === 0}
+					last={i === cursors.length - 1}
+					onmore={(next) => cursors.push(next)}
+				>
+					{#snippet empty()}
+						<EmptyState title={m.dm_empty_title()} body={m.dm_empty_body()}>
+							<button type="button" class="btn btn-primary" onclick={() => new_message.show()}
+								>{m.dm_new()}</button
+							>
+						</EmptyState>
+					{/snippet}
+				</ConversationPage>
+			</svelte:boundary>
+		{/each}
+	</nav>
+</PullToRefresh>
 
 <style>
 	.bar {
