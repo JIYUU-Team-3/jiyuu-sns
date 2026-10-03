@@ -20,11 +20,13 @@
 	import { post_href } from './links'
 	import { create_post, create_thread, edit_post } from './posts.remote'
 	import PostText from './PostText.svelte'
+	import QuoteCard from './QuoteCard.svelte'
 	import { post_length } from './rules'
 	import {
 		current_time,
 		edited_posts,
 		post_content,
+		quote_of,
 		timeline,
 		type ComposerTask,
 	} from './state.svelte'
@@ -52,6 +54,7 @@
 	const draft = $derived(thread.posts[0])
 	const many = $derived(thread.posts.length > 1)
 	const reply_to = $derived(task.kind === 'reply' ? task.post : undefined)
+	const quoting = $derived(task.kind === 'quote' ? task.post : undefined)
 	const editing = $derived(task.kind === 'edit')
 	// The reply box under a post stays a quick text reply.
 	const attachments = $derived(!editing && variant !== 'reply')
@@ -79,14 +82,25 @@
 					? m.composer_post_all()
 					: m.composer_post(),
 	)
-	const placeholder = $derived(reply_to ? m.composer_reply_placeholder() : m.composer_placeholder())
+	const placeholder = $derived(
+		reply_to
+			? m.composer_reply_placeholder()
+			: quoting
+				? m.composer_quote_placeholder()
+				: m.composer_placeholder(),
+	)
 
 	async function publish() {
 		const thread_post = many
 		const reply_audience = audience ? thread.audience : undefined
 		const post = thread_post
 			? await create_thread({ posts: thread.payload(), reply_to: reply_to?.id, reply_audience })
-			: await create_post({ ...draft.payload(), reply_to: reply_to?.id, reply_audience })
+			: await create_post({
+					...draft.payload(),
+					reply_to: reply_to?.id,
+					reply_audience,
+					quote: quoting?.id,
+				})
 		thread.clear()
 		if (!reply_to) timeline.published(post)
 		const message = reply_to
@@ -222,7 +236,12 @@
 						<Avatar name={me.name} seed={me.id} image={me.image} />
 						{#if i < thread.posts.length - 1}<div class="thread-line"></div>{/if}
 					</div>
-					<div class="field">{@render editor_field(post, i)}</div>
+					<div class="field">
+						{@render editor_field(post, i)}
+						{#if quoting && i === 0}
+							<div class="quoting"><QuoteCard quote={quote_of(quoting)} link={false} /></div>
+						{/if}
+					</div>
 					{#if i > 0}
 						<button
 							type="button"
@@ -246,7 +265,8 @@
 			{#if attachments}<Tools draft={thread.current} />{/if}
 			<span class="grow"></span>
 			<CharCounter {length} />
-			{#if !editing}
+			<!-- A quote is one post: a thread has nowhere to carry it. -->
+			{#if !editing && !quoting}
 				<span class="vsep"></span>
 				<button
 					type="button"
@@ -358,6 +378,9 @@
 		flex: 1;
 		min-width: 0;
 		padding-top: 6px;
+	}
+	.quoting {
+		margin-bottom: 4px;
 	}
 	.linked .field {
 		padding-bottom: 12px;

@@ -3,7 +3,7 @@
 	import type { RemoteQuery } from '$app/server'
 	import PostCard from './PostCard.svelte'
 	import { deleted_posts, hidden_authors } from './state.svelte'
-	import type { PostPage, PostView } from './types'
+	import { entry_key, type PostPage, type PostView } from './types'
 
 	let {
 		query,
@@ -27,7 +27,11 @@
 	const posts = $derived(
 		page.posts.filter(
 			(post: PostView) =>
-				!deleted_posts.has(post.id) && !hide?.has(post.id) && !hidden_authors.has(post.author.id),
+				!deleted_posts.has(post.id) &&
+				!hide?.has(post.id) &&
+				!hidden_authors.has(post.author.id) &&
+				// A repost by someone just blocked or muted goes too.
+				!(post.repost && hidden_authors.has(post.repost.by.id)),
 		),
 	)
 
@@ -47,7 +51,7 @@
 	}
 </script>
 
-{#each posts as post (post.id)}
+{#each posts as post (entry_key(post))}
 	<PostCard {post} {show_replying} />
 {/each}
 

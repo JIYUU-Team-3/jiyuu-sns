@@ -299,7 +299,8 @@ test('a blocked domain is refused, and its links already posted stop linking @wr
 	const posted = await try_post(page, `Notes at https://${domain}/start ${id}`)
 	expect(posted.type).toBe('result')
 	const card = page.locator('article.post', { hasText: id }).first()
-	await card.getByText(`Notes at`).click()
+	// The middle of the line can fall on the link, which the row click leaves alone.
+	await card.getByText(`Notes at`).click({ position: { x: 10, y: 10 } })
 	await expect(page).toHaveURL(/\/p\/[0-9a-f-]{36}$/)
 	const post_id = page.url().split('/p/')[1]
 
@@ -424,6 +425,68 @@ test('a private account and a blocker keep their posts from direct requests @wri
 	expect((await carol.request.get(photo)).status()).toBe(404)
 	expect((await page.request.get(path)).status()).toBe(200)
 	expect((await page.request.get(photo)).ok()).toBe(true)
+
+	for (const other of pages) await other.context().close()
+})
+
+test('a private account and a blocker keep their likes from direct requests @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const alice = `e2e_lka_${id}`
+	const text = `Likeable ${id}`
+	const pages: Page[] = []
+	for (const handle of [`e2e_lkb_${id}`, `e2e_lkc_${id}`, `e2e_lkd_${id}`]) {
+		const other = await (await browser.newContext()).newPage()
+		await sign_up(other, handle)
+		pages.push(other)
+	}
+	const [bob, carol, dave] = pages
+	// Bob's post stays public throughout, so only Alice's own settings can hide her like.
+	const composer = bob.locator('form.inline')
+	await composer.getByLabel('Post text').fill(text)
+	await composer.getByRole('button', { name: 'Post', exact: true }).click()
+	const path = (await bob
+		.locator('article.post', { hasText: text })
+		.locator('a[href*="/p/"]')
+		.first()
+		.getAttribute('href')) as string
+
+	await sign_up(page, alice)
+	await page.goto(path)
+	await page.waitForLoadState('networkidle')
+	const stored = page.waitForResponse((response) => response.url().includes('/set_like'))
+	await page.locator('article.focus .actions').getByRole('button', { name: /^Like/ }).click()
+	await stored
+
+	await carol.goto(`/u/${alice}`)
+	await carol.waitForLoadState('networkidle')
+	// The Posts tab came with the page, so the first request is the Likes tab's.
+	const listed = carol.waitForRequest((request) => request.url().includes('/get_author_posts'))
+	await carol.getByRole('tab', { name: 'Likes' }).click()
+	await expect(carol.locator('article.post', { hasText: text })).toBeVisible()
+	const url = (await listed).url()
+	const likes = async (reader: Page) => {
+		const body = await (await reader.request.get(url)).json()
+		expect(body.type).toBe('result')
+		return body.data as string
+	}
+	expect(await likes(dave)).toContain(text)
+
+	await blocks(page, `e2e_lkc_${id}`)
+	expect(await likes(carol)).not.toContain(text)
+	expect(await likes(dave)).toContain(text)
+
+	await page.goto('/settings/privacy')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('switch', { name: /Private account/ }).click()
+	await expect(page.getByRole('switch', { name: /Private account/ })).toHaveAttribute(
+		'aria-checked',
+		'true',
+	)
+	expect(await likes(dave)).not.toContain(text)
+	expect(await likes(page)).toContain(text)
 
 	for (const other of pages) await other.context().close()
 })

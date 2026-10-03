@@ -7,10 +7,11 @@
 	import Poll from './Poll.svelte'
 	import PostMedia from './PostMedia.svelte'
 	import PostText from './PostText.svelte'
+	import QuoteCard from './QuoteCard.svelte'
 	import { post_content } from './state.svelte'
 	import type { PostView } from './types'
 
-	/** Everything under a post's header: text, photos or GIFs, poll and place. */
+	/** Everything under a post's header: text, photos or GIFs, poll, quoted post and place. */
 	let {
 		post,
 		focus = false,
@@ -72,6 +73,7 @@
 	<PostMedia media={content.media} {focus} {onswipe} />
 {/if}
 {#if post.poll}<Poll post_id={post.id} poll={post.poll} mine={post.mine} />{/if}
+{#if post.quote}<QuoteCard quote={post.quote} />{/if}
 {#if post.location}
 	<a class="place" href={search_href(post.location)}>
 		<Icon name="pin" size="xs" />{post.location}

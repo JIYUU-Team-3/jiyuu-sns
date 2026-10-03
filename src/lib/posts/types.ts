@@ -30,6 +30,18 @@ export type PollView = {
 	voted?: number
 }
 
+/** The post a quote embeds, with just enough for a compact card. */
+export type QuotedPost = {
+	id: string
+	body: string
+	/** Milliseconds since the epoch. */
+	created_at: number
+	author: Author
+	media: Media[]
+	/** Its media is marked sensitive, so the card leaves it out; the post itself has the cover. */
+	sensitive: boolean
+}
+
 export type PostView = {
 	id: string
 	body: string
@@ -41,12 +53,20 @@ export type PostView = {
 	reply_to?: { id: string; handle?: string; self: boolean }
 	continued: boolean
 	media: Media[]
+	/** The post this one quotes; `post` is missing once that post is deleted. */
+	quote?: { id: string; post?: QuotedPost }
 	poll?: PollView
 	location?: string
 	replies: number
 	likes: number
+	reposts: number
+	quotes: number
 	/** Whether the viewer liked it. */
 	liked: boolean
+	/** Whether the viewer reposted it. */
+	reposted: boolean
+	/** Whether the viewer saved it. Bookmarks are private, so there is no count. */
+	bookmarked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
 	/** Media blurred until the viewer opens it. */
@@ -62,7 +82,18 @@ export type PostView = {
 	warn_links: boolean
 	reply_audience: ReplyAudience
 	can_reply: boolean
+	/** Whether the viewer may repost or quote it: not a private account's, unless it's theirs. */
+	can_share: boolean
+	/**
+	 * Set when this timeline entry is someone's repost of the post, not the post itself; `mine`
+	 * when that someone is the viewer.
+	 */
+	repost?: { by: Author; at: number; mine: boolean }
 }
+
+/** A timeline entry's identity: a post can appear once as itself and again in reposts. */
+export const entry_key = (post: PostView) =>
+	post.repost ? `${post.id}:${post.repost.by.id}` : post.id
 
 export type FeedTab = 'for_you' | 'following'
 

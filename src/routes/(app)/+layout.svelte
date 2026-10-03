@@ -8,6 +8,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
 	import { morph_profile_edit } from '#lib/profiles/morph'
+	import { bookmarks_href } from '#lib/posts/links'
 	import { composer } from '#lib/posts/state.svelte'
 	import { explore_href } from '#lib/search/links'
 	import Icon from '#lib/ui/Icon.svelte'
@@ -30,6 +31,7 @@
 	)
 	const on_notifications = $derived(page.route.id === '/(app)/notifications')
 	const on_messages = $derived(page.route.id?.startsWith('/(app)/messages') ?? false)
+	const on_bookmarks = $derived(page.route.id === '/(app)/bookmarks')
 	const in_chat = $derived(page.route.id === '/(app)/messages/[id]')
 
 	const unread = $derived(await get_unread_count().catch(() => 0))
@@ -91,7 +93,6 @@
 	<nav class="side" aria-label={m.app_home()}>
 		<a class="brand" href={home_href()} aria-label="Jiyuu"><Wordmark /></a>
 		<div class="nav">
-			<!-- Bookmarks joins as its feature lands. -->
 			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
 				<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
 			</a>
@@ -120,6 +121,9 @@
 				{#if unread_dms}<span class="visually-hidden"
 						>{m.app_unread({ count: unread_dms_label })}</span
 					>{/if}
+			</a>
+			<a class="nav-item" href={bookmarks_href()} aria-current={on_bookmarks ? 'page' : undefined}>
+				<Icon name="bookmark" size="lg" /><span class="lbl">{m.app_bookmarks()}</span>
 			</a>
 			<a
 				class="nav-item"
@@ -380,7 +384,6 @@
 			padding-bottom: env(safe-area-inset-bottom);
 			background: color-mix(in srgb, var(--bg) 92%, transparent);
 			backdrop-filter: saturate(180%) blur(14px);
-			-webkit-backdrop-filter: saturate(180%) blur(14px);
 			border-top: 1px solid var(--line);
 		}
 		.tabbar a {

@@ -1,10 +1,11 @@
 import { env, waitUntil } from 'cloudflare:workers'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import type {
-	NotificationPage,
-	NotificationTab,
-	NotificationType,
-	NotificationView,
+import {
+	CARD_TYPES,
+	type NotificationPage,
+	type NotificationTab,
+	type NotificationType,
+	type NotificationView,
 } from '#lib/notifications/types'
 import { shown_image } from './account-image'
 import type { getDb } from './db'
@@ -48,20 +49,22 @@ export async function notify(db: Db, rows: NewNotification[]) {
 	)
 }
 
-/** How long the same like or follow stays quiet after it was pushed once. */
+/** How long the same like, repost or follow stays quiet after it was pushed once. */
 const REPEAT_QUIET_SECONDS = 60 * 60
 
 /**
- * Likes and follows can be undone and redone, and each redo is a new notification. Pushing every
- * one would let someone buzz a phone by toggling a like, so the same like or follow is pushed
+ * Likes, reposts and follows can be undone and redone, and each redo is a new notification.
+ * Pushing every one would let someone buzz a phone by toggling a like, so the same one is pushed
  * once an hour at most; the list still shows it.
  */
+const TOGGLED: NotificationType[] = ['like', 'repost', 'follow']
+
 async function not_just_pushed(events: NewNotification[]) {
 	const kv: KVNamespace | undefined = env.KV
 	if (!kv) return events
 	const fresh: NewNotification[] = []
 	for (const event of events) {
-		if (event.type === 'like' || event.type === 'follow') {
+		if (TOGGLED.includes(event.type)) {
 			const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? ''}`
 			if (await kv.get(key)) continue
 			await kv.put(key, '1', { expirationTtl: REPEAT_QUIET_SECONDS })
@@ -73,7 +76,8 @@ async function not_just_pushed(events: NewNotification[]) {
 
 /**
  * Take back what an undone action announced: an unlike removes the like notification, an
- * unfollow the follow one, so toggling never piles up duplicates.
+ * unfollow the follow one, an undone repost the repost one, so toggling never piles up
+ * duplicates.
  */
 export async function retract(db: Db, row: NewNotification) {
 	await db
@@ -116,8 +120,8 @@ function decode_cursor(cursor: string | undefined) {
 }
 
 /**
- * The account's notifications, newest first. Replies and mentions carry the whole post so the
- * list can show it as a card; likes carry only its text.
+ * The account's notifications, newest first. Replies, mentions and quotes carry the whole post so
+ * the list can show it as a card; likes and reposts carry only its text.
  */
 export async function notifications_page(
 	db: Db,
@@ -167,14 +171,14 @@ export async function notifications_page(
 
 	const shown = rows.slice(0, PAGE_SIZE)
 	const post_ids = shown.flatMap((row) =>
-		(row.type === 'reply' || row.type === 'mention') && row.post_id ? [row.post_id] : [],
+		CARD_TYPES.includes(row.type) && row.post_id ? [row.post_id] : [],
 	)
 	const posts = new Map((await find_posts(db, user_id, post_ids, true)).map((p) => [p.id, p]))
 
 	const items = shown.flatMap((row): NotificationView[] => {
 		const post = row.post_id ? posts.get(row.post_id) : undefined
-		// A reply or mention whose post is gone has nothing left to show.
-		if ((row.type === 'reply' || row.type === 'mention') && !post) return []
+		// A reply, mention or quote whose post is gone has nothing left to show.
+		if (CARD_TYPES.includes(row.type) && !post) return []
 		return [
 			{
 				id: row.id,
@@ -188,7 +192,7 @@ export async function notifications_page(
 					image: row.actor_image ?? undefined,
 				},
 				post_id: row.post_id ?? undefined,
-				snippet: row.type === 'like' ? (row.post_body ?? undefined) : undefined,
+				snippet: CARD_TYPES.includes(row.type) ? undefined : (row.post_body ?? undefined),
 				post,
 				moderation:
 					row.type === 'moderation' &&

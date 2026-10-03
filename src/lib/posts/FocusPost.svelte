@@ -3,11 +3,12 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
+	import NumberRoll from '#lib/ui/NumberRoll.svelte'
 	import { format_count, format_timestamp } from './format'
 	import PostActions from './PostActions.svelte'
 	import PostMenu from './PostMenu.svelte'
 	import PostContent from './PostContent.svelte'
-	import { edited_posts, like_state } from './state.svelte'
+	import { edited_posts, like_state, repost_state } from './state.svelte'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { PostView } from './types'
 
@@ -16,6 +17,17 @@
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const locale = $derived(getLocale())
 	const likes = $derived(like_state(post).likes)
+	const reposts = $derived(repost_state(post).reposts)
+
+	/** The stats row, in order; a zero count is left out. */
+	const stats = $derived(
+		[
+			{ n: post.replies, one: m.stat_reply, many: m.stat_replies },
+			{ n: reposts, one: m.stat_repost, many: m.stat_reposts },
+			{ n: post.quotes, one: m.stat_quote, many: m.stat_quotes },
+			{ n: likes, one: m.stat_like, many: m.stat_likes },
+		].filter((stat) => stat.n > 0),
+	)
 </script>
 
 <article class="focus">
@@ -58,20 +70,14 @@
 		>
 		{#if edited}<span>· {m.post_edited()}</span>{/if}
 	</div>
-	{#if post.replies || likes}
+	{#if stats.length}
 		<div class="fstats num">
-			{#if post.replies}
+			{#each stats as stat (stat.one)}
 				<span
-					><b>{format_count(post.replies, locale)}</b>
-					{post.replies === 1 ? m.stat_reply() : m.stat_replies()}</span
+					><b><NumberRoll value={stat.n} text={format_count(stat.n, locale)} /></b>
+					{stat.n === 1 ? stat.one() : stat.many()}</span
 				>
-			{/if}
-			{#if likes}
-				<span
-					><b>{format_count(likes, locale)}</b>
-					{likes === 1 ? m.stat_like() : m.stat_likes()}</span
-				>
-			{/if}
+			{/each}
 		</div>
 	{/if}
 	<PostActions {post} focus />
@@ -114,7 +120,8 @@
 	}
 	.fstats {
 		display: flex;
-		gap: 20px;
+		flex-wrap: wrap;
+		gap: 4px 20px;
 		padding: 12px 0;
 		border-top: 1px solid var(--line);
 		font-size: 14px;

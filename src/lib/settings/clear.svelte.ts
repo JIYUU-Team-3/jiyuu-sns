@@ -28,10 +28,10 @@ function clip_siblings(bar: Element, edge: number, clipped: Set<HTMLElement>) {
 
 function start_clipping() {
 	let clipped = new Set<HTMLElement>()
-	let queued = false
+	let frame = 0
 
 	const clip = () => {
-		queued = false
+		frame = 0
 		const next = new Set<HTMLElement>()
 		for (const bar of document.querySelectorAll('[data-clip-bar]')) {
 			clip_siblings(bar, bar.getBoundingClientRect().bottom, next)
@@ -40,9 +40,7 @@ function start_clipping() {
 		clipped = next
 	}
 	const queue = () => {
-		if (queued) return
-		queued = true
-		requestAnimationFrame(clip)
+		if (!frame) frame = requestAnimationFrame(clip)
 	}
 
 	// Capture, so the side rail's own scrolling counts too.
@@ -56,6 +54,8 @@ function start_clipping() {
 		removeEventListener('scroll', queue, { capture: true })
 		removeEventListener('resize', queue)
 		observer.disconnect()
+		// A frame still queued would clip again after this cleanup, and nothing would undo it.
+		cancelAnimationFrame(frame)
 		for (const el of clipped) el.style.clipPath = ''
 	}
 }

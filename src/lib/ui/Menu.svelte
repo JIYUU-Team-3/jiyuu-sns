@@ -30,7 +30,11 @@
 	let menu = $state<HTMLDivElement>()
 
 	const opener = () => wrap.firstElementChild as HTMLElement | null
-	const items = () => [...(menu?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
+	/** Shown items only, so arrow keys skip one a breakpoint hides. */
+	const items = () =>
+		[...(menu?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])].filter((item) =>
+			item.checkVisibility(),
+		)
 
 	async function show() {
 		open = true

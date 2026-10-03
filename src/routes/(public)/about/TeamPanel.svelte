@@ -133,13 +133,16 @@
 	.panel .gh {
 		display: none;
 	}
-	.panel .urow:has(.btn-icon:hover, .btn-icon:focus-visible) .jy {
+	.panel .urow:has(.btn-icon:hover) .jy,
+	.panel .urow:has(.btn-icon:focus-visible) .jy {
 		display: none;
 	}
-	.panel .urow:has(.btn-icon:hover, .btn-icon:focus-visible) .gh {
+	.panel .urow:has(.btn-icon:hover) .gh,
+	.panel .urow:has(.btn-icon:focus-visible) .gh {
 		display: inline;
 	}
-	.panel .urow:has(.btn-icon:hover, .btn-icon:focus-visible) .av img {
+	.panel .urow:has(.btn-icon:hover) .av img,
+	.panel .urow:has(.btn-icon:focus-visible) .av img {
 		opacity: 1;
 	}
 	.panel .badge {
@@ -158,7 +161,8 @@
 			opacity 0.15s,
 			transform 0.15s;
 	}
-	.panel .urow:has(.btn-icon:hover, .btn-icon:focus-visible) .badge {
+	.panel .urow:has(.btn-icon:hover) .badge,
+	.panel .urow:has(.btn-icon:focus-visible) .badge {
 		opacity: 1;
 		transform: none;
 	}

@@ -103,6 +103,8 @@ const TITLES = {
 	reply: m.push_reply,
 	mention: m.push_mention,
 	follow_request: m.push_follow_request,
+	repost: m.push_repost,
+	quote: m.push_quote,
 } as const
 
 async function readable(db: Db, events: Event[]) {
@@ -200,8 +202,8 @@ export async function push_notifications(db: Db, all: Event[]) {
 							body: body ? snippet(body) : undefined,
 							url: localizeHref(path, { locale }),
 							tag:
-								event.type === 'like'
-									? `like:${event.post_id}`
+								event.type === 'like' || event.type === 'repost'
+									? `${event.type}:${event.post_id}`
 									: `${event.type}:${event.actor_id}:${event.post_id ?? ''}`,
 						},
 					}

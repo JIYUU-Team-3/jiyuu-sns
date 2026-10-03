@@ -7,11 +7,14 @@ import type { Media, PollView, PostView } from './types'
  */
 
 export type ComposerTask =
-	{ kind: 'new' } | { kind: 'reply'; post: PostView } | { kind: 'edit'; post: PostView }
+	| { kind: 'new' }
+	| { kind: 'reply'; post: PostView }
+	| { kind: 'quote'; post: PostView }
+	| { kind: 'edit'; post: PostView }
 
 let composer_task = $state<ComposerTask | undefined>()
 
-/** The modal composer: `New post`, reply from a card, or editing one of your posts. */
+/** The modal composer: `New post`, reply or quote from a card, or editing one of your posts. */
 export const composer = {
 	get task() {
 		return composer_task
@@ -40,6 +43,15 @@ export const edited_posts = new SvelteMap<string, PostContent>()
 /** A post's text and photos as the viewer last saw them, edits in this tab included. */
 export function post_content(post: PostView): PostContent {
 	return edited_posts.get(post.id) ?? { body: post.body, media: post.media }
+}
+
+/** What a quote of `post` will embed, as the viewer sees the post now. */
+export function quote_of(post: PostView): NonNullable<PostView['quote']> {
+	const { body, media } = post_content(post)
+	const { id, created_at, author } = post
+	// As on the post itself, its own author always sees the media.
+	const sensitive = post.sensitive && !post.mine
+	return { id, post: { id, body, created_at, author, media, sensitive } }
 }
 
 let timeline_version = $state(0)
@@ -91,4 +103,20 @@ export const liked_posts = new SvelteMap<string, { liked: boolean; likes: number
 /** The viewer's like state for a post, including anything changed in this tab. */
 export function like_state(post: PostView) {
 	return liked_posts.get(post.id) ?? { liked: post.liked, likes: post.likes }
+}
+
+/** Reposts changed in this tab, like `liked_posts`. */
+export const reposted_posts = new SvelteMap<string, { reposted: boolean; reposts: number }>()
+
+/** The viewer's repost state for a post, including anything changed in this tab. */
+export function repost_state(post: PostView) {
+	return reposted_posts.get(post.id) ?? { reposted: post.reposted, reposts: post.reposts }
+}
+
+/** Bookmarks changed in this tab, like `liked_posts`. */
+export const bookmarked_posts = new SvelteMap<string, boolean>()
+
+/** Whether the viewer saved a post, including anything changed in this tab. */
+export function is_bookmarked(post: PostView) {
+	return bookmarked_posts.get(post.id) ?? post.bookmarked
 }
