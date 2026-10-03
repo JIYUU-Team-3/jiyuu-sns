@@ -255,3 +255,59 @@ test('on a phone the chat stays in view above the keyboard @writes', async ({ pa
 
 	await phone.close()
 })
+
+test('a message is seen only once the reader comes back to the chat @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dms_${id}`
+	const bob = `e2e_dmt_${id}`
+	const first = `First ${id}`
+	const second = `While away ${id}`
+
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await sign_up(page, alice)
+	await sign_up(bob_page, bob)
+	await follow(page, bob)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
+	await bob_page.getByLabel('Message', { exact: true }).fill(first)
+	await bob_page.keyboard.press('Enter')
+	await stored
+
+	await page.goto(bob_page.url())
+	await expect(page.locator('.msg', { hasText: first })).toBeVisible()
+	await expect(bob_page.locator('.msg', { hasText: first }).getByText('Seen')).toBeVisible({
+		timeout: 15_000,
+	})
+
+	await page.evaluate(() => {
+		document.hasFocus = () => false
+		window.dispatchEvent(new Event('blur'))
+	})
+	const marks: string[] = []
+	page.on('request', (request) => {
+		if (request.url().includes('/mark_conversation_read')) marks.push(request.url())
+	})
+	await bob_page.getByLabel('Message', { exact: true }).fill(second)
+	await bob_page.keyboard.press('Enter')
+	await expect(page.locator('.msg', { hasText: second })).toBeVisible({ timeout: 15_000 })
+	expect(marks).toHaveLength(0)
+	await expect(bob_page.locator('.msg', { hasText: second }).getByText('Seen')).toHaveCount(0)
+
+	await page.evaluate(() => {
+		document.hasFocus = () => true
+		window.dispatchEvent(new Event('focus'))
+	})
+	await expect(bob_page.locator('.msg', { hasText: second }).getByText('Seen')).toBeVisible({
+		timeout: 15_000,
+	})
+
+	await bob_context.close()
+})
