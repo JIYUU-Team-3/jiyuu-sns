@@ -82,22 +82,26 @@
 			pull = Math.min(MAX, Math.max(0, dy * RESIST))
 		}
 
-		const ontouchend = () => {
-			if (pull >= TRIGGER) void refresh()
+		const oncancel = () => {
 			start = undefined
 			dragging = false
 			pull = 0
 		}
 
+		const ontouchend = () => {
+			if (pull >= TRIGGER) void refresh()
+			oncancel()
+		}
+
 		node.addEventListener('touchstart', ontouchstart, { passive: true })
 		node.addEventListener('touchmove', ontouchmove, { passive: false })
 		node.addEventListener('touchend', ontouchend)
-		node.addEventListener('touchcancel', ontouchend)
+		node.addEventListener('touchcancel', oncancel)
 		return () => {
 			node.removeEventListener('touchstart', ontouchstart)
 			node.removeEventListener('touchmove', ontouchmove)
 			node.removeEventListener('touchend', ontouchend)
-			node.removeEventListener('touchcancel', ontouchend)
+			node.removeEventListener('touchcancel', oncancel)
 		}
 	}
 </script>

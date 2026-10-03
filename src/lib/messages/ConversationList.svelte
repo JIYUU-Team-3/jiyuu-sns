@@ -13,10 +13,13 @@
 
 	let q = $state('')
 	let cursors = $state<(string | undefined)[]>([undefined])
+	/** Bumped by a refresh, so a first page stuck on its error snippet gets a fresh boundary. */
+	let generation = $state(0)
 
 	async function refresh() {
 		await get_conversations(conversations_arg()).refresh()
 		cursors = [undefined]
+		generation++
 	}
 
 	onMount(() => {
@@ -57,7 +60,7 @@
 
 <PullToRefresh onrefresh={refresh}>
 	<nav aria-label={m.dm_list_label()}>
-		{#each cursors as cursor, i (cursor ?? '')}
+		{#each cursors as cursor, i (`${generation}:${cursor ?? ''}`)}
 			<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- the boundary passes the error first -->
 			{#snippet failed(_error: unknown, reset: () => void)}
 				<div class="notice">

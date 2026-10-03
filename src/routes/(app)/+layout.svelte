@@ -111,7 +111,11 @@
 		if (!side) return
 		const observer = new ResizeObserver(fit)
 		observer.observe(side)
+		// `.side` keeps its 100vh height, so a swapped-in font that resizes the items is invisible to the observer.
+		void document.fonts?.ready.then(fit)
+		document.fonts?.addEventListener('loadingdone', fit)
 		return () => {
+			document.fonts?.removeEventListener('loadingdone', fit)
 			observer.disconnect()
 		}
 	})
