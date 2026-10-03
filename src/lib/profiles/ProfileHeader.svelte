@@ -11,6 +11,8 @@
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href } from './links'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import { search_href } from '#lib/search/links'
+	import { place_key } from '#lib/search/place'
 	import { reduced_motion } from '#lib/settings/motion'
 	import { is_birthday } from './details'
 	import ProfileMenu from './ProfileMenu.svelte'
@@ -82,8 +84,9 @@
 	<!-- Like X: where, born and joined on one row, wrapping on a phone. -->
 	<p class="meta">
 		{#if profile.location}
-			<span class="item"
-				><Icon name="pin" size="sm" /><span class="loc">{profile.location}</span></span
+			<!-- Opens a search for the place: posts from there and people who say they're there. -->
+			<a class="item place" href={search_href(place_key(profile.location))}
+				><Icon name="pin" size="sm" /><span class="loc">{profile.location}</span></a
 			>
 		{/if}
 		{#if profile.birthday}
@@ -239,6 +242,12 @@
 	}
 	.loc {
 		overflow-wrap: anywhere;
+	}
+	.place:hover {
+		color: var(--accent-text);
+	}
+	.place:hover .loc {
+		text-decoration: underline;
 	}
 	.today {
 		color: var(--like);
