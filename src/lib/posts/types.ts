@@ -69,6 +69,10 @@ export type PostView = {
 	bookmarked: boolean
 	/** Whether the viewer wrote it, so it offers Edit and Delete. */
 	mine: boolean
+	/** Whether its author pinned it to their profile. */
+	pinned: boolean
+	/** Set on the entry at the top of a profile's Posts tab that shows the pinned post. */
+	pin_top?: true
 	/** Media blurred until the viewer opens it. */
 	sensitive: boolean
 	/** Set only for the author of a post a moderator limited or removed; nobody else sees it. */
@@ -93,7 +97,7 @@ export type PostView = {
 
 /** A timeline entry's identity: a post can appear once as itself and again in reposts. */
 export const entry_key = (post: PostView) =>
-	post.repost ? `${post.id}:${post.repost.by.id}` : post.id
+	post.pin_top ? `${post.id}:pinned` : post.repost ? `${post.id}:${post.repost.by.id}` : post.id
 
 export type FeedTab = 'for_you' | 'following'
 

@@ -107,7 +107,7 @@
 			{@render count(post.replies)}
 		</button>
 	</div>
-	<Menu label={m.action_repost()} placement="cover-start" class="col">
+	<Menu label={m.action_repost()} placement="cover-start" compact class="col">
 		{#snippet trigger(props)}
 			<button
 				type="button"

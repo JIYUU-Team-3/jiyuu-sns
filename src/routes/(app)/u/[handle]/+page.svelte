@@ -7,6 +7,7 @@
 	import { composer, liked_posts } from '#lib/posts/state.svelte'
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
+	import ProfileMenu from '#lib/profiles/ProfileMenu.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
 	import { block } from '#lib/safety/actions'
 	import type { ProfileTab } from '#lib/profiles/types'
@@ -44,7 +45,12 @@
 	title={profile.name}
 	subtitle={profile.posts === 1 ? m.profile_post({ count }) : m.profile_posts({ count })}
 	back
-/>
+>
+	{#snippet action()}
+		<!-- Phones only, as on X; wider screens keep it beside Follow in the header. -->
+		{#if !profile.mine}<span class="phone-menu"><ProfileMenu {profile} plain /></span>{/if}
+	{/snippet}
+</PageBar>
 
 <ProfileHeader {profile} />
 
@@ -115,6 +121,15 @@
 {/if}
 
 <style>
+	.phone-menu {
+		display: none;
+	}
+	@media (max-width: 700px) {
+		.phone-menu {
+			display: flex;
+			margin-right: -8px;
+		}
+	}
 	.tabbar {
 		margin-top: 8px;
 		border-bottom: 1px solid var(--line);

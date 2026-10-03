@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm'
 import { VAPID_PRIVATE_KEY, VAPID_SUBJECT } from '$app/env/private'
 import { VAPID_PUBLIC_KEY } from '$app/env/public'
+import type { Face } from '#lib/notifications/push-icon'
 import type { NotificationType } from '#lib/notifications/types'
 import { m } from '#lib/paraglide/messages.js'
 import { isLocale, localizeHref, type Locale } from '#lib/paraglide/runtime'
@@ -13,6 +14,7 @@ import {
 	pushSubscription,
 	user,
 } from './db/schema'
+import { shown_image } from './account-image'
 import { blocked_between, visible_posts } from './safety'
 import { send_push, type PushTarget, type VapidKeys } from './web-push'
 
@@ -87,6 +89,8 @@ export type PushMessage = {
 	/** Notifications with the same tag replace each other, e.g. likes on one post. */
 	tag: string
 	delivered?: boolean
+	/** Who it's from, for the icon: one person, or the two a group's avatar shows. */
+	faces?: Face[]
 }
 
 /** Moderation notices are written straight to the list and never pushed. */
@@ -128,6 +132,12 @@ async function readable(db: Db, events: Event[]) {
 	return events.filter((event) => !event.post_id || seen.has(`${event.user_id}:${event.post_id}`))
 }
 
+const face = (person: { id: string; name: string; image: string | null }): Face => ({
+	name: person.name,
+	seed: person.id,
+	image: person.image ?? undefined,
+})
+
 const snippet = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…` : text)
 
 /**
@@ -158,6 +168,7 @@ export async function push_notifications(db: Db, all: Event[]) {
 					id: user.id,
 					name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
 					handle: profile.handle,
+					image: shown_image,
 				})
 				.from(user)
 				.leftJoin(profile, eq(profile.userId, user.id))
@@ -199,6 +210,7 @@ export async function push_notifications(db: Db, all: Event[]) {
 						subscription,
 						message: {
 							title: TITLES[event.type]({ name: actor.name }, { locale }),
+							faces: [face(actor)],
 							body: body ? snippet(body) : undefined,
 							url: localizeHref(path, { locale }),
 							tag:
@@ -227,6 +239,7 @@ export async function push_direct_message(
 			p256dh: pushSubscription.p256dh,
 			auth: pushSubscription.auth,
 			locale: pushSubscription.locale,
+			user_id: pushSubscription.userId,
 		})
 		.from(conversationMember)
 		.innerJoin(pushSubscription, eq(pushSubscription.userId, conversationMember.userId))
@@ -245,6 +258,7 @@ export async function push_direct_message(
 	const [about] = await db
 		.select({
 			name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
+			image: shown_image,
 			group: conversation.isGroup,
 			group_name: conversation.name,
 		})
@@ -254,6 +268,28 @@ export async function push_direct_message(
 		.where(eq(conversation.id, sent.conversation_id))
 		.limit(1)
 	if (!about) return
+
+	// A group's icon is its avatar in the app: its first two members other than the reader. Three
+	// in join order always hold two who aren't the reader.
+	const members = about.group
+		? await db
+				.select({
+					id: user.id,
+					name: sql<string>`coalesce(${profile.displayName}, ${user.name})`,
+					image: shown_image,
+				})
+				.from(conversationMember)
+				.innerJoin(user, eq(user.id, conversationMember.userId))
+				.leftJoin(profile, eq(profile.userId, conversationMember.userId))
+				.where(eq(conversationMember.conversationId, sent.conversation_id))
+				.orderBy(asc(conversationMember.createdAt), asc(user.id))
+				.limit(3)
+		: []
+	const sender = face({ id: sent.sender_id, ...about })
+	const faces_for = (reader: string) => {
+		const pair = members.filter((member) => member.id !== reader).slice(0, 2)
+		return pair.length === 2 ? pair.map(face) : [sender]
+	}
 
 	await send_all(
 		db,
@@ -275,6 +311,7 @@ export async function push_direct_message(
 					url: localizeHref(`/messages/${sent.conversation_id}`, { locale }),
 					tag: `dm:${sent.conversation_id}`,
 					delivered: true,
+					faces: faces_for(subscription.user_id),
 				},
 			}
 		}),

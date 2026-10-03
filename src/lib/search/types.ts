@@ -4,6 +4,8 @@ import type { Author } from '#lib/posts/types'
 export type UserView = Author & {
 	handle: string
 	bio: string
+	/** Where they say they are, shown under the handle. */
+	location?: string
 	followed: boolean
 	private: boolean
 	requested: boolean

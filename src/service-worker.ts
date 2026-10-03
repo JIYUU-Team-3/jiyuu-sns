@@ -9,6 +9,7 @@
  */
 
 import { acknowledge, deliver } from '#lib/messages/delivery'
+import { draw_push_icon, type Face } from '#lib/notifications/push-icon'
 
 const sw = self as unknown as ServiceWorkerGlobalScope
 
@@ -30,7 +31,27 @@ const delivered = () =>
 		},
 	})
 
-type PushMessage = { title: string; body?: string; url: string; tag: string; delivered?: boolean }
+type PushMessage = {
+	title: string
+	body?: string
+	url: string
+	tag: string
+	delivered?: boolean
+	/** Who it's from, drawn as the icon with the app's logo in the corner; two for a group. */
+	faces?: Face[]
+}
+
+const LOGO = '/icon-192.png'
+
+/** The sender's photo with the logo, or just the logo when it can't be drawn. */
+async function icon_for(message: PushMessage) {
+	if (!message.faces?.length) return LOGO
+	try {
+		return (await draw_push_icon(message.faces, { origin: sw.location.origin, logo: LOGO })) ?? LOGO
+	} catch {
+		return LOGO
+	}
+}
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(sw.skipWaiting())
@@ -63,7 +84,7 @@ sw.addEventListener('push', (event) => {
 					tag: message.tag,
 					// A like replacing an earlier one on the same post still alerts.
 					renotify: true,
-					icon: '/icon-192.png',
+					icon: await icon_for(message),
 					badge: '/badge-72.png',
 					data: { url: message.url },
 				} as NotificationOptions)

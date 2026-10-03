@@ -113,6 +113,14 @@ export function repost_state(post: PostView) {
 	return reposted_posts.get(post.id) ?? { reposted: post.reposted, reposts: post.reposts }
 }
 
+/** The viewer's pin as changed in this tab: a post id, null once unpinned, undefined if untouched. */
+export const my_pin = $state<{ id?: string | null }>({})
+
+/** Whether the post is pinned to its author's profile, including the viewer's changes here. */
+export function is_pinned(post: PostView) {
+	return post.mine && my_pin.id !== undefined ? my_pin.id === post.id : post.pinned
+}
+
 /** Bookmarks changed in this tab, like `liked_posts`. */
 export const bookmarked_posts = new SvelteMap<string, boolean>()
 
