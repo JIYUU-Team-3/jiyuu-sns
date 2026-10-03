@@ -1,4 +1,6 @@
 import { avatar_hue, initials } from '#lib/ui/avatar'
+import { LOGO_Y } from '#lib/ui/logo'
+import type { LogoColours } from './push-theme'
 
 /** Someone a push notification is from: their photo, or their initials on their colour. */
 export type Face = { name: string; seed: string; image?: string }
@@ -7,6 +9,8 @@ export type Face = { name: string; seed: string; image?: string }
 const SIZE = 192
 /** The app's logo in the bottom-right corner, as messaging apps badge a sender's photo. */
 const LOGO = { d: 76, ring: 8 }
+/** The Y's height in the logo's circle, as in `static/icon-192.png`. */
+const MARK = 0.62
 /** A group's two photos, placed as `ConversationAvatar` places them (30 of 44, with a 2px gap). */
 const PAIR = { d: Math.round((SIZE * 30) / 44), ring: Math.round((SIZE * 2) / 44) }
 
@@ -93,6 +97,21 @@ function draw_face(
 	})
 }
 
+/** The Y on the theme's background, or on nothing under System. */
+function draw_logo(ctx: Ctx, colours: LogoColours, x: number, y: number, d: number) {
+	circle(ctx, x, y, d, () => {
+		if (colours.ground) {
+			ctx.fillStyle = colours.ground
+			ctx.fillRect(x, y, d, d)
+		}
+		const scale = (d * MARK) / LOGO_Y.height
+		ctx.translate(x + (d - LOGO_Y.width * scale) / 2, y + (d + LOGO_Y.height * scale) / 2)
+		ctx.scale(scale, -scale)
+		ctx.fillStyle = colours.mark
+		ctx.fill(new Path2D(LOGO_Y.path))
+	})
+}
+
 async function to_data_url(blob: Blob) {
 	const bytes = new Uint8Array(await blob.arrayBuffer())
 	let binary = ''
@@ -108,7 +127,7 @@ async function to_data_url(blob: Blob) {
  */
 export async function draw_push_icon(
 	faces: Face[],
-	{ origin, logo, fetcher = fetch }: { origin: string; logo: string; fetcher?: typeof fetch },
+	{ origin, logo, fetcher = fetch }: { origin: string; logo: LogoColours; fetcher?: typeof fetch },
 ) {
 	const shown = faces.slice(0, 2)
 	if (!shown.length || typeof OffscreenCanvas === 'undefined') return undefined
@@ -116,15 +135,12 @@ export async function draw_push_icon(
 	const ctx = canvas.getContext('2d')
 	if (!ctx) return undefined
 
-	const [photos, logo_image] = await Promise.all([
-		Promise.all(
-			shown.map((face) => {
-				const source = face_source(face.image, origin)
-				return source ? load(source.url, source.own, fetcher) : undefined
-			}),
-		),
-		load(new URL(logo, origin).href, true, fetcher),
-	])
+	const photos = await Promise.all(
+		shown.map((face) => {
+			const source = face_source(face.image, origin)
+			return source ? load(source.url, source.own, fetcher) : undefined
+		}),
+	)
 
 	if (shown.length === 1) {
 		draw_face(ctx, shown[0], photos[0], 0, 0, SIZE)
@@ -134,12 +150,10 @@ export async function draw_push_icon(
 		cut(ctx, far, far, PAIR.d, PAIR.ring)
 		draw_face(ctx, shown[1], photos[1], far, far, PAIR.d)
 	}
-	if (logo_image) {
-		const at = SIZE - LOGO.d
-		cut(ctx, at, at, LOGO.d, LOGO.ring)
-		circle(ctx, at, at, LOGO.d, () => ctx.drawImage(logo_image, at, at, LOGO.d, LOGO.d))
-	}
-	for (const photo of [...photos, logo_image]) photo?.close()
+	const at = SIZE - LOGO.d
+	cut(ctx, at, at, LOGO.d, LOGO.ring)
+	draw_logo(ctx, logo, at, at, LOGO.d)
+	for (const photo of photos) photo?.close()
 
 	return to_data_url(await canvas.convertToBlob({ type: 'image/png' }))
 }

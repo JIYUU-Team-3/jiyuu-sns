@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
+	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import { format_age } from './format'
@@ -46,6 +47,7 @@
 				size={24}
 			/>
 			<b class="nm">{quoted.author.name}</b>
+			{#if quoted.author.moderator}<ModeratorBadge />{/if}
 			{#if quoted.author.handle}<span class="meta">@{quoted.author.handle}</span>{/if}
 			<span class="time">· {format_age(quoted.created_at, current_time(), getLocale())}</span>
 		</span>
