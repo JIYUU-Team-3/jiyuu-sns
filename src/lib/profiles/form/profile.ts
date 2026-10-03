@@ -128,4 +128,4 @@ export function suggest_handle(name: string, email: string) {
 }
 
 // Shared with the app's avatars, so a person keeps one colour and one set of initials everywhere.
-export { avatar_hue, initials } from '#lib/ui/Avatar.svelte'
+export { avatar_hue, initials } from '#lib/ui/avatar'
