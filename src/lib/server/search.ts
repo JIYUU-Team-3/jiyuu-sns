@@ -2,11 +2,10 @@ import { and, desc, eq, gte, inArray, ne, notExists, or, sql } from 'drizzle-orm
 import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
 import type { TagView, UserView } from '#lib/search/types'
-import { shown_image } from './account-image'
-import { is_moderator } from './moderation/standing'
 import type { getDb } from './db'
-import { follow, post, postTag, profile, user } from './db/schema'
+import { follow, post, postTag, profile } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
+import { select_users, to_user } from './people'
 import { unmuted_posts, visible_people, visible_posts } from './safety'
 import {
 	after,
@@ -74,39 +73,6 @@ export async function search_posts(
 }
 
 const follower_count = sql<number>`(select count(*) from follow f where f.following_id = ${profile.userId})`
-
-function select_users(db: Db, viewer: string | undefined) {
-	return db
-		.select({
-			id: profile.userId,
-			handle: profile.handle,
-			name: profile.displayName,
-			bio: profile.bio,
-			image: shown_image,
-			moderator: is_moderator(profile.userId),
-			followed: viewer
-				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
-				: sql<number>`0`,
-			private: profile.isPrivate,
-			requested: viewer
-				? sql<number>`exists(select 1 from follow_request r where r.requester_id = ${viewer} and r.target_id = ${profile.userId})`
-				: sql<number>`0`,
-		})
-		.from(profile)
-		.innerJoin(user, eq(user.id, profile.userId))
-		.$dynamic()
-}
-
-type UserRow = Awaited<ReturnType<ReturnType<typeof select_users>['execute']>>[number]
-
-const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
-	...row,
-	image: row.image ?? undefined,
-	moderator: row.moderator ? true : undefined,
-	followed: !!row.followed,
-	requested: !!row.requested,
-	mine: row.id === viewer,
-})
 
 /**
  * How close an account is to what was typed, lower is closer: the exact handle, then the exact

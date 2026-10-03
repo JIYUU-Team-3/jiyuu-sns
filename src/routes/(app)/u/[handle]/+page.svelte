@@ -8,6 +8,7 @@
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
+	import { protected_from } from '#lib/profiles/access'
 	import { block } from '#lib/safety/actions'
 	import type { ProfileTab } from '#lib/profiles/types'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
@@ -22,7 +23,7 @@
 
 	let tab = $state<ProfileTab>('posts')
 
-	const shut = $derived(profile.private && !profile.followed && !profile.mine)
+	const shut = $derived(protected_from(profile))
 
 	/** Posts unliked in this tab leave your own Likes at once. */
 	const unliked = $derived(

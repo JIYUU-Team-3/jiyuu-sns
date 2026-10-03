@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte'
 	import { page } from '$app/state'
 	import { mod_href } from '#lib/moderation/links'
 	import { m } from '#lib/paraglide/messages.js'
@@ -12,7 +13,16 @@
 	import { home_href } from '../(public)/links'
 	import { sign_out } from './sign-out'
 
-	let { me, compact = false }: { me: Author & { handle: string }; compact?: boolean } = $props()
+	let {
+		me,
+		compact = false,
+		extras,
+	}: {
+		me: Author & { handle: string }
+		compact?: boolean
+		/** Nav items the side nav had no room for. */
+		extras?: Snippet<[close: () => void]>
+	} = $props()
 </script>
 
 <Menu label={m.app_account_menu()} placement={compact ? 'cover-start' : 'above'}>
@@ -33,6 +43,7 @@
 		<a class="menu-item" role="menuitem" href={profile_href(me.handle)} onclick={close}>
 			<Icon name="user" />{m.app_profile()}
 		</a>
+		{@render extras?.(close)}
 		<!-- Phones have no room for Bookmarks in the tab bar; wider screens show it in the side nav. -->
 		<a class="menu-item phone-only" role="menuitem" href={bookmarks_href()} onclick={close}>
 			<Icon name="bookmark" />{m.app_bookmarks()}

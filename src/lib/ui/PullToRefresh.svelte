@@ -1,0 +1,171 @@
+<script lang="ts">
+	import type { Snippet } from 'svelte'
+	import { m } from '#lib/paraglide/messages.js'
+	import Icon from './Icon.svelte'
+	import { toast } from './toasts.svelte'
+
+	let {
+		onrefresh,
+		children,
+	}: {
+		/** Reloads what's below; the spinner stays until it settles. */
+		onrefresh: () => Promise<unknown>
+		children: Snippet
+	} = $props()
+
+	/** How far the content must be pulled for a release to refresh. */
+	const TRIGGER = 64
+	/** Where the content waits while the refresh runs. */
+	const HOLD = 52
+	/** The most the content follows the finger. */
+	const MAX = 96
+	/** The content moves this much per pixel of finger travel. */
+	const RESIST = 0.5
+	/** Finger travel before the gesture picks an axis. */
+	const SLOP = 10
+	/** The spinner shows at least this long, so a fast refresh still reads as one. */
+	const MIN_SPIN = 400
+
+	let pull = $state(0)
+	let dragging = $state(false)
+	let refreshing = $state(false)
+
+	const offset = $derived(refreshing ? HOLD : pull)
+	const progress = $derived(Math.min(1, offset / TRIGGER))
+
+	/** Typing fields keep their own drags (selecting text, the inline composer). */
+	const editable = (target: EventTarget | null) =>
+		target instanceof Element &&
+		!!target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+
+	async function refresh() {
+		refreshing = true
+		try {
+			await Promise.all([onrefresh(), new Promise((done) => setTimeout(done, MIN_SPIN))])
+		} catch {
+			toast.show(m.list_error())
+		} finally {
+			refreshing = false
+		}
+	}
+
+	/**
+	 * Attachment for the wrapper. Svelte's touch attributes are passive, and this one must be able
+	 * to stop the page scrolling (and iOS bouncing) once the pull starts.
+	 */
+	const gesture = (node: HTMLElement) => {
+		let start: { x: number; y: number } | undefined
+		let down = false
+
+		const ontouchstart = (event: TouchEvent) => {
+			// A second finger mid-pull calls it off.
+			start = undefined
+			down = false
+			dragging = false
+			pull = 0
+			if (refreshing || event.touches.length !== 1 || scrollY > 0 || editable(event.target)) return
+			start = { x: event.touches[0].clientX, y: event.touches[0].clientY }
+		}
+
+		const ontouchmove = (event: TouchEvent) => {
+			if (!start) return
+			const dx = event.touches[0].clientX - start.x
+			const dy = event.touches[0].clientY - start.y
+			if (!down) {
+				if (Math.hypot(dx, dy) < SLOP) return
+				// Sideways (a carousel) or upward (scrolling on) isn't a pull.
+				if (dy <= Math.abs(dx) || scrollY > 0) return void (start = undefined)
+				down = true
+			}
+			event.preventDefault()
+			dragging = true
+			pull = Math.min(MAX, Math.max(0, dy * RESIST))
+		}
+
+		const ontouchend = () => {
+			if (pull >= TRIGGER) void refresh()
+			start = undefined
+			dragging = false
+			pull = 0
+		}
+
+		node.addEventListener('touchstart', ontouchstart, { passive: true })
+		node.addEventListener('touchmove', ontouchmove, { passive: false })
+		node.addEventListener('touchend', ontouchend)
+		node.addEventListener('touchcancel', ontouchend)
+		return () => {
+			node.removeEventListener('touchstart', ontouchstart)
+			node.removeEventListener('touchmove', ontouchmove)
+			node.removeEventListener('touchend', ontouchend)
+			node.removeEventListener('touchcancel', ontouchend)
+		}
+	}
+</script>
+
+<div class="ptr" class:dragging {@attach gesture}>
+	<div
+		class="indicator"
+		class:armed={pull >= TRIGGER}
+		class:refreshing
+		style:height="{offset}px"
+		style:opacity={progress}
+	>
+		{#if refreshing}
+			<span class="spin" role="status" aria-label={m.ptr_refreshing()}><Icon name="refresh" /></span
+			>
+		{:else}
+			<span style:rotate="{progress * 270}deg"><Icon name="refresh" /></span>
+		{/if}
+	</div>
+	<!-- No transform at rest, so nothing inside gets a new containing block for good. -->
+	<div class="content" style:transform={offset ? `translateY(${offset}px)` : undefined}>
+		{@render children()}
+	</div>
+</div>
+
+<style>
+	/* The browser's own pull-to-refresh would reload the whole page on top of this one. */
+	:global(html:has(.ptr)) {
+		overscroll-behavior-y: contain;
+	}
+	.ptr {
+		position: relative;
+	}
+	.indicator {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		display: grid;
+		place-items: center;
+		overflow: hidden;
+		color: var(--text-3);
+		pointer-events: none;
+		transition:
+			height 0.35s var(--ease-out),
+			opacity 0.35s var(--ease-out),
+			color 0.15s;
+	}
+	.indicator.armed,
+	.indicator.refreshing {
+		color: var(--accent-text);
+	}
+	.content {
+		transition: transform 0.35s var(--ease-out);
+	}
+	.dragging .indicator,
+	.dragging .content {
+		transition: color 0.15s;
+	}
+	.indicator span {
+		display: grid;
+	}
+	.spin {
+		animation: spin 0.8s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			rotate: 360deg;
+		}
+	}
+</style>

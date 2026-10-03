@@ -1,5 +1,8 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte'
+	import { refusal_message } from '#lib/moderation/refusals'
 	import { m } from '#lib/paraglide/messages.js'
+	import FollowControl from '#lib/profiles/FollowControl.svelte'
 	import { profile_href } from '#lib/profiles/links'
 	import { set_follow } from '#lib/profiles/profiles.remote'
 	import Avatar from '#lib/ui/Avatar.svelte'
@@ -7,7 +10,19 @@
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { UserView } from './types'
 
-	let { user, show_bio = true }: { user: UserView; show_bio?: boolean } = $props()
+	let {
+		user,
+		show_bio = true,
+		show_follows_you = true,
+		menu,
+	}: {
+		user: UserView
+		show_bio?: boolean
+		/** Off where everyone listed follows the viewer, such as your own followers. */
+		show_follows_you?: boolean
+		/** More actions for this account, before its follow button. */
+		menu?: Snippet
+	} = $props()
 
 	/** The row's own follow state, so following from a list doesn't wait for a refetch. */
 	let followed = $derived(user.followed)
@@ -17,7 +32,6 @@
 	const active = $derived(followed || requested)
 
 	async function toggle() {
-		if (pending) return
 		const on = !active
 		const before = { followed, requested }
 		if (requested || (on && user.private)) requested = on
@@ -25,10 +39,10 @@
 		pending = true
 		try {
 			await set_follow({ handle: user.handle, on })
-		} catch {
+		} catch (cause) {
 			followed = before.followed
 			requested = before.requested
-			toast.show(m.toast_error())
+			toast.show(refusal_message(cause, m.toast_error))
 		} finally {
 			pending = false
 		}
@@ -44,26 +58,25 @@
 			{user.name}
 			{#if user.moderator}<ModeratorBadge />{/if}
 		</a>
-		<div class="hd">@{user.handle}</div>
+		<div class="hd">
+			<span class="at">@{user.handle}</span>
+			{#if show_follows_you && user.follows_you && !user.mine}<span class="pill"
+					>{m.follow_follows_you()}</span
+				>{/if}
+		</div>
 		{#if show_bio && user.bio}<p class="bio">{user.bio}</p>{/if}
 	</div>
+	{@render menu?.()}
 	{#if !user.mine}
-		<button
-			type="button"
-			class="btn sm {active ? 'btn-outline' : 'btn-ink'}"
-			aria-label={requested
-				? m.follow_cancel_label({ handle: user.handle })
-				: followed
-					? m.follow_unfollow_label({ handle: user.handle })
-					: m.follow_follow_label({ handle: user.handle })}
-			aria-pressed={active}
-			onclick={toggle}
-			>{requested
-				? m.follow_requested()
-				: followed
-					? m.follow_following()
-					: m.follow_follow()}</button
-		>
+		<FollowControl
+			handle={user.handle}
+			{followed}
+			{requested}
+			follows_you={user.follows_you}
+			{pending}
+			small
+			ontoggle={toggle}
+		/>
 	{/if}
 </div>
 
@@ -97,17 +110,30 @@
 		text-decoration: underline;
 	}
 	.hd {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		color: var(--text-2);
+	}
+	.at {
 		overflow: hidden;
 		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.pill {
+		flex: none;
+		font-size: 12px;
+		font-weight: 500;
+		background: var(--bg-3);
+		border-radius: 4px;
+		padding: 1px 6px;
 		white-space: nowrap;
 	}
 	.bio {
 		margin: 4px 0 0;
 		overflow-wrap: anywhere;
 	}
-	.btn {
+	.urow > :global(.follow) {
 		margin-top: 2px;
-		flex: none;
 	}
 </style>

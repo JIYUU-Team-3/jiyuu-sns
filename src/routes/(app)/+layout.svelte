@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
+	import { flushSync, onMount } from 'svelte'
 	import { page } from '$app/state'
 	import { messages_href } from '#lib/messages/links'
 	import { get_unread_messages } from '#lib/messages/messages.remote'
@@ -77,6 +77,33 @@
 			page.route.id === '/(app)/settings/profile',
 	)
 
+	/**
+	 * Nav items move into the account menu one by one, weakest first, until the side nav fits
+	 * (landscape phones are wider than the tab bar breakpoint but only ~400px tall).
+	 */
+	const COLLAPSE_ORDER = ['bookmarks', 'profile', 'explore', 'messages', 'notifications', 'home']
+	let side = $state<HTMLElement>()
+	let collapsed = $state(0)
+	const folded = (key: string) => COLLAPSE_ORDER.indexOf(key) < collapsed
+
+	/** Synchronous, so the observer settles before the browser paints and a resize never flashes. */
+	function fit() {
+		collapsed = 0
+		flushSync()
+		while (side && collapsed < COLLAPSE_ORDER.length && side.scrollHeight > side.clientHeight + 1) {
+			collapsed++
+			flushSync()
+		}
+	}
+	$effect(() => {
+		if (!side) return
+		const observer = new ResizeObserver(fit)
+		observer.observe(side)
+		return () => {
+			observer.disconnect()
+		}
+	})
+
 	/** `n` opens the composer, as on X, unless the reader is typing or a dialog is open. */
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key !== 'n' || event.metaKey || event.ctrlKey || event.altKey) return
@@ -89,49 +116,95 @@
 
 <svelte:window {onkeydown} />
 
+{#snippet folded_items(close: () => void)}
+	{#if folded('home')}
+		<a class="menu-item" role="menuitem" href={home_href()} onclick={close}>
+			<Icon name="home" />{m.app_home()}
+		</a>
+	{/if}
+	{#if folded('explore')}
+		<a class="menu-item" role="menuitem" href={explore_href()} onclick={close}>
+			<Icon name="search" />{m.app_explore()}
+		</a>
+	{/if}
+	{#if folded('notifications')}
+		<a class="menu-item" role="menuitem" href={notifications_href()} onclick={close}>
+			<Icon name="bell" />{m.app_notifications()}
+			{#if unread}<span class="menu-count">{unread_label}</span>{/if}
+		</a>
+	{/if}
+	{#if folded('messages')}
+		<a class="menu-item" role="menuitem" href={messages_href()} onclick={close}>
+			<Icon name="mail" />{m.app_messages()}
+			{#if unread_dms}<span class="menu-count">{unread_dms_label}</span>{/if}
+		</a>
+	{/if}
+	{#if folded('bookmarks')}
+		<a class="menu-item" role="menuitem" href={bookmarks_href()} onclick={close}>
+			<Icon name="bookmark" />{m.app_bookmarks()}
+		</a>
+	{/if}
+{/snippet}
+
 <div class="shell" class:wide={on_messages} class:chat={in_chat}>
-	<nav class="side" aria-label={m.app_home()}>
+	<nav class="side" aria-label={m.app_home()} bind:this={side}>
 		<a class="brand" href={home_href()} aria-label="Jiyuu"><Wordmark /></a>
 		<div class="nav">
-			<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
-				<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
-			</a>
-			<a class="nav-item" href={explore_href()} aria-current={on_explore ? 'page' : undefined}>
-				<Icon name="search" size="lg" /><span class="lbl">{m.app_explore()}</span>
-			</a>
-			<a
-				class="nav-item"
-				href={notifications_href()}
-				aria-current={on_notifications ? 'page' : undefined}
-			>
-				<span class="ico-wrap">
-					<Icon name="bell" size="lg" />
-					{#if unread}<span class="badge" aria-hidden="true">{unread_label}</span>{/if}
-				</span>
-				<span class="lbl">{m.app_notifications()}</span>
-				{#if unread}<span class="visually-hidden">{m.app_unread({ count: unread_label })}</span
-					>{/if}
-			</a>
-			<a class="nav-item" href={messages_href()} aria-current={on_messages ? 'page' : undefined}>
-				<span class="ico-wrap">
-					<Icon name="mail" size="lg" />
-					{#if unread_dms}<span class="badge" aria-hidden="true">{unread_dms_label}</span>{/if}
-				</span>
-				<span class="lbl">{m.app_messages()}</span>
-				{#if unread_dms}<span class="visually-hidden"
-						>{m.app_unread({ count: unread_dms_label })}</span
-					>{/if}
-			</a>
-			<a class="nav-item" href={bookmarks_href()} aria-current={on_bookmarks ? 'page' : undefined}>
-				<Icon name="bookmark" size="lg" /><span class="lbl">{m.app_bookmarks()}</span>
-			</a>
-			<a
-				class="nav-item"
-				href={profile_href(data.me.handle)}
-				aria-current={on_own_profile ? 'page' : undefined}
-			>
-				<Icon name="user" size="lg" /><span class="lbl">{m.app_profile()}</span>
-			</a>
+			{#if !folded('home')}
+				<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
+					<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
+				</a>
+			{/if}
+			{#if !folded('explore')}
+				<a class="nav-item" href={explore_href()} aria-current={on_explore ? 'page' : undefined}>
+					<Icon name="search" size="lg" /><span class="lbl">{m.app_explore()}</span>
+				</a>
+			{/if}
+			{#if !folded('notifications')}
+				<a
+					class="nav-item"
+					href={notifications_href()}
+					aria-current={on_notifications ? 'page' : undefined}
+				>
+					<span class="ico-wrap">
+						<Icon name="bell" size="lg" />
+						{#if unread}<span class="badge" aria-hidden="true">{unread_label}</span>{/if}
+					</span>
+					<span class="lbl">{m.app_notifications()}</span>
+					{#if unread}<span class="visually-hidden">{m.app_unread({ count: unread_label })}</span
+						>{/if}
+				</a>
+			{/if}
+			{#if !folded('messages')}
+				<a class="nav-item" href={messages_href()} aria-current={on_messages ? 'page' : undefined}>
+					<span class="ico-wrap">
+						<Icon name="mail" size="lg" />
+						{#if unread_dms}<span class="badge" aria-hidden="true">{unread_dms_label}</span>{/if}
+					</span>
+					<span class="lbl">{m.app_messages()}</span>
+					{#if unread_dms}<span class="visually-hidden"
+							>{m.app_unread({ count: unread_dms_label })}</span
+						>{/if}
+				</a>
+			{/if}
+			{#if !folded('bookmarks')}
+				<a
+					class="nav-item"
+					href={bookmarks_href()}
+					aria-current={on_bookmarks ? 'page' : undefined}
+				>
+					<Icon name="bookmark" size="lg" /><span class="lbl">{m.app_bookmarks()}</span>
+				</a>
+			{/if}
+			{#if !folded('profile')}
+				<a
+					class="nav-item"
+					href={profile_href(data.me.handle)}
+					aria-current={on_own_profile ? 'page' : undefined}
+				>
+					<Icon name="user" size="lg" /><span class="lbl">{m.app_profile()}</span>
+				</a>
+			{/if}
 		</div>
 		<button
 			type="button"
@@ -140,7 +213,7 @@
 		>
 			<Icon name="compose" /><span class="lbl">{m.app_new_post()}</span>
 		</button>
-		<div class="foot"><AccountMenu me={data.me} /></div>
+		<div class="foot"><AccountMenu me={data.me} extras={folded_items} /></div>
 	</nav>
 
 	<main class="main">{@render children()}</main>
@@ -291,7 +364,21 @@
 		clip-path: inset(50%);
 		white-space: nowrap;
 	}
+	.menu-count {
+		margin-left: auto;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 18px;
+		text-align: center;
+	}
 	.compose {
+		flex: none;
 		margin-top: 16px;
 	}
 	.foot {

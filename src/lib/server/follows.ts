@@ -1,8 +1,11 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import type { FollowSide, PeoplePage } from '#lib/profiles/types'
 import type { getDb } from './db'
-import { follow, followRequest, profile } from './db/schema'
+import { follow, followRequest, profile, user } from './db/schema'
 import { notify, retract } from './notifications'
-import { blocked_between } from './safety'
+import { to_user, user_fields } from './people'
+import { older_than, PAGE_SIZE } from './posts'
+import { blocked_between, open_to, visible_people } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
@@ -68,4 +71,66 @@ export async function set_follow(db: Db, follower_id: string, handle: string, on
 			await retract(db, { user_id: row.target_id, actor_id: follower_id, type: 'follow_request' })
 		}
 	}
+}
+
+/** Whether the viewer may see who `account` follows and who follows it, as they may its posts. */
+async function lists_open(db: Db, viewer: string, account: string) {
+	const [row] = await db
+		.select({ id: profile.userId })
+		.from(profile)
+		.where(and(eq(profile.userId, account), open_to(viewer, profile.userId, profile.isPrivate)))
+		.limit(1)
+	return !!row
+}
+
+/**
+ * One page of the accounts `account` follows, or that follow it, most recently followed first.
+ * Empty when the viewer may not see the account, and without anyone blocked either way.
+ */
+export async function list_follows(
+	db: Db,
+	viewer: string,
+	account: string,
+	side: FollowSide,
+	cursor: string | undefined,
+): Promise<PeoplePage> {
+	if (!(await lists_open(db, viewer, account))) return { people: [] }
+	const [owner, other] =
+		side === 'following'
+			? [follow.followerId, follow.followingId]
+			: [follow.followingId, follow.followerId]
+	const rows = await db
+		.select({
+			...user_fields(viewer),
+			follows_you: sql<number>`exists(select 1 from follow f where f.follower_id = ${profile.userId} and f.following_id = ${viewer})`,
+			at: follow.createdAt,
+		})
+		.from(follow)
+		.innerJoin(profile, eq(profile.userId, other))
+		.innerJoin(user, eq(user.id, profile.userId))
+		.where(
+			and(eq(owner, account), visible_people(viewer), older_than(follow.createdAt, other, cursor)),
+		)
+		.orderBy(desc(follow.createdAt), desc(other))
+		.limit(PAGE_SIZE + 1)
+	// When someone followed is only the cursor's business; it stays out of what the page returns.
+	const people = rows
+		.slice(0, PAGE_SIZE)
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		.map(({ at, follows_you, ...row }) => ({ ...to_user(row, viewer), follows_you: !!follows_you }))
+	const last = rows[PAGE_SIZE - 1]
+	return { people, next: rows.length > PAGE_SIZE ? `${last.at.getTime()}:${last.id}` : undefined }
+}
+
+/** Stop `handle` following `me`. Only a follow of `me` can go; returns whether one did. */
+export async function remove_follower(db: Db, me: string, handle: string) {
+	const them = db.select({ id: profile.userId }).from(profile).where(eq(profile.handle, handle))
+	const removed = await db
+		.delete(follow)
+		.where(and(eq(follow.followingId, me), eq(follow.followerId, them)))
+		.returning({ follower_id: follow.followerId })
+	for (const row of removed) {
+		await retract(db, { user_id: me, actor_id: row.follower_id, type: 'follow' })
+	}
+	return removed.length > 0
 }

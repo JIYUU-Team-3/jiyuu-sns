@@ -7,6 +7,8 @@ export type UserView = Author & {
 	followed: boolean
 	private: boolean
 	requested: boolean
+	/** Whether this account follows the viewer; only follow lists ask. */
+	follows_you?: boolean
 	/** Whether this is the viewer. */
 	mine: boolean
 }

@@ -327,7 +327,7 @@ function decode_cursor(cursor: string) {
 }
 
 /** Rows strictly older than the cursor, ordered by `time` and then by the unique `key`. */
-function older_than(time: SQLiteColumn, key: SQLWrapper, cursor: string | undefined) {
+export function older_than(time: SQLiteColumn, key: SQLWrapper, cursor: string | undefined) {
 	const at = cursor ? decode_cursor(cursor) : undefined
 	if (!at) return undefined
 	return or(lt(time, at.created_at), and(eq(time, at.created_at), lt(key, at.id)))

@@ -579,3 +579,61 @@ test('a blocked person can no longer message the blocker @writes', async ({ page
 
 	await bob.context().close()
 })
+
+test('a private account and a blocker keep their follow lists from direct requests @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = unique()
+	const alice = `e2e_fla_${id}`
+	const pages: Page[] = []
+	for (const handle of [`e2e_flb_${id}`, `e2e_flc_${id}`, `e2e_fld_${id}`]) {
+		const other = await (await browser.newContext()).newPage()
+		await sign_up(other, handle)
+		pages.push(other)
+	}
+	const [bob, carol, dave] = pages
+	await sign_up(page, alice)
+	await follow(bob, alice)
+	// Carol removing Bob from her own followers can't touch Bob's follow of Alice.
+	await follow(bob, `e2e_flc_${id}`)
+
+	await carol.goto(`/u/${alice}`)
+	await carol.waitForLoadState('networkidle')
+	const listed = carol.waitForRequest((request) => request.url().includes('/get_follows'))
+	await carol.locator('.counts').getByRole('link', { name: '1 Followers' }).click()
+	await expect(carol.getByText(`@e2e_flb_${id}`)).toBeVisible()
+	const url = (await listed).url()
+	const followers = async (reader: Page) => {
+		const body = await (await reader.request.get(url)).json()
+		expect(body.type).toBe('result')
+		return body.data as string
+	}
+	expect(await followers(dave)).toContain(`e2e_flb_${id}`)
+
+	await carol.goto(`/u/e2e_flc_${id}/followers`)
+	await carol.waitForLoadState('networkidle')
+	await carol.getByRole('button', { name: `More for @e2e_flb_${id}` }).click()
+	await carol.getByRole('menuitem', { name: 'Remove this follower' }).click()
+	const removed = carol.waitForResponse((response) => response.url().includes('/remove_follower'))
+	await carol.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click()
+	expect((await removed).ok()).toBe(true)
+	expect(await followers(dave)).toContain(`e2e_flb_${id}`)
+
+	await blocks(page, `e2e_fld_${id}`)
+	expect(await followers(dave)).not.toContain(`e2e_flb_${id}`)
+	expect(await followers(carol)).toContain(`e2e_flb_${id}`)
+
+	await page.goto('/settings/privacy')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('switch', { name: /Private account/ }).click()
+	await expect(page.getByRole('switch', { name: /Private account/ })).toHaveAttribute(
+		'aria-checked',
+		'true',
+	)
+	expect(await followers(carol)).not.toContain(`e2e_flb_${id}`)
+	expect(await followers(bob)).toContain(`e2e_flb_${id}`)
+	expect(await followers(page)).toContain(`e2e_flb_${id}`)
+
+	for (const other of pages) await other.context().close()
+})
