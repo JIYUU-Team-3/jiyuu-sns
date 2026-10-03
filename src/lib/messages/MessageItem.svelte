@@ -307,7 +307,6 @@
 	.tools {
 		display: flex;
 		align-self: center;
-		position: relative;
 		opacity: 0;
 		transition: opacity 0.15s;
 	}
@@ -329,7 +328,7 @@
 	.picker {
 		position: absolute;
 		bottom: calc(100% + 4px);
-		right: 0;
+		left: 0;
 		z-index: 10;
 		display: flex;
 		gap: 2px;
@@ -341,8 +340,8 @@
 		animation: pop 0.16s var(--ease-out);
 	}
 	.mine .picker {
-		right: auto;
-		left: 0;
+		left: auto;
+		right: 0;
 	}
 	.picker button {
 		width: 34px;
