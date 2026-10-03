@@ -13,7 +13,7 @@ export type BudgetKind = keyof typeof DAILY_NEURONS
  * What one call is reserved at before it runs, so concurrent checks can't overshoot; the real cost
  * replaces it afterwards. Llama Guard on a full post is about 25; an image about 10.
  */
-export const ESTIMATE = { text: 30, image: 15, report: 30 } as const
+export const ESTIMATE = { text: 30, image: 15, report: 30, translate: 30 } as const
 
 /** The UTC day, which is how Workers AI counts. */
 export const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10)

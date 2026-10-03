@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte'
 	import { page } from '$app/state'
 	import { messages_href } from '#lib/messages/links'
-	import { get_unread_messages } from '#lib/messages/messages.remote'
+	import { connect_live } from '#lib/messages/live'
+	import { get_unread_messages, inbox_ticket } from '#lib/messages/messages.remote'
+	import { inbox } from '#lib/messages/state.svelte'
 	import { notifications_href } from '#lib/notifications/links'
 	import { get_unread_count } from '#lib/notifications/notifications.remote'
 	import { m } from '#lib/paraglide/messages.js'
@@ -60,7 +62,15 @@
 		const refresh_dms = () => {
 			if (document.visibilityState === 'visible') refresh_unread_dms()
 		}
-		const dm_timer = setInterval(refresh_dms, 10_000)
+		const live = connect_live('inbox', inbox_ticket, (event) => {
+			if (event.type !== 'refresh') return
+			refresh_unread_dms()
+			inbox.changed()
+		})
+		inbox.follow(() => live.open)
+		const dm_timer = setInterval(() => {
+			if (!live.open) refresh_dms()
+		}, 10_000)
 		document.addEventListener('visibilitychange', refresh_dms)
 		const onmessage = (event: MessageEvent) => {
 			if (event.data?.type === 'notification') refresh()
@@ -70,6 +80,8 @@
 		return () => {
 			clearInterval(timer)
 			clearInterval(dm_timer)
+			live.close()
+			inbox.follow(() => false)
 			document.removeEventListener('visibilitychange', refresh_dms)
 			navigator.serviceWorker?.removeEventListener('message', onmessage)
 		}

@@ -1,6 +1,56 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 import { follow } from '../follow'
 import { sign_up } from '../sign-up'
+
+const slow = { timeout: 15_000 }
+const msg = (page: Page, text: string) => page.locator('.msg', { hasText: text })
+
+async function befriend(page: Page, other: Page, alice: string, bob: string) {
+	await sign_up(page, alice)
+	await sign_up(other, bob)
+	await follow(page, bob)
+}
+
+async function open_chat(page: Page, handle: string) {
+	await page.goto(`/u/${handle}`)
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: `Message @${handle}` }).click()
+	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
+}
+
+async function type_message(page: Page, text: string) {
+	await page.getByLabel('Message', { exact: true }).fill(text)
+	await page.keyboard.press('Enter')
+}
+
+async function send(page: Page, text: string) {
+	const stored = page.waitForResponse((response) => response.url().includes('/send_message'))
+	await type_message(page, text)
+	await stored
+}
+
+async function set_focus(page: Page, focused: boolean) {
+	await page.evaluate((focused) => {
+		document.hasFocus = () => focused
+		window.dispatchEvent(new Event(focused ? 'focus' : 'blur'))
+	}, focused)
+}
+
+/** Bob writes `first` to Alice, Alice opens the chat, and Bob sees it marked Seen. */
+async function seen_chat(page: Page, browser: Browser, prefixes: [string, string], first: string) {
+	const id = crypto.randomUUID().slice(0, 8)
+	const text = `${first} ${id}`
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await befriend(page, bob_page, `e2e_${prefixes[0]}_${id}`, `e2e_${prefixes[1]}_${id}`)
+
+	await open_chat(bob_page, `e2e_${prefixes[0]}_${id}`)
+	await send(bob_page, text)
+	await page.goto(bob_page.url())
+	await expect(msg(page, text)).toBeVisible()
+	await expect(msg(bob_page, text).getByText('Seen')).toBeVisible(slow)
+	return { id, first: text, bob_context, bob_page }
+}
 
 test('message someone, react and reply, and the badge clears once read @writes', async ({
 	page,
@@ -14,38 +64,26 @@ test('message someone, react and reply, and the badge clears once read @writes',
 
 	const bob_context = await browser.newContext()
 	const bob_page = await bob_context.newPage()
-	await sign_up(page, alice)
-	await sign_up(bob_page, bob)
 	// New accounts can only start a chat with someone who follows them.
-	await follow(page, bob)
+	await befriend(page, bob_page, alice, bob)
 
-	await bob_page.goto(`/u/${alice}`)
-	await bob_page.waitForLoadState('networkidle')
-	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
-	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
-	await bob_page.getByLabel('Message', { exact: true }).fill(hello)
+	await open_chat(bob_page, alice)
 	// The chat shows a message before the server has it, so wait for the server too: Alice's
 	// unread badge only counts what was stored.
-	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
-	await bob_page.keyboard.press('Enter')
-	await expect(bob_page.locator('.chat').getByText(hello)).toBeVisible()
-	await stored
+	await send(bob_page, hello)
+	await expect(msg(bob_page, hello)).toBeVisible()
 
 	await page.goto('/')
 	const nav = page.locator('nav.side')
 	await expect(nav.getByRole('link', { name: /Messages.*1 unread/ })).toBeVisible()
-	await expect(bob_page.locator('.msg', { hasText: hello }).getByText('Delivered')).toBeVisible({
-		timeout: 15_000,
-	})
+	await expect(msg(bob_page, hello).getByText('Delivered')).toBeVisible(slow)
 	await nav.getByRole('link', { name: /Messages/ }).click()
 	await page.getByRole('link', { name: new RegExp(hello) }).click()
 	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
-	const message = page.locator('.msg', { hasText: hello })
+	const message = msg(page, hello)
 	await expect(message).toBeVisible()
 	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
-	await expect(bob_page.locator('.msg', { hasText: hello }).getByText('Seen')).toBeVisible({
-		timeout: 15_000,
-	})
+	await expect(msg(bob_page, hello).getByText('Seen')).toBeVisible(slow)
 
 	await message.hover()
 	await message.getByRole('button', { name: 'React', exact: true }).click()
@@ -56,17 +94,15 @@ test('message someone, react and reply, and the badge clears once read @writes',
 	await expect(page.getByText(`Replying to ${bob}: ${hello}`)).toBeVisible()
 	await page.getByLabel('Message', { exact: true }).fill(answer)
 	await page.getByRole('button', { name: 'Send' }).click()
-	const reply = page.locator('.msg', { hasText: answer })
+	const reply = msg(page, answer)
 	await expect(reply).toBeVisible()
 	await expect(reply.getByText(`Replying to ${bob}`)).toBeVisible()
 
-	const bob_reply = bob_page.locator('.msg', { hasText: answer })
-	await expect(bob_reply).toBeVisible({ timeout: 15_000 })
+	const bob_reply = msg(bob_page, answer)
+	await expect(bob_reply).toBeVisible(slow)
 	await expect(bob_reply.getByText('Replying to you')).toBeVisible()
-	await expect(reply.getByText('Seen')).toBeVisible({ timeout: 15_000 })
-	await expect(
-		bob_page.locator('.msg', { hasText: hello }).getByRole('button', { name: /👍 1/ }),
-	).toBeVisible()
+	await expect(reply.getByText('Seen')).toBeVisible(slow)
+	await expect(msg(bob_page, hello).getByRole('button', { name: /👍 1/ })).toBeVisible()
 
 	await bob_context.close()
 })
@@ -229,29 +265,21 @@ test('a message turns delivered once a push reaches the other person @writes', a
 
 	const bob_context = await browser.newContext()
 	const bob_page = await bob_context.newPage()
-	await sign_up(page, alice)
-	await sign_up(bob_page, `e2e_ddb_${id}`)
 	// New accounts can only start a chat with someone who follows them.
-	await follow(page, `e2e_ddb_${id}`)
+	await befriend(page, bob_page, alice, `e2e_ddb_${id}`)
 	const delivered = { headers: { origin: new URL(page.url()).origin } }
 	const stranger = await browser.newContext()
 	expect((await stranger.request.post('/messages/delivered', delivered)).status()).toBe(401)
 	await stranger.close()
 	await page.goto('about:blank')
 
-	await bob_page.goto(`/u/${alice}`)
-	await bob_page.waitForLoadState('networkidle')
-	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
-	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
-	await bob_page.getByLabel('Message', { exact: true }).fill(hello)
-	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
-	await bob_page.keyboard.press('Enter')
-	await stored
-	const sent = bob_page.locator('.msg', { hasText: hello })
-	await expect(sent.getByText('Sent')).toBeVisible({ timeout: 15_000 })
+	await open_chat(bob_page, alice)
+	await send(bob_page, hello)
+	const sent = msg(bob_page, hello)
+	await expect(sent.getByText('Sent')).toBeVisible(slow)
 
 	expect((await page.request.post('/messages/delivered', delivered)).status()).toBe(204)
-	await expect(sent.getByText('Delivered')).toBeVisible({ timeout: 15_000 })
+	await expect(sent.getByText('Delivered')).toBeVisible(slow)
 
 	await bob_context.close()
 })
@@ -266,16 +294,11 @@ test('typing shows live with a face, messages and reactions arrive at once, and 
 
 	const bob_page = await (await browser.newContext()).newPage()
 	const carol_page = await (await browser.newContext()).newPage()
-	await sign_up(bob_page, `e2e_ltb_${id}`)
 	await sign_up(carol_page, `e2e_ltc_${id}`)
-	await sign_up(page, alice)
 	// New accounts can only start a chat with someone who follows them.
-	await follow(page, `e2e_ltb_${id}`)
+	await befriend(page, bob_page, alice, `e2e_ltb_${id}`)
 
-	await bob_page.goto(`/u/${alice}`)
-	await bob_page.waitForLoadState('networkidle')
-	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
-	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	await open_chat(bob_page, alice)
 	const chat = new URL(bob_page.url()).pathname
 	const conversation = chat.split('/').pop() as string
 
@@ -293,16 +316,16 @@ test('typing shows live with a face, messages and reactions arrive at once, and 
 
 	await field.fill(hello)
 	await field.press('Enter')
-	await expect(bob_page.locator('.msg', { hasText: hello })).toBeVisible({ timeout: 3_000 })
+	await expect(msg(bob_page, hello)).toBeVisible({ timeout: 3_000 })
 	await expect(bubble).toBeHidden()
 
-	const received = bob_page.locator('.msg', { hasText: hello })
+	const received = msg(bob_page, hello)
 	await received.hover()
 	await received.getByRole('button', { name: 'React', exact: true }).click()
 	await bob_page.getByRole('button', { name: 'React with 👍' }).click()
-	await expect(
-		page.locator('.msg', { hasText: hello }).getByRole('button', { name: /👍 1/ }),
-	).toBeVisible({ timeout: 3_000 })
+	await expect(msg(page, hello).getByRole('button', { name: /👍 1/ })).toBeVisible({
+		timeout: 3_000,
+	})
 
 	const origin = new URL(page.url()).origin
 	const live = (headers: Record<string, string>, ticket = 'junk') =>
@@ -339,14 +362,9 @@ test('on a phone the chat stays in view above the keyboard @writes', async ({ pa
 		})
 	})
 	const bob_page = await phone.newPage()
-	await sign_up(page, alice)
-	await sign_up(bob_page, bob)
-	await follow(page, bob)
+	await befriend(page, bob_page, alice, bob)
 
-	await bob_page.goto(`/u/${alice}`)
-	await bob_page.waitForLoadState('networkidle')
-	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
-	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	await open_chat(bob_page, alice)
 	const field = bob_page.getByLabel('Message', { exact: true })
 	await field.focus()
 	const coarse = await bob_page.evaluate(() => matchMedia('(pointer: coarse)').matches)
@@ -365,4 +383,87 @@ test('on a phone the chat stays in view above the keyboard @writes', async ({ pa
 	}).toPass()
 
 	await phone.close()
+})
+
+test('a message is seen only once the reader comes back to the chat @writes', async ({
+	page,
+	browser,
+}) => {
+	const { id, bob_context, bob_page } = await seen_chat(page, browser, ['dms', 'dmt'], 'First')
+	const second = `While away ${id}`
+
+	await set_focus(page, false)
+	const marks: string[] = []
+	page.on('request', (request) => {
+		if (request.url().includes('/mark_conversation_read')) marks.push(request.url())
+	})
+	await type_message(bob_page, second)
+	await expect(msg(page, second)).toBeVisible(slow)
+	expect(marks).toHaveLength(0)
+	await expect(msg(bob_page, second).getByText('Seen')).toHaveCount(0)
+
+	await set_focus(page, true)
+	await expect(msg(bob_page, second).getByText('Seen')).toBeVisible(slow)
+
+	await bob_context.close()
+})
+
+test('the message list and tab badge update the moment a message arrives @writes', async ({
+	page,
+	browser,
+}) => {
+	const { id, first, bob_context, bob_page } = await seen_chat(
+		page,
+		browser,
+		['dmu', 'dmv'],
+		'Earlier',
+	)
+	const second = `Right now ${id}`
+
+	const inbox = page.waitForEvent('websocket', (socket) => socket.url().includes('/live/inbox'))
+	await page.goto('/messages')
+	await inbox
+	const before_poll = Date.now() + 9_000
+	const in_time = () => ({ timeout: Math.max(1, before_poll - Date.now()) })
+	const nav = page.locator('nav.side')
+	await expect(page.getByRole('link', { name: new RegExp(first) })).toBeVisible()
+	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
+	await page.waitForLoadState('networkidle')
+
+	await type_message(bob_page, second)
+	await expect(page.getByRole('link', { name: new RegExp(second) })).toBeVisible(in_time())
+	await expect(nav.getByRole('link', { name: /Messages.*1 unread/ })).toBeVisible(in_time())
+
+	await bob_context.close()
+})
+
+test('the reaction picker stays inside the chat on a short message @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dmw_${id}`
+	const bob = `e2e_dmx_${id}`
+
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await befriend(page, bob_page, alice, bob)
+
+	await open_chat(bob_page, alice)
+	await send(bob_page, 'Sup')
+
+	for (const viewer of [page, bob_page]) {
+		await viewer.goto(bob_page.url())
+		const message = msg(viewer, 'Sup')
+		await message.hover()
+		await message.getByRole('button', { name: 'React', exact: true }).click()
+		const chat = await viewer.locator('.pane .chat').boundingBox()
+		const picker = await message.locator('.picker').boundingBox()
+		expect(picker && chat).toBeTruthy()
+		if (!picker || !chat) return
+		expect(picker.x).toBeGreaterThanOrEqual(chat.x)
+		expect(picker.x + picker.width).toBeLessThanOrEqual(chat.x + chat.width)
+	}
+
+	await bob_context.close()
 })

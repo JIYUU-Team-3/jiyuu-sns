@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5ddf0b64-1e00-4cb2-a263-273fd5300dac",
-  "prevId": "7a4ef444-403e-42d1-9cb9-0eb4743296fb",
+  "id": "2867c044-6f8f-4241-b2ef-38136264000d",
+  "prevId": "51055912-f934-49c2-a032-6a4381284f21",
   "tables": {
     "account_standing": {
       "name": "account_standing",
@@ -137,6 +137,14 @@
         },
         "report": {
           "name": "report",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "translate": {
+          "name": "translate",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -541,13 +549,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "image": {
-          "name": "image",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "is_group": {
           "name": "is_group",
           "type": "integer",
@@ -630,14 +631,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'member'"
         },
         "last_read_at": {
           "name": "last_read_at",
@@ -968,20 +961,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "event": {
-          "name": "event",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "media_kind": {
           "name": "media_kind",
           "type": "text",
@@ -1083,19 +1062,6 @@
           "tableTo": "message",
           "columnsFrom": [
             "reply_to_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "message_target_id_user_id_fk": {
-          "name": "message_target_id_user_id_fk",
-          "tableFrom": "message",
-          "tableTo": "user",
-          "columnsFrom": [
-            "target_id"
           ],
           "columnsTo": [
             "id"
@@ -2373,6 +2339,44 @@
           "autoincrement": false,
           "default": false
         },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "birthday_audience": {
+          "name": "birthday_audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'followers'"
+        },
+        "birth_year_audience": {
+          "name": "birth_year_audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'only_me'"
+        },
+        "pinned_post_id": {
+          "name": "pinned_post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2403,6 +2407,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "profile_pinned_post_id_post_id_fk": {
+          "name": "profile_pinned_post_id_post_id_fk",
+          "tableFrom": "profile",
+          "tableTo": "post",
+          "columnsFrom": [
+            "pinned_post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

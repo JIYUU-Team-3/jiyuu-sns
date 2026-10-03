@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7a4ef444-403e-42d1-9cb9-0eb4743296fb",
+  "id": "51055912-f934-49c2-a032-6a4381284f21",
   "prevId": "60e3e289-43e0-4075-87f5-9d8b2e8ec36c",
   "tables": {
     "account_standing": {
@@ -541,13 +541,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "image": {
-          "name": "image",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "is_group": {
           "name": "is_group",
           "type": "integer",
@@ -630,14 +623,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'member'"
         },
         "last_read_at": {
           "name": "last_read_at",
@@ -2346,6 +2331,44 @@
           "autoincrement": false,
           "default": false
         },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "birthday_audience": {
+          "name": "birthday_audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'followers'"
+        },
+        "birth_year_audience": {
+          "name": "birth_year_audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'only_me'"
+        },
+        "pinned_post_id": {
+          "name": "pinned_post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2376,6 +2399,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "profile_pinned_post_id_post_id_fk": {
+          "name": "profile_pinned_post_id_post_id_fk",
+          "tableFrom": "profile",
+          "tableTo": "post",
+          "columnsFrom": [
+            "pinned_post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

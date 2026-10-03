@@ -27,6 +27,7 @@
 		get_conversations,
 		get_messages,
 		leave_conversation,
+		live_ticket,
 		mark_conversation_read,
 		react_to_message,
 		send_message,
@@ -61,6 +62,7 @@
 	let log = $state<HTMLDivElement>()
 	let stick = true
 	let last_marked: string | undefined
+	let looking = $state(false)
 	const reactions = new SvelteMap<string, Reaction[]>()
 
 	const title = $derived(conversation_title(convo, m.dm_deleted_account()))
@@ -178,7 +180,7 @@
 
 	$effect(() => {
 		const room = id
-		const connection = untrack(() => connect_live(room, onlive))
+		const connection = untrack(() => connect_live(room, () => live_ticket(room), onlive))
 		live = connection
 		return () => {
 			connection.close()
@@ -187,7 +189,12 @@
 		}
 	})
 
+	function sync_looking() {
+		looking = document.visibilityState === 'visible' && document.hasFocus()
+	}
+
 	onMount(() => {
+		sync_looking()
 		const timer = setInterval(() => {
 			if (document.visibilityState !== 'visible') return
 			if (live?.open && Date.now() - last_poll < LIVE_POLL) return
@@ -216,7 +223,7 @@
 
 	$effect(() => {
 		const newest = latest.items[0]
-		if (!newest || newest.mine || newest.id === last_marked) return
+		if (!looking || !newest || newest.mine || newest.id === last_marked) return
 		last_marked = newest.id
 		mark_conversation_read(id).catch(() => {})
 	})
@@ -330,6 +337,9 @@
 		}
 	}
 </script>
+
+<svelte:window onfocus={sync_looking} onblur={sync_looking} />
+<svelte:document onvisibilitychange={sync_looking} />
 
 <svelte:head><title>{m.site_page_title({ page: title })}</title></svelte:head>
 

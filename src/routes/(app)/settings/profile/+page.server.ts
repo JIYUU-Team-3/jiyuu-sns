@@ -9,7 +9,7 @@ import type { Actions, PageServerLoad } from './$types'
 export const load: PageServerLoad = async ({ parent }) => {
 	// The layout sends anyone signed out or without a profile elsewhere, and already has the profile.
 	const { me, own } = await parent()
-	return { draft: { name: me.name, handle: me.handle, bio: own.bio } }
+	return { draft: { name: me.name, handle: me.handle, bio: own.bio, details: own.details } }
 }
 
 export const actions: Actions = {

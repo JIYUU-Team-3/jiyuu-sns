@@ -1,5 +1,3 @@
-import { live_ticket } from './messages.remote'
-
 export type LiveEvent =
 	| { type: 'refresh' }
 	/** The group's name, photo, members or roles changed. */
@@ -10,7 +8,11 @@ export type LiveEvent =
 
 const RETRY_MAX = 30_000
 
-export function connect_live(id: string, onevent: (event: LiveEvent) => void) {
+export function connect_live(
+	room: string,
+	ticket: () => Promise<string>,
+	onevent: (event: LiveEvent) => void,
+) {
 	let socket: WebSocket | undefined
 	let closed = false
 	let attempt = 0
@@ -24,11 +26,11 @@ export function connect_live(id: string, onevent: (event: LiveEvent) => void) {
 
 	async function open() {
 		try {
-			const ticket = await live_ticket(id)
+			const signed = await ticket()
 			if (closed) return
-			const url = new URL(`/live/${id}`, location.href)
+			const url = new URL(`/live/${room}`, location.href)
 			url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-			url.searchParams.set('ticket', ticket)
+			url.searchParams.set('ticket', signed)
 			const next = new WebSocket(url)
 			socket = next
 			next.onopen = () => (attempt = 0)

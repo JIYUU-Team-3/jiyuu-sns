@@ -1,11 +1,11 @@
 import { read_image, type ImageKind } from '#lib/media'
+import type { ProfileDraft } from '#lib/profiles/form/profile'
 import type { getDb } from './db'
 import { BlockedMediaError, delete_media, put_image } from './media'
 import { is_blocked_media } from './moderation/media'
 import { find_profile, handle_taken, save_profile } from './profiles'
 
 type Db = ReturnType<typeof getDb>
-type Draft = { handle: string; name: string; bio: string }
 type Images = Partial<Record<ImageKind, File>>
 type Urls = Partial<Record<ImageKind, string>>
 /** The kinds whose stored upload the form asked to drop. */
@@ -76,7 +76,7 @@ export async function save_profile_with_images(
 	db: Db,
 	bucket: R2Bucket,
 	user_id: string,
-	draft: Draft,
+	draft: ProfileDraft,
 	images: Images,
 	removals: Removals = {},
 ): Promise<'saved' | 'taken' | { blocked: ImageKind }> {

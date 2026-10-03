@@ -9,8 +9,8 @@
 	import Menu from '#lib/ui/Menu.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
 	import { post_url } from './links'
-	import { delete_post } from './posts.remote'
-	import { composer, deleted_posts } from './state.svelte'
+	import { delete_post, set_pin } from './posts.remote'
+	import { composer, deleted_posts, is_pinned, my_pin } from './state.svelte'
 	import type { PostView } from './types'
 
 	let {
@@ -35,6 +35,20 @@
 			await navigator.clipboard.writeText(post_url(post.id))
 			toast.show(m.toast_link_copied())
 		} catch {
+			toast.show(m.toast_error())
+		}
+	}
+
+	/** Pin it, replacing any other pin, or unpin it; put back if the server refuses. */
+	async function toggle_pin() {
+		const before = my_pin.id
+		const on = !is_pinned(post)
+		my_pin.id = on ? post.id : null
+		try {
+			await set_pin({ id: post.id, on })
+			toast.show(on ? m.toast_pinned() : m.toast_unpinned())
+		} catch {
+			my_pin.id = before
 			toast.show(m.toast_error())
 		}
 	}
@@ -73,6 +87,19 @@
 			>
 				<Icon name="pencil" />{m.post_edit()}
 			</button>
+			{#if !post.moderation}
+				<button
+					type="button"
+					class="menu-item"
+					role="menuitem"
+					onclick={() => {
+						close()
+						toggle_pin()
+					}}
+				>
+					<Icon name="pushpin" />{is_pinned(post) ? m.post_unpin() : m.post_pin()}
+				</button>
+			{/if}
 		{/if}
 		<button
 			type="button"

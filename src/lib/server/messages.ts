@@ -106,6 +106,15 @@ export async function is_member(db: Db, user_id: string, conversation_id: string
 	return !!row
 }
 
+export async function member_ids(db: Db, conversation_id: string) {
+	const rows = await db
+		.select({ id: conversationMember.userId })
+		.from(conversationMember)
+		.where(eq(conversationMember.conversationId, conversation_id))
+		.limit(MEMBER_MAX)
+	return rows.map((row) => row.id)
+}
+
 type ConversationRow = {
 	id: string
 	name: string | null

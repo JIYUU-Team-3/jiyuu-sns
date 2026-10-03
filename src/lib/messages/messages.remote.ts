@@ -6,7 +6,7 @@ import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
 import { delete_media, is_own_message_upload } from '#lib/server/media'
 import type { Nudge } from '#lib/server/chat-room'
-import { mark_delivered_live, nudge } from '#lib/server/live'
+import { INBOX, inbox_room, mark_delivered_live, nudge, nudge_inboxes } from '#lib/server/live'
 import { sign_ticket } from '#lib/server/live-ticket'
 import * as messages from '#lib/server/messages'
 import { push_direct_message } from '#lib/server/push'
@@ -101,6 +101,7 @@ export const send_message = command(NewMessage, async ({ id, ...input }) => {
 	if (sent === 'not_found') error(404, 'Conversation not found.')
 	if (sent === 'blocked') error(403, 'blocked')
 	waitUntil(live(id, { kind: 'refresh' }))
+	waitUntil(inboxes(db, id))
 	waitUntil(
 		push_direct_message(db, {
 			conversation_id: id,
@@ -120,6 +121,7 @@ export const mark_conversation_read = command(Id, async (id) => {
 	const { db, user_id } = me()
 	await messages.mark_read(db, user_id, id)
 	waitUntil(live(id, { kind: 'refresh' }))
+	waitUntil(live(inbox_room(user_id), { kind: 'refresh' }))
 	await Promise.all([
 		get_unread_messages().refresh(),
 		get_conversations(conversations_arg()).refresh(),
@@ -149,6 +151,7 @@ export const start_conversation = command(
 		await only_followers(db, user_id, user_ids)
 		const id = await messages.start_conversation(db, user_id, user_ids, name)
 		if (id === 'invalid') error(400, 'Invalid members.')
+		waitUntil(inboxes(db, id))
 		await get_conversations(conversations_arg()).refresh()
 		return id
 	},
@@ -268,10 +271,24 @@ export const live_ticket = command(Id, async (id) => {
 	return sign_ticket(BETTER_AUTH_SECRET, user_id, id)
 })
 
+export const inbox_ticket = command(async () => {
+	const { user_id } = me()
+	await limit('LOOKUP_LIMIT', user_id)
+	return sign_ticket(BETTER_AUTH_SECRET, user_id, INBOX)
+})
+
+type Db = Parameters<typeof messages.mark_delivered>[0]
+
 const live = (id: string, message: Nudge) =>
 	nudge(chat(), id, message).catch((error) => console.error('Live update failed', error))
 
-const delivered = (db: Parameters<typeof messages.mark_delivered>[0], user_id: string) =>
+const inboxes = (db: Db, id: string, also: string[] = []) =>
+	messages
+		.member_ids(db, id)
+		.then((ids) => nudge_inboxes(chat(), [...also, ...ids]))
+		.catch((error) => console.error('Inbox update failed', error))
+
+const delivered = (db: Db, user_id: string) =>
 	mark_delivered_live(chat(), () => messages.mark_delivered(db, user_id))
 
 const chat = () => (import.meta.env.DEV ? undefined : env.CHAT)

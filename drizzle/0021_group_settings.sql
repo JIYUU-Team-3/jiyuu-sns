@@ -1,5 +1,7 @@
 ALTER TABLE `conversation` ADD `image` text;--> statement-breakpoint
 ALTER TABLE `conversation_member` ADD `role` text DEFAULT 'member' NOT NULL;--> statement-breakpoint
+ALTER TABLE `message` ADD `event` text;--> statement-breakpoint
+ALTER TABLE `message` ADD `target_id` text REFERENCES user(id) ON DELETE set null;--> statement-breakpoint
 UPDATE `conversation_member` SET `role` = 'owner'
 WHERE `user_id` = (
 	SELECT c.`created_by` FROM `conversation` c

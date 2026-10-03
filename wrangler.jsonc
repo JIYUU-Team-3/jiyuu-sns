@@ -77,6 +77,8 @@
 			"namespace_id": "1708",
 			"simple": { "limit": 90, "period": 60 },
 		},
+		// "Translate post": each one may call Workers AI. A reader translates a few a minute.
+		{ "name": "TRANSLATE_LIMIT", "namespace_id": "1709", "simple": { "limit": 20, "period": 60 } },
 	],
 	// The hourly moderation job (scripts/wrap-worker.js). The Free plan allows 5 per account.
 	"triggers": { "crons": ["17 * * * *"] },

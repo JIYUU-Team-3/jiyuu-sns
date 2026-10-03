@@ -8,6 +8,7 @@ import {
 	uniqueIndex,
 	text,
 } from 'drizzle-orm/sqlite-core'
+import { AUDIENCES } from '../../profiles/details'
 import { user } from './auth.schema'
 
 /** Same `timestamp_ms` style as the generated auth tables, set when the row is written. */
@@ -31,6 +32,18 @@ export const profile = sqliteTable('profile', {
 	/** A `/media/…` upload, or null for the plain fallback colour. */
 	bannerUrl: text('banner_url'),
 	isPrivate: integer('is_private', { mode: 'boolean' }).notNull().default(false),
+	/** Free text, or a place picked from the OpenStreetMap search; empty when not given. */
+	location: text('location').notNull().default(''),
+	/** `YYYY-MM-DD`, or null when not given. Who sees which part is the two settings below. */
+	birthDate: text('birth_date'),
+	/** Who sees the month and day. */
+	birthdayAudience: text('birthday_audience', { enum: AUDIENCES }).notNull().default('followers'),
+	/** Who sees the year. */
+	birthYearAudience: text('birth_year_audience', { enum: AUDIENCES }).notNull().default('only_me'),
+	/** The post shown first on the profile; only ever the account's own. Cleared with the post. */
+	pinnedPostId: text('pinned_post_id').references((): AnySQLiteColumn => post.id, {
+		onDelete: 'set null',
+	}),
 	createdAt: created_at(),
 })
 
@@ -655,6 +668,25 @@ export const mediaCheck = sqliteTable('media_check', {
 	createdAt: created_at(),
 })
 
+/**
+ * A post's text translated into one language, so it's paid for once, not once per reader. Keyed by
+ * post and language; `version` is the post's edit time when it was translated (0 if never
+ * edited), and a newer edit overwrites the row instead of piling up old ones.
+ */
+export const postTranslation = sqliteTable(
+	'post_translation',
+	{
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		language: text('language').notNull(),
+		version: integer('version').notNull(),
+		text: text('text').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [primaryKey({ columns: [table.postId, table.language] })],
+)
+
 /** Neurons the automatic checks spent each UTC day, by kind, against `server/moderation/budget.ts`. */
 export const aiUsage = sqliteTable('ai_usage', {
 	/** `YYYY-MM-DD`, UTC, as Workers AI counts its free allocation. */
@@ -662,6 +694,7 @@ export const aiUsage = sqliteTable('ai_usage', {
 	text: integer('text').notNull().default(0),
 	image: integer('image').notNull().default(0),
 	report: integer('report').notNull().default(0),
+	translate: integer('translate').notNull().default(0),
 })
 
 export * from './auth.schema'

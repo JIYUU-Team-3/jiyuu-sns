@@ -11,3 +11,21 @@ export const new_message = {
 		open = false
 	},
 }
+
+let changes = $state(0)
+let connected = () => false
+
+export const inbox = {
+	get changes() {
+		return changes
+	},
+	get open() {
+		return connected()
+	},
+	follow(open: () => boolean) {
+		connected = open
+	},
+	changed() {
+		changes++
+	},
+}

@@ -260,6 +260,13 @@ async function delete_unused_uploads(db: App.Locals['db'], urls: string[]) {
 
 const Toggle = v.object({ id: Id, on: v.boolean() })
 
+/** Pin one of your own posts to your profile, replacing the pin, or take it off. */
+export const set_pin = command(Toggle, async ({ id, on }) => {
+	const { db, user_id } = await author()
+	if (!(await posts.set_pin(db, user_id, id, on))) error(404, 'Post not found.')
+	await get_author_posts(author_arg(user_id, 'posts')).refresh()
+})
+
 export const set_like = command(Toggle, async ({ id, on }) => {
 	const { db, user_id } = await author()
 	await posts.set_like(db, user_id, id, on)
