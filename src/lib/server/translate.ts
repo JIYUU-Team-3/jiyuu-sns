@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { DEEPL_API_KEY } from '$app/env/private'
 import { guess_language } from '#lib/posts/language'
 import { POST_MAX } from '#lib/posts/rules'
 import type { Locale } from '#lib/paraglide/runtime'
@@ -29,7 +30,16 @@ export type Translation = { from: Locale; text: string }
 /** Why a post can't be translated right now. */
 export type TranslateRefusal = 'not_found' | 'same_language' | 'unavailable' | 'busy'
 
-type Deps = { enabled?: boolean; fetcher?: typeof fetch }
+type Deps = {
+	/** Whether Workers AI is set up; it translates Khmer, and everything when DeepL can't. */
+	enabled?: boolean
+	/** The DeepL key for English and Japanese; null for none. */
+	deepl?: string | null
+	fetcher?: typeof fetch
+}
+
+/** Whether "Translate post" can work at all: DeepL or Workers AI is set up. */
+export const translation_enabled = () => ai_enabled() || !!DEEPL_API_KEY
 
 const LANGUAGE_NAMES: Record<Locale, string> = { en: 'English', ja: 'Japanese', km: 'Khmer' }
 
@@ -128,18 +138,19 @@ type Result = { text: string } | { refusal: 'unavailable' | 'busy' }
 
 /**
  * The post's text in `to`, when the viewer may see the post. Translated once per post, edit and
- * language: this location's cache, then the `post_translation` table, and only then the model,
- * paid for from the day's `translate` budget.
+ * language: this location's cache, then the `post_translation` table, and only then a service:
+ * DeepL between English and Japanese, Workers AI for Khmer, for private accounts' posts, and
+ * whenever DeepL can't, paid for from the day's `translate` budget.
  */
 export async function translate_post(
 	db: Db,
 	viewer: string,
 	post_id: string,
 	to: Locale,
-	{ enabled = ai_enabled(), fetcher = fetch }: Deps = {},
+	{ enabled = ai_enabled(), deepl = DEEPL_API_KEY ?? null, fetcher = fetch }: Deps = {},
 ): Promise<Translation | TranslateRefusal> {
 	const [row] = await db
-		.select({ body: post.body, edited_at: post.editedAt })
+		.select({ body: post.body, edited_at: post.editedAt, is_private: profile.isPrivate })
 		.from(post)
 		.leftJoin(profile, eq(profile.userId, post.authorId))
 		.where(and(visible_posts(viewer), eq(post.id, post_id)))
@@ -148,14 +159,22 @@ export async function translate_post(
 	const from = guess_language(row.body)
 	if (!from || from === to) return 'same_language'
 
-	const job = { post_id, version: row.edited_at?.getTime() ?? 0, body: row.body, from, to }
+	const job = {
+		post_id,
+		version: row.edited_at?.getTime() ?? 0,
+		body: row.body,
+		from,
+		to,
+		// DeepL's free service may keep text to train on, so only posts anyone can see go there.
+		shareable: !row.is_private,
+	}
 	const key = `translate:${post_id}:${job.version}:${to}`
 	let running = pending.get(key)
 	if (!running) {
 		running = cached(
 			key,
 			CACHE_TTL,
-			() => stored_or_new(db, job, { enabled, fetcher }),
+			() => stored_or_new(db, job, { enabled, deepl, fetcher }),
 			(r) => 'text' in r,
 		)
 		pending.set(key, running)
@@ -165,7 +184,27 @@ export async function translate_post(
 	return 'text' in result ? { from, text: result.text } : result.refusal
 }
 
-type Job = { post_id: string; version: number; body: string; from: Locale; to: Locale }
+type Job = {
+	post_id: string
+	version: number
+	body: string
+	from: Locale
+	to: Locale
+	shareable: boolean
+}
+
+/** The pairs DeepL translates for us: English and Japanese, either way. Khmer it doesn't know. */
+const DEEPL_PAIRS = new Set(['en:ja', 'ja:en'])
+
+/** Whether this job goes to DeepL rather than Workers AI. */
+export const uses_deepl = (job: Pick<Job, 'from' | 'to' | 'shareable'>, deepl: string | null) =>
+	!!deepl &&
+	job.shareable &&
+	DEEPL_PAIRS.has(`${job.from}:${job.to}`) &&
+	Date.now() >= deepl_resting
+
+/** Until when to leave DeepL alone, after it said this month's characters are used up. */
+let deepl_resting = 0
 
 async function stored_or_new(db: Db, job: Job, deps: Required<Deps>): Promise<Result> {
 	const [stored] = await db
@@ -180,9 +219,13 @@ async function stored_or_new(db: Db, job: Job, deps: Required<Deps>): Promise<Re
 		)
 		.limit(1)
 	if (stored) return { text: stored.text }
-	if (!deps.enabled) return { refusal: 'unavailable' }
 
-	const text = await run(db, job, deps.fetcher)
+	const deepl = uses_deepl(job, deps.deepl) ? deps.deepl : null
+	if (!deepl && !deps.enabled) return { refusal: 'unavailable' }
+	// Workers AI steps in when DeepL fails, so a quota or outage doesn't stop translations.
+	const text =
+		(deepl ? await run_deepl(job, deepl, deps.fetcher) : undefined) ??
+		(deps.enabled ? await run(db, job, deps.fetcher) : undefined)
 	if (!text) return { refusal: 'busy' }
 	const row = { version: job.version, text, createdAt: new Date() }
 	try {
@@ -195,6 +238,41 @@ async function stored_or_new(db: Db, job: Job, deps: Required<Deps>): Promise<Re
 		console.error('Saving a translation failed', error)
 	}
 	return { text }
+}
+
+/** DeepL's answer to one translation request. */
+type DeeplAnswer = { translations?: { text?: unknown }[] }
+
+/** DeepL wants English as a region; its free keys go to their own host. */
+const DEEPL_TARGET: Record<Locale, string> = { en: 'EN-US', ja: 'JA', km: 'KM' }
+const deepl_host = (key: string) =>
+	key.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com'
+
+/** One call to DeepL; undefined when it fails, after which Workers AI is asked instead. */
+async function run_deepl(job: Job, key: string, fetcher: typeof fetch) {
+	const { text, links } = protect_links(job.body.slice(0, POST_MAX * 2))
+	try {
+		const response = await fetcher(`${deepl_host(key)}/v2/translate`, {
+			method: 'POST',
+			headers: { authorization: `DeepL-Auth-Key ${key}`, 'content-type': 'application/json' },
+			body: JSON.stringify({
+				text: [text],
+				source_lang: job.from.toUpperCase(),
+				target_lang: DEEPL_TARGET[job.to],
+			}),
+			signal: AbortSignal.timeout(10_000),
+		})
+		// 456: this month's characters are used up. Rest an hour rather than ask on every tap.
+		if (response.status === 456) deepl_resting = Date.now() + 60 * 60 * 1000
+		if (!response.ok) throw new Error(`DeepL ${response.status}`)
+		const answer = (await response.json()) as DeeplAnswer
+		const translated = answer.translations?.[0]?.text
+		if (typeof translated !== 'string' || !translated.trim()) return undefined
+		return restore_links(translated.trim(), links)
+	} catch (error) {
+		console.error('DeepL translation failed', error)
+		return undefined
+	}
 }
 
 /** One call to the model, within the day's budget; undefined when there's none left or it fails. */

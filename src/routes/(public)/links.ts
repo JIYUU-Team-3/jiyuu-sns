@@ -20,6 +20,7 @@ export const EXTERNAL_HREFS = {
 	giphy_privacy: 'https://giphy.com/privacy',
 	giphy_terms: 'https://giphy.com/terms',
 	komoot_privacy: 'https://www.komoot.com/privacy',
+	deepl_privacy: 'https://www.deepl.com/privacy',
 	osm: 'https://www.openstreetmap.org/copyright',
 	jsdelivr_privacy: 'https://www.jsdelivr.com/terms/privacy-policy',
 	wcag: 'https://www.w3.org/TR/WCAG22/',

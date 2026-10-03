@@ -2,8 +2,8 @@ import { redirect } from '@sveltejs/kit'
 import { localizeHref } from '#lib/paraglide/runtime'
 import type { Author } from '#lib/posts/types'
 import { account_image } from '#lib/server/account-image'
-import { ai_enabled } from '#lib/server/moderation/ai-client'
 import { find_profile } from '#lib/server/profiles'
+import { translation_enabled } from '#lib/server/translate'
 import { onboarding_href } from '../(public)/links'
 import type { LayoutServerLoad } from './$types'
 
@@ -37,7 +37,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		me,
 		own,
 		moderator: locals.standing?.role === 'moderator',
-		/** Whether "Translate post" can work: Workers AI is set up. */
-		translate: ai_enabled(),
+		/** Whether "Translate post" can work: DeepL or Workers AI is set up. */
+		translate: translation_enabled(),
 	}
 }

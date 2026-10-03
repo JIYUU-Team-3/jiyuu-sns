@@ -37,6 +37,7 @@
 	<p><RichText parts={m.privacy_providers.parts()} hrefs={EXTERNAL_HREFS} /></p>
 	<p><RichText parts={m.privacy_providers_giphy.parts()} hrefs={EXTERNAL_HREFS} /></p>
 	<p><RichText parts={m.privacy_providers_places.parts()} hrefs={EXTERNAL_HREFS} /></p>
+	<p><RichText parts={m.privacy_providers_translate.parts()} hrefs={EXTERNAL_HREFS} /></p>
 	<p><RichText parts={m.privacy_providers_emoji.parts()} hrefs={EXTERNAL_HREFS} /></p>
 	<p>
 		<RichText
