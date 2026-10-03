@@ -25,6 +25,7 @@
 		get_conversation,
 		get_messages,
 		leave_conversation,
+		live_ticket,
 		mark_conversation_read,
 		react_to_message,
 		send_message,
@@ -153,7 +154,7 @@
 
 	$effect(() => {
 		const room = id
-		const connection = untrack(() => connect_live(room, onlive))
+		const connection = untrack(() => connect_live(room, () => live_ticket(room), onlive))
 		live = connection
 		return () => {
 			connection.close()

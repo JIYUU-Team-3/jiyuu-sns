@@ -311,3 +311,50 @@ test('a message is seen only once the reader comes back to the chat @writes', as
 
 	await bob_context.close()
 })
+
+test('the message list and tab badge update the moment a message arrives @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dmu_${id}`
+	const bob = `e2e_dmv_${id}`
+	const first = `Earlier ${id}`
+	const second = `Right now ${id}`
+
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await sign_up(page, alice)
+	await sign_up(bob_page, bob)
+	await follow(page, bob)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
+	await bob_page.getByLabel('Message', { exact: true }).fill(first)
+	await bob_page.keyboard.press('Enter')
+	await stored
+	await page.goto(bob_page.url())
+	await expect(bob_page.locator('.msg', { hasText: first }).getByText('Seen')).toBeVisible({
+		timeout: 15_000,
+	})
+
+	const inbox = page.waitForEvent('websocket', (socket) => socket.url().includes('/live/inbox'))
+	await page.goto('/messages')
+	await inbox
+	const before_poll = Date.now() + 9_000
+	const in_time = () => ({ timeout: Math.max(1, before_poll - Date.now()) })
+	const nav = page.locator('nav.side')
+	await expect(page.getByRole('link', { name: new RegExp(first) })).toBeVisible()
+	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
+	await page.waitForLoadState('networkidle')
+
+	await bob_page.getByLabel('Message', { exact: true }).fill(second)
+	await bob_page.keyboard.press('Enter')
+	await expect(page.getByRole('link', { name: new RegExp(second) })).toBeVisible(in_time())
+	await expect(nav.getByRole('link', { name: /Messages.*1 unread/ })).toBeVisible(in_time())
+
+	await bob_context.close()
+})
