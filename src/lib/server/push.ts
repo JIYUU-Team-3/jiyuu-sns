@@ -99,6 +99,8 @@ type Event = {
 	actor_id: string
 	type: Exclude<NotificationType, 'moderation'>
 	post_id?: string
+	conversation_id?: string
+	group_name?: string
 }
 
 const TITLES = {
@@ -110,6 +112,21 @@ const TITLES = {
 	repost: m.push_repost,
 	quote: m.push_quote,
 } as const
+
+/** A group with no name of its own is "a group". */
+const GROUP_TITLES = {
+	group_add: { named: m.push_group_add, unnamed: m.push_group_add_unnamed },
+	group_remove: { named: m.push_group_remove, unnamed: m.push_group_remove_unnamed },
+} as const
+
+function title(event: Event, name: string, locale: Locale) {
+	if (event.type !== 'group_add' && event.type !== 'group_remove')
+		return TITLES[event.type]({ name }, { locale })
+	const titles = GROUP_TITLES[event.type]
+	return event.group_name
+		? titles.named({ name, group: event.group_name }, { locale })
+		: titles.unnamed({ name }, { locale })
+}
 
 async function readable(db: Db, events: Event[]) {
 	const wanted = new Map<string, Set<string>>()
@@ -201,7 +218,11 @@ export async function push_notifications(db: Db, all: Event[]) {
 						? actor.handle
 							? `/u/${encodeURIComponent(actor.handle)}`
 							: '/notifications'
-						: `/p/${encodeURIComponent(event.post_id ?? '')}`
+						: event.type === 'group_add'
+							? `/messages/${encodeURIComponent(event.conversation_id ?? '')}`
+							: event.type === 'group_remove'
+								? '/notifications'
+								: `/p/${encodeURIComponent(event.post_id ?? '')}`
 			return subscriptions
 				.filter((subscription) => subscription.userId === event.user_id)
 				.map((subscription) => {
@@ -209,14 +230,14 @@ export async function push_notifications(db: Db, all: Event[]) {
 					return {
 						subscription,
 						message: {
-							title: TITLES[event.type]({ name: actor.name }, { locale }),
+							title: title(event, actor.name, locale),
 							faces: [face(actor)],
 							body: body ? snippet(body) : undefined,
 							url: localizeHref(path, { locale }),
 							tag:
 								event.type === 'like' || event.type === 'repost'
 									? `${event.type}:${event.post_id}`
-									: `${event.type}:${event.actor_id}:${event.post_id ?? ''}`,
+									: `${event.type}:${event.actor_id}:${event.post_id ?? event.conversation_id ?? ''}`,
 						},
 					}
 				})

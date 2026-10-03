@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
+	import { conversation_href } from '#lib/messages/links'
 	import { m } from '#lib/paraglide/messages.js'
 	import { getLocale } from '#lib/paraglide/runtime'
 	import { format_age, format_timestamp } from '#lib/posts/format'
@@ -17,6 +18,10 @@
 
 	const href = $derived.by(() => {
 		if (item.type === 'follow_request') return privacy_href()
+		if (item.type === 'group_add' || item.type === 'group_remove')
+			return item.type === 'group_add' && item.group?.id
+				? conversation_href(item.group.id)
+				: undefined
 		if (item.type === 'follow')
 			return item.actor.handle ? profile_href(item.actor.handle) : undefined
 		return item.post_id ? post_href(item.post_id) : undefined
@@ -27,10 +32,18 @@
 		repost: { message: m.notifications_repost, icon: 'repost', filled: false },
 		follow: { message: m.notifications_follow, icon: 'user', filled: true },
 		follow_request: { message: m.notifications_follow_request, icon: 'user', filled: true },
+		// A group with no name of its own gets the `_unnamed` wording instead; see `parts`.
+		group_add: { message: m.notifications_group_add_unnamed, icon: 'mail-plus', filled: false },
+		group_remove: { message: m.notifications_group_remove_unnamed, icon: 'mail', filled: false },
 	} as const
 
 	const line = $derived(LINES[item.type as keyof typeof LINES] ?? LINES.follow)
-	const message = $derived(line.message)
+	const parts = $derived.by(() => {
+		const group = item.group?.name
+		if (group && item.type === 'group_add') return m.notifications_group_add.parts({ group })
+		if (group && item.type === 'group_remove') return m.notifications_group_remove.parts({ group })
+		return line.message.parts({})
+	})
 
 	/** A moderator's action, told without naming the moderator: the post page has the details. */
 	const moderation_text = $derived.by(() => {
@@ -84,7 +97,7 @@
 				<Avatar name={item.actor.name} seed={item.actor.id} image={item.actor.image} size={32} />
 			{/if}
 			<p class="n-text">
-				{#each message.parts() as part, i (i)}
+				{#each parts as part, i (i)}
 					{#if part.type === 'text'}{part.value}{:else if part.name === 'name'}{#if href}<a
 								class="nm"
 								{href}>{item.actor.name}</a
@@ -128,9 +141,11 @@
 		color: var(--repost);
 	}
 	.n-ico.follow,
-	.n-ico.follow_request {
+	.n-ico.follow_request,
+	.n-ico.group_add {
 		color: var(--accent-text);
 	}
+	.n-ico.group_remove,
 	.n-ico.moderation {
 		color: var(--text-2);
 	}

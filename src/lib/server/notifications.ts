@@ -9,7 +9,8 @@ import {
 } from '#lib/notifications/types'
 import { shown_image } from './account-image'
 import type { getDb } from './db'
-import { appeal, moderationAction, notification, profile, user } from './db/schema'
+import { chunks } from './db/chunks'
+import { appeal, conversation, moderationAction, notification, profile, user } from './db/schema'
 import { is_rule } from '#lib/moderation/rules'
 import { find_posts } from './posts'
 import { push_notifications } from './push'
@@ -25,7 +26,13 @@ type NewNotification = {
 	/** Moderation notices are written by `server/moderation/posts.ts`, without a push. */
 	type: Exclude<NotificationType, 'moderation'>
 	post_id?: string
+	/** For `group_add` and `group_remove`: the group, and what it was called then. */
+	conversation_id?: string
+	group_name?: string
 }
+
+/** Each row binds seven values, and D1 takes 100 per statement. */
+const ROWS_PER_INSERT = 10
 
 /** Record notifications, skipping any about your own action, and push them to their browsers. */
 export async function notify(db: Db, rows: NewNotification[]) {
@@ -33,14 +40,18 @@ export async function notify(db: Db, rows: NewNotification[]) {
 	const quiet = await silenced(db, others)
 	const events = others.filter((row) => !quiet.has(`${row.user_id}:${row.actor_id}`))
 	if (!events.length) return
-	await db.insert(notification).values(
-		events.map((row) => ({
-			userId: row.user_id,
-			actorId: row.actor_id,
-			type: row.type,
-			postId: row.post_id ?? null,
-		})),
-	)
+	for (const rows of chunks(events, ROWS_PER_INSERT)) {
+		await db.insert(notification).values(
+			rows.map((row) => ({
+				userId: row.user_id,
+				actorId: row.actor_id,
+				type: row.type,
+				postId: row.post_id ?? null,
+				conversationId: row.conversation_id ?? null,
+				groupName: row.group_name ?? null,
+			})),
+		)
+	}
 	// Pushes go out after the response, so a slow push service never delays a like or a post.
 	waitUntil(
 		not_just_pushed(events)
@@ -49,15 +60,63 @@ export async function notify(db: Db, rows: NewNotification[]) {
 	)
 }
 
+const GROUP_TYPES = ['group_add', 'group_remove'] as const
+
+/** Few enough ids that the block lookup in `notify` stays under D1's 100 parameters. */
+const GROUP_USERS_PER_NOTIFY = 30
+
+/**
+ * Tell `user_ids` that `actor_id` put them in a group chat, or took them out of it. Whatever was
+ * said before about them and that group is replaced, so adding and removing someone over and
+ * over leaves one line. The caller has already made the change, and so checked the actor's right
+ * to make it; a direct chat has nobody to add or remove, and notifies nobody.
+ */
+export async function notify_group(
+	db: Db,
+	actor_id: string,
+	conversation_id: string,
+	type: (typeof GROUP_TYPES)[number],
+	user_ids: string[],
+) {
+	const [group] = await db
+		.select({ name: conversation.name })
+		.from(conversation)
+		.where(and(eq(conversation.id, conversation_id), eq(conversation.isGroup, true)))
+		.limit(1)
+	if (!group) return
+	for (const ids of chunks([...new Set(user_ids)], GROUP_USERS_PER_NOTIFY)) {
+		await db
+			.delete(notification)
+			.where(
+				and(
+					inArray(notification.userId, ids),
+					eq(notification.conversationId, conversation_id),
+					inArray(notification.type, [...GROUP_TYPES]),
+				),
+			)
+		await notify(
+			db,
+			ids.map((user_id) => ({
+				user_id,
+				actor_id,
+				type,
+				conversation_id,
+				group_name: group.name ?? undefined,
+			})),
+		)
+	}
+}
+
 /** How long the same like, repost or follow stays quiet after it was pushed once. */
 const REPEAT_QUIET_SECONDS = 60 * 60
 
 /**
  * Likes, reposts and follows can be undone and redone, and each redo is a new notification.
  * Pushing every one would let someone buzz a phone by toggling a like, so the same one is pushed
- * once an hour at most; the list still shows it.
+ * once an hour at most; the list still shows it. Adding someone to a group and removing them
+ * again is the same kind of toggle.
  */
-const TOGGLED: NotificationType[] = ['like', 'repost', 'follow']
+const TOGGLED: NotificationType[] = ['like', 'repost', 'follow', ...GROUP_TYPES]
 
 async function not_just_pushed(events: NewNotification[]) {
 	const kv: KVNamespace | undefined = env.KV
@@ -65,7 +124,7 @@ async function not_just_pushed(events: NewNotification[]) {
 	const fresh: NewNotification[] = []
 	for (const event of events) {
 		if (TOGGLED.includes(event.type)) {
-			const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? ''}`
+			const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? event.conversation_id ?? ''}`
 			if (await kv.get(key)) continue
 			await kv.put(key, '1', { expirationTtl: REPEAT_QUIET_SECONDS })
 		}
@@ -144,6 +203,12 @@ export async function notifications_page(
 			post_body: sql<
 				string | null
 			>`(select p.body from post p where p.id = ${notification.postId})`,
+			// Only someone still in the group gets a way into it.
+			conversation_id: sql<string | null>`(
+				select cm.conversation_id from conversation_member cm
+				where cm.conversation_id = ${notification.conversationId} and cm.user_id = ${user_id}
+			)`,
+			group_name: notification.groupName,
 			action: moderationAction.action,
 			reason: moderationAction.reason,
 			review: appeal.status,
@@ -194,6 +259,10 @@ export async function notifications_page(
 				post_id: row.post_id ?? undefined,
 				snippet: CARD_TYPES.includes(row.type) ? undefined : (row.post_body ?? undefined),
 				post,
+				group:
+					row.type === 'group_add' || row.type === 'group_remove'
+						? { id: row.conversation_id ?? undefined, name: row.group_name ?? undefined }
+						: undefined,
 				moderation:
 					row.type === 'moderation' &&
 					(row.action === 'remove' || row.action === 'limit' || row.action === 'restore')

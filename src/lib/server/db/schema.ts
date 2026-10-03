@@ -364,6 +364,8 @@ export const notification = sqliteTable(
 				'quote',
 				'moderation',
 				'follow_request',
+				'group_add',
+				'group_remove',
 			],
 		}).notNull(),
 		// The liked or reposted post, or the reply, mention or quote itself. Null for a follow.
@@ -372,6 +374,12 @@ export const notification = sqliteTable(
 		actionId: text('action_id').references((): AnySQLiteColumn => moderationAction.id, {
 			onDelete: 'cascade',
 		}),
+		/** For `group_add` and `group_remove`: the group chat the reader was put in or taken out of. */
+		conversationId: text('conversation_id').references((): AnySQLiteColumn => conversation.id, {
+			onDelete: 'cascade',
+		}),
+		/** The group's name at that moment; someone removed never learns what it is called later. */
+		groupName: text('group_name'),
 		readAt: integer('read_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
 	},
