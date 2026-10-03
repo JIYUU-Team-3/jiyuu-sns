@@ -516,7 +516,10 @@
 	}
 	.typers :global(.av + .av) {
 		margin-left: -10px;
-		box-shadow: 0 0 0 2px var(--bg);
+	}
+	/* Cut a 2px gap out of each photo where the next overlaps it. Next centre: 38px, 16px. */
+	.typers :global(.av:not(:last-child)) {
+		mask: radial-gradient(circle at 38px 16px, transparent 17.5px, #000 18px);
 	}
 	.dots {
 		display: flex;
