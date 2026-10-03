@@ -19,8 +19,11 @@ export const desktop = new MediaQuery(DESKTOP, false)
 function clip_siblings(bar: Element, edge: number, clipped: Set<HTMLElement>) {
 	for (let el = bar.nextElementSibling; el; el = el.nextElementSibling) {
 		if (!(el instanceof HTMLElement)) continue
-		const top = Math.max(0, edge - el.getBoundingClientRect().top)
-		if (!top) continue
+		const top = edge - el.getBoundingClientRect().top
+		// Content that rises above its box (the profile's avatar) opts in with how far, so the part
+		// under the bar is clipped too; the clip then reaches that far up and no further.
+		const rise = Number(el.dataset.clipRise) || 0
+		if (top <= 0 && -top >= rise) continue
 		el.style.clipPath = `inset(${top}px 0 0 0)`
 		clipped.add(el)
 	}

@@ -34,7 +34,7 @@
 			</button>
 		{/if}
 	</div>
-	<div class="banner">
+	<div class="banner" data-morph="banner">
 		{#if shown}<img src={shown} alt="" />{/if}
 		<button
 			type="button"

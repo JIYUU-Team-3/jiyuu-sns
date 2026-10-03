@@ -58,7 +58,7 @@
 		{#if profile.banner}<img src={profile.banner} alt="" />{/if}
 	</div>
 </div>
-<section class="top">
+<section class="top" data-clip-rise="80">
 	<div class="head">
 		<span class="ring" data-morph="avatar">
 			<Avatar name={profile.name} seed={profile.id} image={profile.image} size={134} />

@@ -13,6 +13,7 @@ export const user_fields = (viewer: string | undefined) => ({
 	handle: profile.handle,
 	name: profile.displayName,
 	bio: profile.bio,
+	location: profile.location,
 	image: shown_image,
 	moderator: is_moderator(profile.userId),
 	followed: viewer
@@ -37,6 +38,7 @@ type UserRow = Awaited<ReturnType<ReturnType<typeof select_users>['execute']>>[n
 
 export const to_user = (row: UserRow, viewer: string | undefined): UserView => ({
 	...row,
+	location: row.location || undefined,
 	image: row.image ?? undefined,
 	moderator: row.moderator ? true : undefined,
 	followed: !!row.followed,
