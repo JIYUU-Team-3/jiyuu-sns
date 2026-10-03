@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { DEEPL_API_KEY } from '$app/env/private'
 import { guess_language } from '#lib/posts/language'
+import { accent_ranges } from '#lib/posts/text'
 import { POST_MAX } from '#lib/posts/rules'
 import type { Locale } from '#lib/paraglide/runtime'
 import { cached } from './cache'
@@ -58,16 +59,22 @@ export function translate_estimate(body: string) {
 	)
 }
 
-const LINK = /https?:\/\/\S+/g
-
 /**
- * Links swapped for numbered markers, so the model neither pays for nor rewrites them, and
- * `restore_links` to put them back. A marker the model dropped gets its link added at the end.
+ * Links, #tags and @handles swapped for numbered markers, so they're neither paid for nor
+ * rewritten: `#天気` must stay `#天気` to still find that tag. Found as the post itself draws them
+ * (`accent_ranges`); `restore_links` puts them back, adding at the end any marker that was dropped.
  */
 export function protect_links(body: string) {
 	const links: string[] = []
-	const text = body.replace(LINK, (link) => `⟦${links.push(link)}⟧`)
-	return { text, links }
+	let text = ''
+	let at = 0
+	for (const [start, end] of accent_ranges(body)) {
+		// A `#` or `@` inside a link is part of the link, as when the post is drawn.
+		if (start < at) continue
+		text += `${body.slice(at, start)}⟦${links.push(body.slice(start, end))}⟧`
+		at = end
+	}
+	return { text: text + body.slice(at), links }
 }
 
 export function restore_links(text: string, links: string[]) {

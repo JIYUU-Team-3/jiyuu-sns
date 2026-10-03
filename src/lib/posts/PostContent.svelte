@@ -45,14 +45,18 @@
 {/if}
 
 {#if content.body}
-	<div class="text" class:focus>
-		<PostText
-			body={content.body}
-			blocked={post.blocked_hosts}
-			out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
-		/>
-	</div>
-	{#if !post.moderation}<PostTranslation id={post.id} body={content.body} />{/if}
+	<!-- "Translate post" swaps the text for its translation in place, and back. -->
+	<PostTranslation id={post.id} body={content.body} offer={!post.moderation}>
+		{#snippet text(body, lang)}
+			<div class="text" class:focus {lang}>
+				<PostText
+					{body}
+					blocked={post.blocked_hosts}
+					out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
+				/>
+			</div>
+		{/snippet}
+	</PostTranslation>
 {/if}
 {#if covered}
 	<!-- The media is there, blurred past recognising and out of reach, with the notice over it. -->

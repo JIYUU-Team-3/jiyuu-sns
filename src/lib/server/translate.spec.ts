@@ -137,6 +137,12 @@ describe('translation helpers', () => {
 		)
 	})
 
+	it('keeps #tags and @handles as written, so they still lead to the same place', () => {
+		const { text, links } = protect_links('今日は雨 #天気 @sora_k 見て')
+		expect(text).toBe('今日は雨 ⟦1⟧ ⟦2⟧ 見て')
+		expect(restore_links('Rainy today ⟦1⟧ ⟦2⟧ look', links)).toBe('Rainy today #天気 @sora_k look')
+	})
+
 	it('takes only the translation from the answer', () => {
 		const answer = (content: string) => ({ choices: [{ message: { content } }] })
 		const parse = (content: string) => parse_translation(answer(content), 'こんにちは', 'en')

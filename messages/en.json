@@ -764,6 +764,7 @@
 	"post_translating": "Translating…",
 	"post_translated_from": "Translated from {language}",
 	"post_show_original": "Show original",
+	"post_show_translation": "Show translation",
 	"post_translate_failed": "Couldn’t translate this post. Try again later.",
 	"language_en": "English",
 	"language_ja": "Japanese",

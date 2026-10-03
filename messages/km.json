@@ -764,6 +764,7 @@
 	"post_translating": "កំពុងបកប្រែ…",
 	"post_translated_from": "បានបកប្រែពី{language}",
 	"post_show_original": "បង្ហាញអត្ថបទដើម",
+	"post_show_translation": "បង្ហាញការបកប្រែ",
 	"post_translate_failed": "មិនអាចបកប្រែការបង្ហោះនេះបានទេ។ សូមព្យាយាមម្តងទៀតនៅពេលក្រោយ។",
 	"language_en": "ភាសាអង់គ្លេស",
 	"language_ja": "ភាសាជប៉ុន",

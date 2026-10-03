@@ -764,6 +764,7 @@
 	"post_translating": "翻訳中…",
 	"post_translated_from": "{language}から翻訳",
 	"post_show_original": "原文を表示",
+	"post_show_translation": "翻訳を表示",
 	"post_translate_failed": "このポストを翻訳できませんでした。しばらくしてからもう一度お試しください。",
 	"language_en": "英語",
 	"language_ja": "日本語",
