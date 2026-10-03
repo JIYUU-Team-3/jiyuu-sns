@@ -644,6 +644,25 @@ export const mediaCheck = sqliteTable('media_check', {
 	createdAt: created_at(),
 })
 
+/**
+ * A post's text translated into one language, so it's paid for once, not once per reader. Keyed by
+ * post and language; `version` is the post's edit time when it was translated (0 if never
+ * edited), and a newer edit overwrites the row instead of piling up old ones.
+ */
+export const postTranslation = sqliteTable(
+	'post_translation',
+	{
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		language: text('language').notNull(),
+		version: integer('version').notNull(),
+		text: text('text').notNull(),
+		createdAt: created_at(),
+	},
+	(table) => [primaryKey({ columns: [table.postId, table.language] })],
+)
+
 /** Neurons the automatic checks spent each UTC day, by kind, against `server/moderation/budget.ts`. */
 export const aiUsage = sqliteTable('ai_usage', {
 	/** `YYYY-MM-DD`, UTC, as Workers AI counts its free allocation. */

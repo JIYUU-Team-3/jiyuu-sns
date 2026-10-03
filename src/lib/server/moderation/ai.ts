@@ -7,7 +7,8 @@
 /** The models, with their prices in dollars per million tokens (Workers AI's published rates). */
 export const MODELS = {
 	text: { id: '@cf/meta/llama-guard-3-8b', input: 0.484, output: 0.03 },
-	translate: { id: '@cf/meta/m2m100-1.2b', input: 0.342, output: 0.342 },
+	// Translates posts on request. Far better than m2m100 at everyday Japanese, and cheaper.
+	translate: { id: '@cf/qwen/qwen3-30b-a3b-fp8', input: 0.0509, output: 0.335 },
 	image: { id: '@cf/meta/llama-3.2-11b-vision-instruct', input: 0.0485, output: 0.676 },
 } as const
 
