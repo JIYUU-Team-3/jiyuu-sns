@@ -7,7 +7,14 @@
 	import Menu from '#lib/ui/Menu.svelte'
 	import type { ProfileView } from './types'
 
-	let { profile }: { profile: ProfileView } = $props()
+	let {
+		profile,
+		plain = false,
+	}: {
+		profile: ProfileView
+		/** No outline, as in the phone's top bar. */
+		plain?: boolean
+	} = $props()
 
 	let blocking = $state(false)
 	let reporting = $state(false)
@@ -16,10 +23,16 @@
 	const person = $derived({ id: profile.id, handle: profile.handle })
 </script>
 
-<Menu label={m.profile_more()}>
+<Menu label={m.profile_more()} compact>
 	{#snippet trigger(props)}
-		<button type="button" class="icon-btn more" aria-label={m.profile_more()} {...props}>
-			<Icon name="more" size="sm" />
+		<button
+			type="button"
+			class="icon-btn more"
+			class:plain
+			aria-label={m.profile_more()}
+			{...props}
+		>
+			<Icon name="more" size={plain ? 'md' : 'sm'} />
 		</button>
 	{/snippet}
 	{#snippet children(close)}
@@ -83,7 +96,7 @@
 {/if}
 
 <style>
-	.more {
+	.more:not(.plain) {
 		border: 1px solid var(--line-2);
 	}
 </style>

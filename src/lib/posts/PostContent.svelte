@@ -3,10 +3,12 @@
 	import { settings_href } from '#lib/settings/links'
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
+	import { place_key } from '#lib/search/place'
 	import { out_href, search_href } from './links'
 	import Poll from './Poll.svelte'
 	import PostMedia from './PostMedia.svelte'
 	import PostText from './PostText.svelte'
+	import PostTranslation from './PostTranslation.svelte'
 	import QuoteCard from './QuoteCard.svelte'
 	import { post_content } from './state.svelte'
 	import type { PostView } from './types'
@@ -43,13 +45,18 @@
 {/if}
 
 {#if content.body}
-	<div class="text" class:focus>
-		<PostText
-			body={content.body}
-			blocked={post.blocked_hosts}
-			out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
-		/>
-	</div>
+	<!-- "Translate post" swaps the text for its translation in place, and back. -->
+	<PostTranslation id={post.id} body={content.body} offer={!post.moderation}>
+		{#snippet text(body, lang)}
+			<div class="text" class:focus {lang}>
+				<PostText
+					{body}
+					blocked={post.blocked_hosts}
+					out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
+				/>
+			</div>
+		{/snippet}
+	</PostTranslation>
 {/if}
 {#if covered}
 	<!-- The media is there, blurred past recognising and out of reach, with the notice over it. -->
@@ -75,7 +82,7 @@
 {#if post.poll}<Poll post_id={post.id} poll={post.poll} mine={post.mine} />{/if}
 {#if post.quote}<QuoteCard quote={post.quote} />{/if}
 {#if post.location}
-	<a class="place" href={search_href(post.location)}>
+	<a class="place" href={search_href(place_key(post.location))}>
 		<Icon name="pin" size="xs" />{post.location}
 	</a>
 {/if}

@@ -278,13 +278,18 @@ export async function check_upload(db: Db, deps: CheckDeps, user_id: string, url
 }
 
 /**
- * Check a profile after it's saved: the bio's text, and the photo and banner, which show on every
+ * Check a profile after it's saved: the bio's and location's text, and the photo and banner, which show on every
  * post. A profile can't be hidden, so findings only raise its case.
  */
 export async function check_profile(db: Db, deps: CheckDeps, user_id: string) {
 	if (!deps.enabled) return
 	const [row] = await db
-		.select({ bio: profile.bio, avatar: profile.avatarUrl, banner: profile.bannerUrl })
+		.select({
+			bio: profile.bio,
+			location: profile.location,
+			avatar: profile.avatarUrl,
+			banner: profile.bannerUrl,
+		})
 		.from(profile)
 		.where(eq(profile.userId, user_id))
 		.limit(1)
@@ -292,8 +297,10 @@ export async function check_profile(db: Db, deps: CheckDeps, user_id: string) {
 	const limited = is_limited(await trust_level(db, user_id))
 	const target = { kind: 'profile' as const, id: user_id, user_id }
 
-	if (is_english(row.bio)) {
-		const answer = await ask(db, deps, 'text', 'text', guard_input(row.bio), limited)
+	// One check for both, as they show together under the name.
+	const text = [row.bio, row.location].filter(Boolean).join('\n')
+	if (is_english(text)) {
+		const answer = await ask(db, deps, 'text', 'text', guard_input(text), limited)
 		const verdict = answer && parse_guard(answer.response)
 		if (verdict && !verdict.safe) {
 			const reason = verdict.categories.map((code) => GUARD_RULES[code]).find(Boolean)

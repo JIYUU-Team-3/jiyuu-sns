@@ -51,6 +51,11 @@ export const variables = defineEnvVars({
 			'An API token with Workers AI Read and Edit, for the automatic moderation checks. Optional; deleting the Worker secret turns the checks off without a deploy.',
 		schema: (value) => value || undefined,
 	},
+	DEEPL_API_KEY: {
+		description:
+			'DeepL API key for translating posts between English and Japanese. Optional: without it those go through Workers AI like Khmer does. A Free key ends in `:fx`. See [DeepL API](https://www.deepl.com/pro-api).',
+		schema: (value) => value || undefined,
+	},
 	GIPHY_API_KEY: {
 		description:
 			'GIPHY API key for the composer’s GIF picker. Optional: without it the picker says GIFs are unavailable. See [GIPHY developers](https://developers.giphy.com/).',

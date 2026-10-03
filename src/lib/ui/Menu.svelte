@@ -12,12 +12,15 @@
 	let {
 		label,
 		placement = 'cover',
+		compact = false,
 		class: klass = '',
 		trigger,
 		children,
 	}: {
 		label: string
 		placement?: 'cover' | 'cover-start' | 'above'
+		/** As wide as its items, as X's Repost and Quote menu, instead of a fixed minimum. */
+		compact?: boolean
 		class?: string
 		/** The button that opens the menu; spread the props onto it. */
 		trigger: Snippet<[TriggerProps]>
@@ -84,6 +87,7 @@
 	{#if open}
 		<div
 			class="pop {placement}"
+			class:compact
 			role="menu"
 			aria-label={label}
 			tabindex="-1"
@@ -113,6 +117,10 @@
 		overflow-y: auto;
 		animation: popin 0.16s var(--ease-out);
 		cursor: default;
+	}
+	.compact {
+		min-width: 0;
+		width: max-content;
 	}
 	.cover {
 		top: 0;
@@ -146,6 +154,9 @@
 		text-align: left;
 		white-space: nowrap;
 		transition: background-color 0.12s;
+	}
+	.compact :global(.menu-item) {
+		padding: 12px 24px 12px 16px;
 	}
 	.pop :global(.menu-item:hover),
 	.pop :global(.menu-item:focus-visible) {

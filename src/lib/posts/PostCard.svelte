@@ -94,7 +94,12 @@
 <!-- The timestamp link is the keyboard path to the post; the row click is a pointer shortcut. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <article class="post" class:has-next={thread_below} class:bare onclick={open}>
-	{#if reposter}
+	{#if post.pin_top}
+		<div class="ctx">
+			<span class="ctx-ico"><Icon name="pushpin" size="xs" /></span>
+			<span>{m.post_pinned()}</span>
+		</div>
+	{:else if reposter}
 		<div class="ctx">
 			<span class="ctx-ico"><Icon name="repost" size="xs" /></span>
 			{#if reposter.handle}

@@ -40,3 +40,29 @@ export function format_month_year(time: number, locale: string): string {
 		timeZone: 'UTC',
 	}).format(time)
 }
+
+/** The twelve month names in `locale`, January first. Khmer by hand, as above. */
+export function month_names(locale: string): string[] {
+	if (locale === 'km') return KHMER_MONTHS
+	const format = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' })
+	return Array.from({ length: 12 }, (_, i) => format.format(Date.UTC(2000, i, 1)))
+}
+
+/**
+ * A birthday in `locale`: month and day, e.g. `March 5`, or with the year when it's shown.
+ * Khmer by hand, as above, in CLDR's `d MMMM` order.
+ */
+export function format_birthday(
+	birthday: { month: number; day: number; year?: number },
+	locale: string,
+): string {
+	const { month, day, year } = birthday
+	if (locale === 'km') return [day, KHMER_MONTHS[month - 1], year].filter(Boolean).join(' ')
+	const time = Date.UTC(year ?? 2000, month - 1, day)
+	return new Intl.DateTimeFormat(locale, {
+		month: 'long',
+		day: 'numeric',
+		...(year !== undefined && { year: 'numeric' }),
+		timeZone: 'UTC',
+	}).format(time)
+}

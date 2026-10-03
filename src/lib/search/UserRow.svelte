@@ -6,6 +6,7 @@
 	import { profile_href } from '#lib/profiles/links'
 	import { set_follow } from '#lib/profiles/profiles.remote'
 	import Avatar from '#lib/ui/Avatar.svelte'
+	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
 	import type { UserView } from './types'
@@ -64,6 +65,9 @@
 					>{m.follow_follows_you()}</span
 				>{/if}
 		</div>
+		{#if user.location}
+			<div class="loc"><Icon name="pin" size="xs" /><span>{user.location}</span></div>
+		{/if}
 		{#if show_bio && user.bio}<p class="bio">{user.bio}</p>{/if}
 	</div>
 	{@render menu?.()}
@@ -127,6 +131,20 @@
 		background: var(--bg-3);
 		border-radius: 4px;
 		padding: 1px 6px;
+		white-space: nowrap;
+	}
+	.loc {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 2px;
+		color: var(--text-2);
+		font-size: 13px;
+		min-width: 0;
+	}
+	.loc span {
+		overflow: hidden;
+		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.bio {

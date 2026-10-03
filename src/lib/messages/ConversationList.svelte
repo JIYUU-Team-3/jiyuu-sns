@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
+	import { onMount, untrack } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
@@ -7,7 +7,7 @@
 	import { conversations_arg } from './args'
 	import ConversationPage from './ConversationPage.svelte'
 	import { get_conversations } from './messages.remote'
-	import { new_message } from './state.svelte'
+	import { inbox, new_message } from './state.svelte'
 
 	let { active }: { active?: string } = $props()
 
@@ -21,9 +21,19 @@
 
 	onMount(() => {
 		const timer = setInterval(() => {
-			if (document.visibilityState === 'visible') get_conversations(conversations_arg()).refresh()
+			if (document.visibilityState === 'visible' && !inbox.open)
+				get_conversations(conversations_arg()).refresh()
 		}, 10_000)
 		return () => clearInterval(timer)
+	})
+
+	$effect(() => {
+		if (!inbox.changes) return
+		untrack(() => {
+			get_conversations(conversations_arg())
+				.refresh()
+				.catch(() => {})
+		})
 	})
 </script>
 

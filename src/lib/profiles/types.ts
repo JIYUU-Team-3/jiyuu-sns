@@ -1,11 +1,15 @@
 import type { Author } from '#lib/posts/types'
 import type { UserView } from '#lib/search/types'
+import type { Birthday } from './details'
 
 export type ProfileView = Author & {
 	handle: string
 	bio: string
 	/** A `/media/…` URL, or undefined for the plain fallback. */
 	banner?: string
+	location?: string
+	/** As much of the birthday as the viewer may see; undefined when it's hidden or not given. */
+	birthday?: Birthday
 	/** When the account was created, in milliseconds since the epoch. */
 	joined: number
 	/** Top-level posts only, matching the Posts tab. */

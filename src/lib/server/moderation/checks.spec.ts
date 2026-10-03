@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { aiUsage, mediaCheck, moderationCase, post, postMedia, user } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
+import { DAILY_NEURONS } from './ai'
 import { check_post, check_upload, sensitive_uploads, type CheckDeps } from './checks'
 
 let db: TestDb
@@ -117,7 +118,7 @@ describe('check_post', () => {
 		await add_post('p', 'newbie', 'Some English words to check')
 		expect(await check_post(db, deps(workers_ai('', undefined, 4006)), 'p')).toBe('unchecked')
 		const [usage] = await db.select().from(aiUsage)
-		expect(usage.text).toBeGreaterThan(5000)
+		expect(usage.text).toBe(DAILY_NEURONS.text)
 	})
 
 	it('gives back the reservation when a call fails for another reason', async () => {

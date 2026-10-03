@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, inArray, ne, notExists, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, ne, notExists, or, sql, type SQLWrapper } from 'drizzle-orm'
 import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
+import { PLACE_MIN, place_key } from '#lib/search/place'
 import type { TagView, UserView } from '#lib/search/types'
 import type { getDb } from './db'
 import { follow, post, postTag, profile } from './db/schema'
@@ -36,7 +37,20 @@ const contains = (text: string) => `%${escape_like(text)}%`
 const tag_shown = sql`exists(select 1 from post p where p.id = ${postTag.postId} and p.moderation = 'visible')`
 const starts_with = (text: string) => `${escape_like(text)}%`
 
-/** `#svelte` searches that tag exactly; anything else searches post text. */
+/**
+ * Whether `column` names the place in `q`, either way round: the stored place contains the query
+ * (`Phnom Penh` finds `Phnom Penh Municipality`), or the query contains the stored place's first
+ * part (`Phnom Penh Municipality` finds `Phnom Penh, Cambodia`). Undefined for a query too short
+ * to be a place.
+ */
+function place_like(column: SQLWrapper, q: string) {
+	const key = place_key(q)
+	if ([...key].length < PLACE_MIN) return undefined
+	const stored = sql`trim(substr(${column}, 1, instr(${column} || ',', ',') - 1))`
+	return sql`(${column} like ${contains(key)} escape '!' or (length(${stored}) >= ${PLACE_MIN} and instr(lower(${key}), lower(${stored})) > 0))`
+}
+
+/** `#svelte` searches that tag exactly; anything else searches post text and the post's place. */
 function post_filter(db: Db, q: string) {
 	if (q.startsWith('#') && q.length > 1) {
 		const tag = normalize_tag(q.slice(1))
@@ -45,7 +59,7 @@ function post_filter(db: Db, q: string) {
 			db.select({ id: postTag.postId }).from(postTag).where(eq(postTag.tag, tag)),
 		)
 	}
-	return sql`${post.body} like ${contains(q)} escape '!'`
+	return or(sql`${post.body} like ${contains(q)} escape '!'`, place_like(post.location, q))
 }
 
 /** Latest: newest first. Top: most liked and replied to first, paged by offset. */
@@ -89,13 +103,15 @@ function closeness(needle: string) {
 		when ${name} like ${starts_with(lower)} escape '!' then 3
 		when ${name} like ${`% ${escape_like(lower)}%`} escape '!' then 4
 		when ${profile.handle} like ${contains(lower)} escape '!' then 5
-		else 6
+		when ${name} like ${contains(lower)} escape '!' then 6
+		else 7
 	end`
 }
 
 /**
- * People whose handle or name contains the query, closest first. Among equally close ones,
- * shorter handles (nearer to what was typed) and then more followed accounts come first.
+ * People whose handle or name contains the query, closest first, then people whose location does.
+ * Among equally close ones, shorter handles (nearer to what was typed) and then more followed
+ * accounts come first.
  */
 export async function search_people(
 	db: Db,
@@ -112,6 +128,7 @@ export async function search_people(
 				or(
 					sql`${profile.handle} like ${contains(needle.toLowerCase())} escape '!'`,
 					sql`${profile.displayName} like ${contains(needle)} escape '!'`,
+					place_like(profile.location, needle),
 				),
 			),
 		)

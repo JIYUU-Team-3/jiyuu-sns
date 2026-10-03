@@ -4,7 +4,9 @@
 	import { afterNavigate } from '$app/navigation'
 	import { m } from '#lib/paraglide/messages.js'
 	import BannerField from '#lib/profiles/form/BannerField.svelte'
+	import BirthdayField from '#lib/profiles/form/BirthdayField.svelte'
 	import HandleField from '#lib/profiles/form/HandleField.svelte'
+	import LocationField from '#lib/profiles/form/LocationField.svelte'
 	import ProfilePhoto from '#lib/profiles/form/ProfilePhoto.svelte'
 	import TextField from '#lib/profiles/form/TextField.svelte'
 	import { leave_after_save } from '#lib/profiles/form/after-save'
@@ -19,6 +21,8 @@
 	let name = $derived(form?.draft.name ?? data.draft.name)
 	let handle = $derived(form?.draft.handle ?? data.draft.handle)
 	let bio = $derived(form?.draft.bio ?? data.draft.bio)
+	let place = $derived(form?.draft.details?.location ?? data.draft.details.location)
+	const details = $derived(form?.draft.details ?? data.draft.details)
 	let pending = $state(false)
 	// Without JavaScript nothing can re-enable the button, so it stays usable until hydration.
 	let hydrated = $state(false)
@@ -90,6 +94,13 @@
 		max={BIO_MAX}
 		multiline
 		bind:value={bio}
+	/>
+	<LocationField bind:value={place} />
+	<BirthdayField
+		date={details.birth_date}
+		day_audience={details.birthday_audience}
+		year_audience={details.birth_year_audience}
+		error={form?.errors.birthday}
 	/>
 
 	<button class="btn btn-primary save" disabled={hydrated && (!ready || pending)}
