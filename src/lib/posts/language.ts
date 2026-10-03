@@ -25,7 +25,7 @@ export function guess_language(body: string): Locale | undefined {
 		['ja', japanese * 3],
 		['en', latin],
 	]
-	const [best, score] = scores.reduce((a, b) => (b[1] > a[1] ? b : a))
+	const [best, score] = scores.reduce((a, b) => (b[1] > a[1] ? b : a), scores[0])
 	const letters = khmer + japanese + latin
 	return letters >= MIN_LETTERS && score > 0 ? best : undefined
 }
