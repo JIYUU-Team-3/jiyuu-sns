@@ -737,5 +737,21 @@
 	"privacy_blocked_empty": "You haven’t blocked anyone.",
 	"privacy_unmute": "Unmute",
 	"privacy_unblock": "Unblock",
-	"composer_checking": "Checking the photo"
+	"composer_checking": "Checking the photo",
+	"profile_location": "Location",
+	"profile_location_placeholder": "Where you are",
+	"profile_location_suggestions": "Places",
+	"profile_birthday": "Birth date",
+	"profile_birthday_month": "Month",
+	"profile_birthday_day": "Day",
+	"profile_birthday_year": "Year",
+	"profile_birthday_day_audience": "Month and day",
+	"profile_birthday_year_audience": "Year",
+	"profile_birthday_hint": "Shown on your profile only to the people you pick. Leave it blank to keep it off.",
+	"profile_audience_everyone": "Everyone",
+	"profile_audience_followers": "Followers",
+	"profile_audience_only_me": "Only you",
+	"profile_birthday_invalid": "That date doesn’t exist. Check the month and day.",
+	"profile_birthday_too_young": "You need to be at least 13 to use Jiyuu.",
+	"profile_born": "Born {date}"
 }

@@ -25,6 +25,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		banner: profile.bannerUrl ?? undefined,
 		avatar_uploaded: !!profile.avatarUrl,
 		account_image: account_image(locals.user.image),
+		details: {
+			location: profile.location,
+			birth_date: profile.birthDate,
+			birthday_audience: profile.birthdayAudience,
+			birth_year_audience: profile.birthYearAudience,
+		},
 	}
 	return { me, own, moderator: locals.standing?.role === 'moderator' }
 }

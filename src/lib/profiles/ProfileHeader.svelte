@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { format_month_year } from '#lib/format-date'
+	import { format_birthday, format_month_year } from '#lib/format-date'
 	import MessageButton from '#lib/messages/MessageButton.svelte'
 	import { getLocale, type MessagePart } from '#lib/paraglide/runtime'
 	import { m } from '#lib/paraglide/messages.js'
@@ -11,6 +11,8 @@
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href } from './links'
 	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import { reduced_motion } from '#lib/settings/motion'
+	import { is_birthday } from './details'
 	import ProfileMenu from './ProfileMenu.svelte'
 	import type { ProfileView } from './types'
 
@@ -19,6 +21,14 @@
 	const locale = $derived(getLocale())
 
 	const soon = () => toast.show(m.toast_coming_soon())
+
+	/** Balloons on the day, in the viewer's own calendar; checked after load so SSR doesn't guess. */
+	let birthday_today = $state(false)
+	let balloons = $state(false)
+	$effect(() => {
+		birthday_today = is_birthday(profile.birthday)
+		balloons = birthday_today && !reduced_motion()
+	})
 </script>
 
 <!-- A label with the count at its `{#count/}` mark, which sits before or after it by language. -->
@@ -69,12 +79,31 @@
 		{/if}
 	</div>
 	{#if profile.bio}<p class="bio">{profile.bio}</p>{/if}
+	<!-- Like X: where, born and joined on one row, wrapping on a phone. -->
 	<p class="meta">
-		<Icon name="calendar" size="sm" />
-		<time datetime={new Date(profile.joined).toISOString()}
-			>{m.profile_joined({ date: format_month_year(profile.joined, locale) })}</time
-		>
+		{#if profile.location}
+			<span class="item"
+				><Icon name="pin" size="sm" /><span class="loc">{profile.location}</span></span
+			>
+		{/if}
+		{#if profile.birthday}
+			<span class="item" class:today={birthday_today}>
+				<Icon name="balloon" size="sm" />
+				{m.profile_born({ date: format_birthday(profile.birthday, locale) })}
+			</span>
+		{/if}
+		<span class="item">
+			<Icon name="calendar" size="sm" />
+			<time datetime={new Date(profile.joined).toISOString()}
+				>{m.profile_joined({ date: format_month_year(profile.joined, locale) })}</time
+			>
+		</span>
 	</p>
+	{#if balloons}
+		<div class="balloons" aria-hidden="true">
+			{#each [0, 1, 2, 3, 4] as i (i)}<span style:--i={i}></span>{/each}
+		</div>
+	{/if}
 	<!-- Keyed so another profile's counts replace these rather than roll from them. -->
 	{#key profile.id}
 		<div class="counts num">
@@ -196,10 +225,61 @@
 	}
 	.meta {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 4px;
+		gap: 4px 12px;
 		margin: 12px 0 0;
 		color: var(--text-2);
+	}
+	.item {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+	}
+	.loc {
+		overflow-wrap: anywhere;
+	}
+	.today {
+		color: var(--like);
+	}
+	/* A few balloons rising past the header on the day, as on X. */
+	.balloons {
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		overflow: hidden;
+		z-index: 40;
+	}
+	.balloons span {
+		position: absolute;
+		bottom: -80px;
+		left: calc(12% + var(--i) * 18%);
+		width: 36px;
+		height: 44px;
+		border-radius: 50% 50% 46% 46%;
+		background: hsl(calc(var(--i) * 70 + 330) 80% 62%);
+		opacity: 0.9;
+		animation: rise 4.5s cubic-bezier(0.3, 0.1, 0.4, 1) calc(var(--i) * 0.35s) both;
+	}
+	.balloons span::after {
+		content: '';
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		width: 1px;
+		height: 36px;
+		background: var(--text-3);
+	}
+	@keyframes rise {
+		to {
+			transform: translateY(calc(-100vh - 160px)) rotate(8deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.balloons {
+			display: none;
+		}
 	}
 	.counts {
 		display: flex;

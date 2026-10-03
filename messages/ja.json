@@ -737,5 +737,21 @@
 	"privacy_blocked_empty": "ブロックしているアカウントはありません。",
 	"privacy_unmute": "ミュート解除",
 	"privacy_unblock": "ブロック解除",
-	"composer_checking": "写真を確認中"
+	"composer_checking": "写真を確認中",
+	"profile_location": "場所",
+	"profile_location_placeholder": "住んでいる場所など",
+	"profile_location_suggestions": "場所の候補",
+	"profile_birthday": "生年月日",
+	"profile_birthday_month": "月",
+	"profile_birthday_day": "日",
+	"profile_birthday_year": "年",
+	"profile_birthday_day_audience": "月日の公開範囲",
+	"profile_birthday_year_audience": "年の公開範囲",
+	"profile_birthday_hint": "選んだ相手にだけプロフィールに表示されます。空欄にすると表示されません。",
+	"profile_audience_everyone": "全員",
+	"profile_audience_followers": "フォロワー",
+	"profile_audience_only_me": "自分のみ",
+	"profile_birthday_invalid": "存在しない日付です。月と日を確認してください。",
+	"profile_birthday_too_young": "Jiyuuは13歳以上の方のみご利用いただけます。",
+	"profile_born": "{date}生まれ"
 }

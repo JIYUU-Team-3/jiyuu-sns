@@ -1,4 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
+import { shown_birthday } from '#lib/profiles/details'
+import type { ProfileDetails } from '#lib/profiles/form/profile'
 import type { ProfileView } from '#lib/profiles/types'
 import { shown_image } from './account-image'
 import { is_moderator } from './moderation/standing'
@@ -27,6 +29,10 @@ export async function find_profile_by_handle(
 			handle: profile.handle,
 			name: profile.displayName,
 			bio: profile.bio,
+			location: profile.location,
+			birth_date: profile.birthDate,
+			birthday_audience: profile.birthdayAudience,
+			birth_year_audience: profile.birthYearAudience,
 			image: shown_image,
 			banner: profile.bannerUrl,
 			moderator: is_moderator(profile.userId),
@@ -59,8 +65,17 @@ export async function find_profile_by_handle(
 		.where(eq(profile.handle, handle))
 		.limit(1)
 	if (!row) return undefined
+	const { birth_date, birthday_audience, birth_year_audience, ...shown } = row
+	const mine = row.id === viewer
 	return {
-		...row,
+		...shown,
+		location: row.location || undefined,
+		// Only the parts this viewer may see ever leave the server.
+		birthday: shown_birthday(
+			birth_date,
+			{ day: birthday_audience, year: birth_year_audience },
+			{ mine, follower: !!row.followed },
+		),
 		image: row.image ?? undefined,
 		banner: row.banner ?? undefined,
 		moderator: row.moderator ? true : undefined,
@@ -70,7 +85,7 @@ export async function find_profile_by_handle(
 		blocked: !!row.blocked,
 		blocks_you: !!row.blocks_you,
 		muted: !!row.muted,
-		mine: row.id === viewer,
+		mine,
 	}
 }
 
@@ -97,6 +112,8 @@ export async function save_profile(
 		handle: string
 		name: string
 		bio: string
+		/** Location and birthday; left out, they keep what's saved. */
+		details?: ProfileDetails
 		avatar?: string | null
 		banner?: string | null
 	},
@@ -108,6 +125,12 @@ export async function save_profile(
 		handle: values.handle,
 		displayName: values.name,
 		bio: values.bio,
+		...(values.details && {
+			location: values.details.location,
+			birthDate: values.details.birth_date,
+			birthdayAudience: values.details.birthday_audience,
+			birthYearAudience: values.details.birth_year_audience,
+		}),
 		...(values.avatar !== undefined && { avatarUrl: values.avatar }),
 		...(values.banner !== undefined && { bannerUrl: values.banner }),
 	}

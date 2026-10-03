@@ -1,4 +1,12 @@
 import { image_problem, type ImageKind, type ImageProblem } from '#lib/media'
+import {
+	AUDIENCES,
+	birthday_problem,
+	join_date,
+	LOCATION_MAX,
+	type Audience,
+	type BirthdayProblem,
+} from '../details'
 
 export const NAME_MAX = 50
 export const HANDLE_MAX = 20
@@ -35,13 +43,29 @@ export function handle_problem(
 	return undefined
 }
 
-export type ProfileDraft = { name: string; handle: string; bio: string }
+/** The edit page's extra fields, which onboarding doesn't ask for. */
+export type ProfileDetails = {
+	location: string
+	/** `YYYY-MM-DD`, or null to clear it. */
+	birth_date: string | null
+	birthday_audience: Audience
+	birth_year_audience: Audience
+}
+
+export type ProfileDraft = {
+	name: string
+	handle: string
+	bio: string
+	/** Undefined from a form without them, which then keeps what's saved. */
+	details?: ProfileDetails
+}
 
 export type ProfileErrors = {
 	name?: 'required'
 	handle?: HandleProblem
 	avatar?: ImageProblem
 	banner?: ImageProblem
+	birthday?: BirthdayProblem
 }
 
 /** The optional avatar and banner a profile form sends. */
@@ -57,6 +81,8 @@ export function profile_errors(
 	if (!draft.name) errors.name = 'required'
 	const handle = handle_problem(draft.handle, current, locked)
 	if (handle) errors.handle = handle
+	const birthday = draft.details?.birth_date && birthday_problem(draft.details.birth_date)
+	if (birthday) errors.birthday = birthday
 	return errors
 }
 
@@ -92,6 +118,20 @@ export function read_profile(data: FormData): ProfileDraft {
 		name: field('name', NAME_MAX),
 		handle: field('handle', HANDLE_MAX),
 		bio: field('bio', BIO_MAX, true),
+		details: data.has('location') ? read_details(data, field) : undefined,
+	}
+}
+
+const audience = (value: FormDataEntryValue | null, fallback: Audience): Audience =>
+	AUDIENCES.find((known) => known === value) ?? fallback
+
+function read_details(data: FormData, field: (key: string, max: number) => string): ProfileDetails {
+	const date = join_date(field('birth_year', 4), field('birth_month', 2), field('birth_day', 2))
+	return {
+		location: field('location', LOCATION_MAX),
+		birth_date: date ?? null,
+		birthday_audience: audience(data.get('birthday_audience'), 'followers'),
+		birth_year_audience: audience(data.get('birth_year_audience'), 'only_me'),
 	}
 }
 

@@ -127,6 +127,13 @@
       "when": 1791011424216,
       "tag": "0017_engagement_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791022030224,
+      "tag": "0018_profile_details_and_pin",
+      "breakpoints": true
     }
   ]
 }

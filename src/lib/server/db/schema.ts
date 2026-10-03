@@ -8,6 +8,7 @@ import {
 	uniqueIndex,
 	text,
 } from 'drizzle-orm/sqlite-core'
+import { AUDIENCES } from '../../profiles/details'
 import { user } from './auth.schema'
 
 /** Same `timestamp_ms` style as the generated auth tables, set when the row is written. */
@@ -31,6 +32,18 @@ export const profile = sqliteTable('profile', {
 	/** A `/media/…` upload, or null for the plain fallback colour. */
 	bannerUrl: text('banner_url'),
 	isPrivate: integer('is_private', { mode: 'boolean' }).notNull().default(false),
+	/** Free text, or a place picked from the OpenStreetMap search; empty when not given. */
+	location: text('location').notNull().default(''),
+	/** `YYYY-MM-DD`, or null when not given. Who sees which part is the two settings below. */
+	birthDate: text('birth_date'),
+	/** Who sees the month and day. */
+	birthdayAudience: text('birthday_audience', { enum: AUDIENCES }).notNull().default('followers'),
+	/** Who sees the year. */
+	birthYearAudience: text('birth_year_audience', { enum: AUDIENCES }).notNull().default('only_me'),
+	/** The post shown first on the profile; only ever the account's own. Cleared with the post. */
+	pinnedPostId: text('pinned_post_id').references((): AnySQLiteColumn => post.id, {
+		onDelete: 'set null',
+	}),
 	createdAt: created_at(),
 })
 
