@@ -12,6 +12,7 @@
 	import type { UserView } from '#lib/search/types'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import PullToRefresh from '#lib/ui/PullToRefresh.svelte'
+	import { reload_when } from '#lib/ui/reload.svelte'
 	import PageBar from '../../PageBar.svelte'
 
 	let { handle, side }: { handle: string; side: FollowSide } = $props()
@@ -62,6 +63,7 @@
 				class="tab"
 				href={href(profile.handle)}
 				aria-current={tab === side ? 'page' : undefined}
+				onclick={reload_when(tab === side)}
 				data-sveltekit-replacestate
 				data-sveltekit-noscroll>{label()}</a
 			>

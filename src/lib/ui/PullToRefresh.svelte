@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte'
+	import { tick, type Snippet } from 'svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from './Icon.svelte'
+	import { register_reload } from './reload.svelte'
 	import { toast } from './toasts.svelte'
 
 	let {
@@ -42,7 +43,11 @@
 	const rubber = (travel: number) => MAX * (1 - Math.exp(-Math.max(0, travel) * (RESIST / MAX)))
 
 	async function refresh() {
+		if (refreshing) return
 		refreshing = true
+		// Svelte holds a state change in the same batch as pending async work until that work
+		// settles, so let the spinner commit before the reload starts or it never shows.
+		await tick()
 		try {
 			await Promise.all([onrefresh(), new Promise((done) => setTimeout(done, MIN_SPIN))])
 		} catch {
@@ -51,6 +56,14 @@
 			refreshing = false
 		}
 	}
+
+	// A tap on the current page's nav item or tab reloads from the top, spinner and all.
+	$effect(() =>
+		register_reload(() => {
+			scrollTo({ top: 0, behavior: 'smooth' })
+			void refresh()
+		}),
+	)
 
 	/**
 	 * Attachment for the wrapper. Svelte's touch attributes are passive, and this one must be able
@@ -195,8 +208,9 @@
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
+		/* The spinner is the only sign a refresh is running, so it keeps turning; only the pop goes. */
 		.spin {
-			animation: none;
+			animation: spin 1.6s linear infinite;
 		}
 	}
 </style>

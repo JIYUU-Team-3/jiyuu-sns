@@ -1,4 +1,6 @@
 <script lang="ts" generics="T extends string">
+	import { reload } from './reload.svelte'
+
 	let {
 		tabs,
 		value = $bindable(),
@@ -16,7 +18,7 @@
 			class="tab"
 			role="tab"
 			aria-selected={value === tab}
-			onclick={() => (value = tab)}>{label()}</button
+			onclick={() => (value === tab ? reload() : (value = tab))}>{label()}</button
 		>
 	{/each}
 </div>

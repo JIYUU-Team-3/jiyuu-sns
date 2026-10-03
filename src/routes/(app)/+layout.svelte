@@ -15,6 +15,7 @@
 	import { explore_href } from '#lib/search/links'
 	import SearchBox from '#lib/search/SearchBox.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
+	import { reload_when } from '#lib/ui/reload.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
 	import { home_href } from '../(public)/links'
 	import SiteFooter from '../(public)/SiteFooter.svelte'
@@ -36,6 +37,7 @@
 	const on_notifications = $derived(page.route.id === '/(app)/notifications')
 	const on_messages = $derived(page.route.id?.startsWith('/(app)/messages') ?? false)
 	const on_bookmarks = $derived(page.route.id === '/(app)/bookmarks')
+	const on_inbox = $derived(page.route.id === '/(app)/messages')
 	const in_chat = $derived(page.route.id === '/(app)/messages/[id]')
 
 	const unread = $derived(await get_unread_count().catch(() => 0))
@@ -166,10 +168,17 @@
 
 <div class="shell" class:wide={on_messages} class:chat={in_chat}>
 	<nav class="side" aria-label={m.app_home()} bind:this={side}>
-		<a class="brand" href={home_href()} aria-label="Jiyuu"><Wordmark /></a>
+		<a class="brand" href={home_href()} aria-label="Jiyuu" onclick={reload_when(on_home)}
+			><Wordmark /></a
+		>
 		<div class="nav">
 			{#if !folded('home')}
-				<a class="nav-item" href={home_href()} aria-current={on_home ? 'page' : undefined}>
+				<a
+					class="nav-item"
+					href={home_href()}
+					aria-current={on_home ? 'page' : undefined}
+					onclick={reload_when(on_home)}
+				>
 					<Icon name="home" size="lg" /><span class="lbl">{m.app_home()}</span>
 				</a>
 			{/if}
@@ -194,7 +203,12 @@
 				</a>
 			{/if}
 			{#if !folded('messages')}
-				<a class="nav-item" href={messages_href()} aria-current={on_messages ? 'page' : undefined}>
+				<a
+					class="nav-item"
+					href={messages_href()}
+					aria-current={on_messages ? 'page' : undefined}
+					onclick={reload_when(on_inbox)}
+				>
 					<span class="ico-wrap">
 						<Icon name="mail" size="lg" />
 						{#if unread_dms}<span class="badge" aria-hidden="true">{unread_dms_label}</span>{/if}
@@ -256,7 +270,12 @@
 </div>
 
 <nav class="tabbar" class:hidden={in_chat} aria-label={m.app_home()}>
-	<a href={home_href()} aria-label={m.app_home()} aria-current={on_home ? 'page' : undefined}>
+	<a
+		href={home_href()}
+		aria-label={m.app_home()}
+		aria-current={on_home ? 'page' : undefined}
+		onclick={reload_when(on_home)}
+	>
 		<Icon name="home" size="lg" />
 	</a>
 	<a
@@ -284,6 +303,7 @@
 			? `${m.app_messages()}, ${m.app_unread({ count: unread_dms_label })}`
 			: m.app_messages()}
 		aria-current={on_messages ? 'page' : undefined}
+		onclick={reload_when(on_inbox)}
 	>
 		<span class="ico-wrap">
 			<Icon name="mail" size="lg" />

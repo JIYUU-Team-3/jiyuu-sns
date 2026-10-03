@@ -213,7 +213,8 @@
 	.compose {
 		border-top: 1px solid var(--line);
 		padding: 8px 12px calc(8px + var(--chat-inset, env(safe-area-inset-bottom)));
-		background: var(--bg);
+		/* Same fill as the chat bar, so it follows transparent mode. */
+		background: var(--page-bg);
 	}
 	.replying {
 		display: flex;
