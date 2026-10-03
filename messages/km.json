@@ -753,5 +753,10 @@
 	"profile_audience_only_me": "តែអ្នកប៉ុណ្ណោះ",
 	"profile_birthday_invalid": "កាលបរិច្ឆេទនោះមិនមានទេ។ សូមពិនិត្យខែ និងថ្ងៃ។",
 	"profile_birthday_too_young": "អ្នកត្រូវមានអាយុយ៉ាងហោចណាស់ 13 ឆ្នាំ ដើម្បីប្រើ Jiyuu។",
-	"profile_born": "កើតថ្ងៃទី {date}"
+	"profile_born": "កើតថ្ងៃទី {date}",
+	"post_pin": "ខ្ទាស់នៅលើប្រវត្តិរូប",
+	"post_unpin": "ឈប់ខ្ទាស់ពីប្រវត្តិរូប",
+	"post_pinned": "បានខ្ទាស់",
+	"toast_pinned": "បានខ្ទាស់នៅលើប្រវត្តិរូបរបស់អ្នក",
+	"toast_unpinned": "បានឈប់ខ្ទាស់ពីប្រវត្តិរូបរបស់អ្នក"
 }

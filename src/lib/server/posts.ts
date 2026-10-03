@@ -176,6 +176,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			author_image: shown_image,
 			author_moderator: is_moderator(user.id),
 			author_private: profile.isPrivate,
+			pinned: sql<number>`coalesce(${profile.pinnedPostId} = ${post.id}, 0)`,
 			parent_handle: parent_profile.handle,
 			parent_author_id: parent.authorId,
 			continued,
@@ -300,6 +301,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		reposted: !!row.reposted,
 		bookmarked: !!row.bookmarked,
 		mine,
+		pinned: !!row.pinned,
 		sensitive: row.sensitive,
 		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
 		warn_links: row.author_created_at.getTime() > Date.now() - TRUSTED_DAYS * 24 * 60 * 60 * 1000,
@@ -684,16 +686,25 @@ export function replies_page(
 	)
 }
 
-/** One author's posts, newest first: top-level posts and reposts, or only their replies. */
-export function author_page(
+/**
+ * One author's posts, newest first: top-level posts and reposts, or only their replies. The first
+ * page of posts starts with the pinned one, as on X, which also stays in its place by date.
+ */
+export async function author_page(
 	db: Db,
 	viewer: string | undefined,
 	author_id: string,
 	replies: boolean,
 	cursor: string | undefined,
-) {
+): Promise<PostPage> {
 	if (!replies) {
-		return timeline_page(db, viewer, { accounts: (account) => eq(account, author_id), cursor })
+		const [timeline, pinned] = await Promise.all([
+			timeline_page(db, viewer, { accounts: (account) => eq(account, author_id), cursor }),
+			cursor === undefined ? pinned_post(db, viewer, author_id) : undefined,
+		])
+		return pinned
+			? { ...timeline, posts: [{ ...pinned, pin_top: true }, ...timeline.posts] }
+			: timeline
 	}
 	return page(
 		db,
@@ -701,6 +712,43 @@ export function author_page(
 		[eq(post.authorId, author_id), eq(post.isReply, true), after(cursor, 'newer_first')],
 		'newer_first',
 	)
+}
+
+/** The post `author_id` pinned, when there is one the viewer may see. */
+async function pinned_post(db: Db, viewer: string | undefined, author_id: string) {
+	const [row] = await db
+		.select({ id: profile.pinnedPostId })
+		.from(profile)
+		.where(eq(profile.userId, author_id))
+		.limit(1)
+	if (!row?.id) return undefined
+	return (await posts_by_id(db, viewer, [row.id])).get(row.id)
+}
+
+/**
+ * Pin one of the account's own posts to its profile, replacing any pin, or take a pin off. The
+ * owner check is in the write itself: only the account's row changes, and only to a post it
+ * wrote that's still visible. False when there was no such post.
+ */
+export async function set_pin(db: Db, user_id: string, post_id: string, on: boolean) {
+	if (!on) {
+		await db
+			.update(profile)
+			.set({ pinnedPostId: null })
+			.where(and(eq(profile.userId, user_id), eq(profile.pinnedPostId, post_id)))
+		return true
+	}
+	const pinned = await db
+		.update(profile)
+		.set({ pinnedPostId: post_id })
+		.where(
+			and(
+				eq(profile.userId, user_id),
+				sql`exists(select 1 from post p where p.id = ${post_id} and p.author_id = ${user_id} and p.moderation = 'visible')`,
+			),
+		)
+		.returning({ id: profile.userId })
+	return pinned.length > 0
 }
 
 /** The viewer's saved posts, most recently saved first. Only ever the viewer's own. */

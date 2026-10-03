@@ -753,5 +753,10 @@
 	"profile_audience_only_me": "自分のみ",
 	"profile_birthday_invalid": "存在しない日付です。月と日を確認してください。",
 	"profile_birthday_too_young": "Jiyuuは13歳以上の方のみご利用いただけます。",
-	"profile_born": "{date}生まれ"
+	"profile_born": "{date}生まれ",
+	"post_pin": "プロフィールに固定",
+	"post_unpin": "プロフィールへの固定を解除",
+	"post_pinned": "固定されたポスト",
+	"toast_pinned": "プロフィールに固定しました",
+	"toast_unpinned": "固定を解除しました"
 }
