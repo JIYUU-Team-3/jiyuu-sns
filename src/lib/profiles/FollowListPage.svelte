@@ -47,11 +47,11 @@
 
 {#each people as user (user.id)}
 	{#if actions}
-		<UserRow {user} {show_follows_you}>
+		<UserRow {user} {show_follows_you} show_bio={false} show_location={false}>
 			{#snippet menu()}{@render actions(user)}{/snippet}
 		</UserRow>
 	{:else}
-		<UserRow {user} {show_follows_you} />
+		<UserRow {user} {show_follows_you} show_bio={false} show_location={false} />
 	{/if}
 {/each}
 

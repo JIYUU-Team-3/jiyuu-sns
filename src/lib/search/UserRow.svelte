@@ -14,11 +14,13 @@
 	let {
 		user,
 		show_bio = true,
+		show_location = true,
 		show_follows_you = true,
 		menu,
 	}: {
 		user: UserView
 		show_bio?: boolean
+		show_location?: boolean
 		/** Off where everyone listed follows the viewer, such as your own followers. */
 		show_follows_you?: boolean
 		/** More actions for this account, before its follow button. */
@@ -65,7 +67,7 @@
 					>{m.follow_follows_you()}</span
 				>{/if}
 		</div>
-		{#if user.location}
+		{#if show_location && user.location}
 			<div class="loc"><Icon name="pin" size="xs" /><span>{user.location}</span></div>
 		{/if}
 		{#if show_bio && user.bio}<p class="bio">{user.bio}</p>{/if}
