@@ -358,3 +358,42 @@ test('the message list and tab badge update the moment a message arrives @writes
 
 	await bob_context.close()
 })
+
+test('the reaction picker stays inside the chat on a short message @writes', async ({
+	page,
+	browser,
+}) => {
+	const id = crypto.randomUUID().slice(0, 8)
+	const alice = `e2e_dmw_${id}`
+	const bob = `e2e_dmx_${id}`
+
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await sign_up(page, alice)
+	await sign_up(bob_page, bob)
+	await follow(page, bob)
+
+	await bob_page.goto(`/u/${alice}`)
+	await bob_page.waitForLoadState('networkidle')
+	await bob_page.getByRole('button', { name: `Message @${alice}` }).click()
+	await expect(bob_page).toHaveURL(/\/messages\/[\w-]+$/)
+	const stored = bob_page.waitForResponse((response) => response.url().includes('/send_message'))
+	await bob_page.getByLabel('Message', { exact: true }).fill('Sup')
+	await bob_page.keyboard.press('Enter')
+	await stored
+
+	for (const viewer of [page, bob_page]) {
+		await viewer.goto(bob_page.url())
+		const message = viewer.locator('.msg', { hasText: 'Sup' })
+		await message.hover()
+		await message.getByRole('button', { name: 'React', exact: true }).click()
+		const chat = await viewer.locator('.pane .chat').boundingBox()
+		const picker = await message.locator('.picker').boundingBox()
+		expect(picker && chat).toBeTruthy()
+		if (!picker || !chat) return
+		expect(picker.x).toBeGreaterThanOrEqual(chat.x)
+		expect(picker.x + picker.width).toBeLessThanOrEqual(chat.x + chat.width)
+	}
+
+	await bob_context.close()
+})
