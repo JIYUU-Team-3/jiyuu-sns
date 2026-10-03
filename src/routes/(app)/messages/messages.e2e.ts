@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 import { follow } from '../follow'
 import { sign_up } from '../sign-up'
 
@@ -18,11 +18,38 @@ async function open_chat(page: Page, handle: string) {
 	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
 }
 
-async function send(page: Page, text: string) {
-	const stored = page.waitForResponse((response) => response.url().includes('/send_message'))
+async function type_message(page: Page, text: string) {
 	await page.getByLabel('Message', { exact: true }).fill(text)
 	await page.keyboard.press('Enter')
+}
+
+async function send(page: Page, text: string) {
+	const stored = page.waitForResponse((response) => response.url().includes('/send_message'))
+	await type_message(page, text)
 	await stored
+}
+
+async function set_focus(page: Page, focused: boolean) {
+	await page.evaluate((focused) => {
+		document.hasFocus = () => focused
+		window.dispatchEvent(new Event(focused ? 'focus' : 'blur'))
+	}, focused)
+}
+
+/** Bob writes `first` to Alice, Alice opens the chat, and Bob sees it marked Seen. */
+async function seen_chat(page: Page, browser: Browser, prefixes: [string, string], first: string) {
+	const id = crypto.randomUUID().slice(0, 8)
+	const text = `${first} ${id}`
+	const bob_context = await browser.newContext()
+	const bob_page = await bob_context.newPage()
+	await befriend(page, bob_page, `e2e_${prefixes[0]}_${id}`, `e2e_${prefixes[1]}_${id}`)
+
+	await open_chat(bob_page, `e2e_${prefixes[0]}_${id}`)
+	await send(bob_page, text)
+	await page.goto(bob_page.url())
+	await expect(msg(page, text)).toBeVisible()
+	await expect(msg(bob_page, text).getByText('Seen')).toBeVisible(slow)
+	return { id, first: text, bob_context, bob_page }
 }
 
 test('message someone, react and reply, and the badge clears once read @writes', async ({
@@ -251,41 +278,20 @@ test('a message is seen only once the reader comes back to the chat @writes', as
 	page,
 	browser,
 }) => {
-	const id = crypto.randomUUID().slice(0, 8)
-	const alice = `e2e_dms_${id}`
-	const bob = `e2e_dmt_${id}`
-	const first = `First ${id}`
+	const { id, bob_context, bob_page } = await seen_chat(page, browser, ['dms', 'dmt'], 'First')
 	const second = `While away ${id}`
 
-	const bob_context = await browser.newContext()
-	const bob_page = await bob_context.newPage()
-	await befriend(page, bob_page, alice, bob)
-
-	await open_chat(bob_page, alice)
-	await send(bob_page, first)
-
-	await page.goto(bob_page.url())
-	await expect(msg(page, first)).toBeVisible()
-	await expect(msg(bob_page, first).getByText('Seen')).toBeVisible(slow)
-
-	await page.evaluate(() => {
-		document.hasFocus = () => false
-		window.dispatchEvent(new Event('blur'))
-	})
+	await set_focus(page, false)
 	const marks: string[] = []
 	page.on('request', (request) => {
 		if (request.url().includes('/mark_conversation_read')) marks.push(request.url())
 	})
-	await bob_page.getByLabel('Message', { exact: true }).fill(second)
-	await bob_page.keyboard.press('Enter')
+	await type_message(bob_page, second)
 	await expect(msg(page, second)).toBeVisible(slow)
 	expect(marks).toHaveLength(0)
 	await expect(msg(bob_page, second).getByText('Seen')).toHaveCount(0)
 
-	await page.evaluate(() => {
-		document.hasFocus = () => true
-		window.dispatchEvent(new Event('focus'))
-	})
+	await set_focus(page, true)
 	await expect(msg(bob_page, second).getByText('Seen')).toBeVisible(slow)
 
 	await bob_context.close()
@@ -295,20 +301,13 @@ test('the message list and tab badge update the moment a message arrives @writes
 	page,
 	browser,
 }) => {
-	const id = crypto.randomUUID().slice(0, 8)
-	const alice = `e2e_dmu_${id}`
-	const bob = `e2e_dmv_${id}`
-	const first = `Earlier ${id}`
+	const { id, first, bob_context, bob_page } = await seen_chat(
+		page,
+		browser,
+		['dmu', 'dmv'],
+		'Earlier',
+	)
 	const second = `Right now ${id}`
-
-	const bob_context = await browser.newContext()
-	const bob_page = await bob_context.newPage()
-	await befriend(page, bob_page, alice, bob)
-
-	await open_chat(bob_page, alice)
-	await send(bob_page, first)
-	await page.goto(bob_page.url())
-	await expect(msg(bob_page, first).getByText('Seen')).toBeVisible(slow)
 
 	const inbox = page.waitForEvent('websocket', (socket) => socket.url().includes('/live/inbox'))
 	await page.goto('/messages')
@@ -320,8 +319,7 @@ test('the message list and tab badge update the moment a message arrives @writes
 	await expect(nav.getByRole('link', { name: /unread/ })).toHaveCount(0)
 	await page.waitForLoadState('networkidle')
 
-	await bob_page.getByLabel('Message', { exact: true }).fill(second)
-	await bob_page.keyboard.press('Enter')
+	await type_message(bob_page, second)
 	await expect(page.getByRole('link', { name: new RegExp(second) })).toBeVisible(in_time())
 	await expect(nav.getByRole('link', { name: /Messages.*1 unread/ })).toBeVisible(in_time())
 
