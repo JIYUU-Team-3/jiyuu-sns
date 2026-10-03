@@ -13,6 +13,7 @@ const REFUSALS: Record<string, () => string> = {
 	gif_rating: m.refusal_gif_rating,
 	chat_new_account: m.refusal_chat_new_account,
 	follow_rate: m.refusal_follow_rate,
+	group_full: m.refusal_group_full,
 }
 
 /** The sentence for a refusal a remote function threw, or `fallback` for any other failure. */

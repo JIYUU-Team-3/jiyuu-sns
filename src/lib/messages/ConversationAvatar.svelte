@@ -8,7 +8,14 @@
 	const second = $derived(convo.members[1])
 </script>
 
-{#if !second}
+{#if convo.image}
+	<Avatar
+		name={convo.name ?? first?.name ?? '?'}
+		seed={convo.id}
+		image={convo.image}
+		size={large ? 88 : 44}
+	/>
+{:else if !second}
 	<Avatar
 		name={first?.name ?? '?'}
 		seed={first?.id ?? convo.id}

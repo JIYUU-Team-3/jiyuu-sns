@@ -1,9 +1,11 @@
-import { and, asc, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import type {
 	ConversationPage,
 	ConversationView,
+	GroupEventKind,
 	LastMessage,
+	MemberRole,
 	MessageMedia,
 	MessagePage,
 	MessageView,
@@ -12,7 +14,9 @@ import type {
 } from '#lib/messages/types'
 import { direct_key, MEMBER_MAX } from '#lib/messages/rules'
 import { shown_image } from './account-image'
+import { media_key } from './media'
 import type { getDb } from './db'
+import { chunks } from './db/chunks'
 import { blocked_between, is_blocked } from './safety'
 import {
 	conversation,
@@ -28,6 +32,54 @@ type Db = ReturnType<typeof getDb>
 
 export const CONVERSATION_PAGE = 20
 export const MESSAGE_PAGE = 30
+
+/** Event rows bind more values each than member rows do. */
+const EVENTS_PER_INSERT = 10
+
+/**
+ * The statements that write a group's own lines into its chat: `me` did `kind`, to each of
+ * `targets` where there are any. They leave `lastMessageAt` alone, so a line never marks the chat
+ * unread or becomes its preview in the inbox.
+ */
+function insert_events(
+	db: Db,
+	conversation_id: string,
+	me: string,
+	kind: GroupEventKind,
+	targets: (string | null)[] = [null],
+	body = '',
+) {
+	return chunks(targets, EVENTS_PER_INSERT).map((ids) =>
+		db.insert(message).values(
+			ids.map((targetId) => ({
+				conversationId: conversation_id,
+				senderId: me,
+				event: kind,
+				targetId,
+				body,
+			})),
+		),
+	)
+}
+
+/** Each member row binds three values, and D1 takes 100 per statement. */
+const MEMBERS_PER_INSERT = 30
+
+/** The statements that put `user_ids` in a conversation; whoever is `owner` gets that role. */
+function insert_members(db: Db, conversation_id: string, user_ids: string[], owner?: string) {
+	return chunks(user_ids, MEMBERS_PER_INSERT).map((ids) =>
+		db
+			.insert(conversationMember)
+			.values(
+				ids.map((userId) => ({
+					conversationId: conversation_id,
+					userId,
+					role: userId === owner ? ('owner' as const) : ('member' as const),
+				})),
+			)
+			.onConflictDoNothing(),
+	)
+}
 
 function decode_cursor(cursor: string | undefined) {
 	if (!cursor) return undefined
@@ -66,7 +118,9 @@ export async function member_ids(db: Db, conversation_id: string) {
 type ConversationRow = {
 	id: string
 	name: string | null
+	image: string | null
 	is_group: boolean
+	role: MemberRole
 	last_read_at: Date | null
 	last_message_at: Date | null
 	created_at: Date
@@ -79,7 +133,9 @@ function select_conversations(db: Db) {
 		.select({
 			id: conversation.id,
 			name: conversation.name,
+			image: conversation.image,
 			is_group: conversation.isGroup,
+			role: conversationMember.role,
 			last_read_at: conversationMember.lastReadAt,
 			last_message_at: conversation.lastMessageAt,
 			created_at: conversation.createdAt,
@@ -102,6 +158,7 @@ async function to_views(db: Db, me: string, rows: ConversationRow[]): Promise<Co
 				handle: profile.handle,
 				image: avatar,
 				joined: sql<number>`${user.createdAt}`,
+				role: conversationMember.role,
 			})
 			.from(conversationMember)
 			.innerJoin(user, eq(user.id, conversationMember.userId))
@@ -157,13 +214,17 @@ async function to_views(db: Db, me: string, rows: ConversationRow[]): Promise<Co
 		return {
 			id: row.id,
 			name: row.name ?? undefined,
+			// Only ever one of our own uploads; `set_group_image` is the one place that writes it.
+			image: media_key(row.image) ? (row.image ?? undefined) : undefined,
 			group: row.is_group,
+			role: row.role,
 			members: (by_conversation.get(row.id) ?? []).map((member) => ({
 				id: member.id,
 				name: member.name,
 				handle: member.handle ?? undefined,
 				image: member.image ?? undefined,
 				joined: member.joined,
+				role: member.role,
 			})),
 			last: last_by_conversation.get(row.id),
 			unread: last_message !== undefined && last_message > (row.last_read_at?.getTime() ?? 0),
@@ -182,7 +243,13 @@ export async function conversations_page(
 		.where(
 			and(
 				eq(conversationMember.userId, me),
-				or(isNotNull(conversation.lastMessageAt), eq(conversation.createdBy, me)),
+				// A direct chat nobody has written in yet is only in its starter's inbox, so opening
+				// one doesn't put it in the other person's. A group shows for everyone at once.
+				or(
+					isNotNull(conversation.lastMessageAt),
+					eq(conversation.createdBy, me),
+					eq(conversation.isGroup, true),
+				),
 				at
 					? or(
 							sql`${updated_at} < ${at.time}`,
@@ -222,6 +289,8 @@ export async function messages_page(
 	const parent = alias(message, 'parent')
 	const parent_user = alias(user, 'parent_user')
 	const parent_profile = alias(profile, 'parent_profile')
+	const target_user = alias(user, 'target_user')
+	const target_profile = alias(profile, 'target_profile')
 
 	const rows = await db
 		.select({
@@ -231,6 +300,8 @@ export async function messages_page(
 			sender_handle: profile.handle,
 			sender_image: avatar,
 			body: message.body,
+			event: message.event,
+			target_name: sql<string | null>`coalesce(${target_profile.displayName}, ${target_user.name})`,
 			blocked_hosts: blocked_hosts_in(message.body),
 			media_kind: message.mediaKind,
 			media_url: message.mediaUrl,
@@ -251,6 +322,8 @@ export async function messages_page(
 		.leftJoin(parent, eq(parent.id, message.replyToId))
 		.leftJoin(parent_user, eq(parent_user.id, parent.senderId))
 		.leftJoin(parent_profile, eq(parent_profile.userId, parent.senderId))
+		.leftJoin(target_user, eq(target_user.id, message.targetId))
+		.leftJoin(target_profile, eq(target_profile.userId, message.targetId))
 		.where(
 			and(
 				eq(message.conversationId, conversation_id),
@@ -284,6 +357,7 @@ export async function messages_page(
 			image: row.sender_image ?? undefined,
 		},
 		mine: row.sender_id === me,
+		event: row.event ? { kind: row.event, target: row.target_name ?? undefined } : undefined,
 		body: row.body,
 		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
 		media: to_media(row),
@@ -385,7 +459,13 @@ export async function send_message(
 		const [target] = await db
 			.select({ id: message.id })
 			.from(message)
-			.where(and(eq(message.id, input.reply_to), eq(message.conversationId, conversation_id)))
+			.where(
+				and(
+					eq(message.id, input.reply_to),
+					eq(message.conversationId, conversation_id),
+					isNull(message.event),
+				),
+			)
 			.limit(1)
 		if (!target) return 'not_found'
 	}
@@ -496,7 +576,7 @@ export async function react(
 				eq(conversationMember.userId, me),
 			),
 		)
-		.where(eq(message.id, message_id))
+		.where(and(eq(message.id, message_id), isNull(message.event)))
 		.limit(1)
 	if (!target) return undefined
 
@@ -561,12 +641,198 @@ export async function start_conversation(
 	const id = crypto.randomUUID()
 	await db.batch([
 		db.insert(conversation).values({ id, name: name || null, isGroup: true, createdBy: me }),
-		db
-			.insert(conversationMember)
-			.values([me, ...others].map((userId) => ({ conversationId: id, userId }))),
+		...insert_members(db, id, [me, ...others], me),
+		...insert_events(db, id, me, 'created'),
 	])
 	return id
 }
+
+/** Whether `me` is in the group `conversation_id`; a direct chat has no settings to change. */
+const my_group = (me: string, conversation_id: string) =>
+	sql`exists(
+		select 1 from conversation c
+		join conversation_member cm on cm.conversation_id = c.id
+		where c.id = ${conversation_id} and c.is_group and cm.user_id = ${me}
+	)`
+
+/** The role `me` has in the group `conversation_id`, read in the same statement as the write. */
+const my_role = (me: string, conversation_id: string) =>
+	sql`(
+		select cm.role from conversation_member cm
+		join conversation c on c.id = cm.conversation_id
+		where cm.conversation_id = ${conversation_id} and cm.user_id = ${me} and c.is_group
+	)`
+
+/** Any member can rename their group; an empty name goes back to listing the people in it. */
+export async function rename_group(db: Db, me: string, conversation_id: string, name: string) {
+	const rows = await db
+		.update(conversation)
+		.set({ name: name || null })
+		.where(and(eq(conversation.id, conversation_id), my_group(me, conversation_id)))
+		.returning({ id: conversation.id })
+	if (!rows.length) return false
+	await db.batch(as_batch(insert_events(db, conversation_id, me, 'renamed', [null], name)))
+	return true
+}
+
+/**
+ * Any member can change their group's photo. Answers with the photo it replaced, so the caller
+ * can delete it, or `not_found` for anyone outside that group.
+ */
+export async function set_group_image(
+	db: Db,
+	me: string,
+	conversation_id: string,
+	url: string | undefined,
+): Promise<{ replaced?: string } | 'not_found'> {
+	const [before] = await db
+		.select({ image: conversation.image })
+		.from(conversation)
+		.where(and(eq(conversation.id, conversation_id), my_group(me, conversation_id)))
+		.limit(1)
+	if (!before) return 'not_found'
+	const rows = await db
+		.update(conversation)
+		.set({ image: url ?? null })
+		.where(and(eq(conversation.id, conversation_id), my_group(me, conversation_id)))
+		.returning({ id: conversation.id })
+	if (!rows.length) return 'not_found'
+	await db.batch(as_batch(insert_events(db, conversation_id, me, 'photo')))
+	return { replaced: before.image && before.image !== url ? before.image : undefined }
+}
+
+/**
+ * Any member can add people, up to `MEMBER_MAX` in the group. Nobody is added who has blocked
+ * the person adding them, or been blocked by them. Answers with the ids that joined.
+ */
+export async function add_members(
+	db: Db,
+	me: string,
+	conversation_id: string,
+	user_ids: string[],
+): Promise<string[] | 'not_found' | 'invalid' | 'full'> {
+	const current = await db
+		.select({ id: conversationMember.userId })
+		.from(conversationMember)
+		.where(
+			and(eq(conversationMember.conversationId, conversation_id), my_group(me, conversation_id)),
+		)
+	if (!current.length) return 'not_found'
+
+	const inside = new Set(current.map((row) => row.id))
+	const wanted = [...new Set(user_ids)].filter((id) => !inside.has(id))
+	if (!wanted.length) return []
+	if (inside.size + wanted.length > MEMBER_MAX) return 'full'
+
+	const found = await db
+		.select({ id: profile.userId })
+		.from(profile)
+		.where(and(inArray(profile.userId, wanted), sql`not ${blocked_between(me, profile.userId)}`))
+	if (found.length !== wanted.length) return 'invalid'
+
+	await db.batch(
+		as_batch([
+			...insert_members(db, conversation_id, wanted),
+			...insert_events(db, conversation_id, me, 'added', wanted),
+		]),
+	)
+	return wanted
+}
+
+/**
+ * Take someone out of a group. The owner can remove anyone else and an admin only plain members
+ * (`can_remove` in `rules.ts` says the same to the page); the roles are compared in the delete
+ * itself, so a demotion that lands first is honoured.
+ */
+export async function remove_member(db: Db, me: string, conversation_id: string, user_id: string) {
+	const mine = my_role(me, conversation_id)
+	const rows = await db
+		.delete(conversationMember)
+		.where(
+			and(
+				eq(conversationMember.conversationId, conversation_id),
+				eq(conversationMember.userId, user_id),
+				ne(conversationMember.userId, me),
+				or(
+					and(sql`${mine} = 'owner'`, ne(conversationMember.role, 'owner')),
+					and(sql`${mine} = 'admin'`, eq(conversationMember.role, 'member')),
+				),
+			),
+		)
+		.returning({ id: conversationMember.userId })
+	if (!rows.length) return false
+	await db.batch(as_batch(insert_events(db, conversation_id, me, 'removed', [user_id])))
+	return true
+}
+
+/** Only the owner makes a member an admin, or an admin a member again. */
+export async function set_admin(
+	db: Db,
+	me: string,
+	conversation_id: string,
+	user_id: string,
+	on: boolean,
+) {
+	const rows = await db
+		.update(conversationMember)
+		.set({ role: on ? 'admin' : 'member' })
+		.where(
+			and(
+				eq(conversationMember.conversationId, conversation_id),
+				eq(conversationMember.userId, user_id),
+				eq(conversationMember.role, on ? 'member' : 'admin'),
+				sql`${my_role(me, conversation_id)} = 'owner'`,
+			),
+		)
+		.returning({ id: conversationMember.userId })
+	if (!rows.length) return false
+	await db.batch(
+		as_batch(insert_events(db, conversation_id, me, on ? 'admin_on' : 'admin_off', [user_id])),
+	)
+	return true
+}
+
+/**
+ * The owner hands the group to someone else in it and becomes an admin. Two statements in one
+ * transaction: the second only runs its change once the first has made the new owner.
+ */
+export async function transfer_owner(db: Db, me: string, conversation_id: string, user_id: string) {
+	if (user_id === me) return false
+	const [promoted] = await db.batch([
+		db
+			.update(conversationMember)
+			.set({ role: 'owner' })
+			.where(
+				and(
+					eq(conversationMember.conversationId, conversation_id),
+					eq(conversationMember.userId, user_id),
+					sql`${my_role(me, conversation_id)} = 'owner'`,
+				),
+			)
+			.returning({ id: conversationMember.userId }),
+		db
+			.update(conversationMember)
+			.set({ role: 'admin' })
+			.where(
+				and(
+					eq(conversationMember.conversationId, conversation_id),
+					eq(conversationMember.userId, me),
+					eq(conversationMember.role, 'owner'),
+					sql`exists(
+						select 1 from conversation_member o
+						where o.conversation_id = ${conversation_id}
+							and o.user_id = ${user_id} and o.role = 'owner'
+					)`,
+				),
+			),
+	])
+	if (!promoted.length) return false
+	await db.batch(as_batch(insert_events(db, conversation_id, me, 'owner', [user_id])))
+	return true
+}
+
+/** `db.batch` wants a list it can see is not empty. */
+const as_batch = <T>(statements: T[]) => statements as [T, ...T[]]
 
 export async function leave_conversation(db: Db, me: string, conversation_id: string) {
 	const [row] = await db
@@ -596,7 +862,31 @@ export async function leave_conversation(db: Db, me: string, conversation_id: st
 		.from(conversationMember)
 		.where(eq(conversationMember.conversationId, conversation_id))
 		.limit(1)
-	if (!left) await db.delete(conversation).where(eq(conversation.id, conversation_id))
+	if (!left) {
+		await db.delete(conversation).where(eq(conversation.id, conversation_id))
+		return true
+	}
+	await db.batch(as_batch(insert_events(db, conversation_id, me, 'left')))
+	// A group is never left without an owner: the longest-standing admin takes over, or failing
+	// that the longest-standing member.
+	await db
+		.update(conversationMember)
+		.set({ role: 'owner' })
+		.where(
+			and(
+				eq(conversationMember.conversationId, conversation_id),
+				sql`not exists(
+					select 1 from conversation_member o
+					where o.conversation_id = ${conversation_id} and o.role = 'owner'
+				)`,
+				sql`${conversationMember.userId} = (
+					select n.user_id from conversation_member n
+					where n.conversation_id = ${conversation_id}
+					order by (n.role = 'admin') desc, n.created_at, n.user_id
+					limit 1
+				)`,
+			),
+		)
 	return true
 }
 
@@ -613,14 +903,31 @@ export async function can_see_media(db: Db, me: string, url: string) {
 		)
 		.where(eq(message.mediaUrl, url))
 		.limit(1)
-	return !!row
+	if (row) return true
+	// A group's photo is for the people in the group.
+	const [group] = await db
+		.select({ id: conversation.id })
+		.from(conversation)
+		.innerJoin(
+			conversationMember,
+			and(
+				eq(conversationMember.conversationId, conversation.id),
+				eq(conversationMember.userId, me),
+			),
+		)
+		.where(eq(conversation.image, url))
+		.limit(1)
+	return !!group
 }
 
 export async function media_in_use(db: Db, url: string) {
-	const [row] = await db
-		.select({ id: message.id })
-		.from(message)
-		.where(eq(message.mediaUrl, url))
-		.limit(1)
-	return !!row
+	const [[row], [group]] = await Promise.all([
+		db.select({ id: message.id }).from(message).where(eq(message.mediaUrl, url)).limit(1),
+		db
+			.select({ id: conversation.id })
+			.from(conversation)
+			.where(eq(conversation.image, url))
+			.limit(1),
+	])
+	return !!row || !!group
 }

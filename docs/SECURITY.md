@@ -85,6 +85,7 @@ These are the ones that have already been broken once.
 | Impersonation                             | Reserved handles; control and bidi characters stripped from names and bios                                                                  | `profiles/form/profile.ts`                                       |
 | Misleading links                          | URLs with user info (`https://bank@evil/`) are not linkified                                                                                | `posts/text.ts`                                                  |
 | Reading someone else's chat or its photos | Membership checked in every message query; message photos open only to members and the uploader                                             | `server/messages.ts`, `routes/media/[...key]`                    |
+| Running someone else's group              | Owner, admin and member roles compared inside the statement that removes or promotes; group photos are a member's own upload                | `server/messages.ts` (`remove_member`, `set_admin`)              |
 | Listening in on someone else's chat       | Live sockets need a signed one-minute ticket made after a membership check, a same-site Origin; caps on sockets, frame size and typing rate | `server/live.ts`, `server/live-ticket.ts`, `server/chat-room.ts` |
 | Seeing a post or photo a moderator hid    | `shown_to` in every post query; `/media` serves a hidden post's media to its author and moderators only                                     | `server/posts.ts`, `routes/media/[...key]`                       |
 | A suspended account acting                | One gate before every route, and `signed_in()`                                                                                              | `hooks.server.ts` (`handleSuspended`), `session.ts`              |
@@ -128,17 +129,18 @@ look next.
 
 ### Code — not done yet
 
-1. **Blocks don't reach group chats.** A block stops direct chats both ways, but anyone can still
-   put up to 49 people in a group without asking them, blocked or not, and a direct chat can't be
-   left. Consider asking before adding someone to a group.
+1. **Blocks only half reach group chats.** A block stops direct chats both ways, and nobody can
+   add someone to an existing group across a block (`add_members`). But starting a group still
+   takes up to 49 people without asking them, blocked or not, another member can add someone you
+   blocked, and a direct chat can't be left. Consider asking before adding someone to a group.
 2. **One moderator, no admin UI for roles.** `@jiyuu_org` moderates (see docs/MODERATION.md); more
    are added with `pnpm db:grant-moderator`. The automatic checks only read English text.
 3. **No account deletion or data export.** The schema cascades correctly from `user`, but nothing
    calls it, and R2 objects would be left behind.
 4. **Uploads that are never attached stay in R2.** The composer deletes what it discards, but a
    scripted client need not. Needs a scheduled sweep of `posts/…` keys with no `post_media` row,
-   and of `messages/…` keys with no `message` row. A group's photos are also left in R2 when its
-   last member leaves and the conversation is deleted.
+   and of `messages/…` keys with no `message` row. A group's photos, and the photo set as its
+   picture, are also left in R2 when its last member leaves and the conversation is deleted.
 5. **Uploads pass through Worker memory.** A 50 MB video is buffered; a few at once approach the
    128 MB isolate limit. The durable fix is uploading straight to R2 (presigned URL or multipart)
    and stripping metadata afterwards.

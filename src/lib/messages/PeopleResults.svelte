@@ -8,15 +8,20 @@
 		q,
 		selected,
 		full,
+		exclude,
 		ontoggle,
 	}: {
 		q: string
 		selected: UserView[]
 		full: boolean
+		/** Accounts left out of the list, such as people already in the group. */
+		exclude?: Set<string>
 		ontoggle: (person: UserView) => void
 	} = $props()
 
-	const people = $derived((await search_people(q)).filter((person) => !person.mine))
+	const people = $derived(
+		(await search_people(q)).filter((person) => !person.mine && !exclude?.has(person.id)),
+	)
 	const chosen = $derived(new Set(selected.map((person) => person.id)))
 </script>
 

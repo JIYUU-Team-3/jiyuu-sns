@@ -4,7 +4,7 @@ import { BETTER_AUTH_SECRET } from '$app/env/private'
 import * as v from 'valibot'
 import { command, query } from '$app/server'
 import { is_gif_url } from '#lib/server/gifs'
-import { is_own_message_upload } from '#lib/server/media'
+import { delete_media, is_own_message_upload } from '#lib/server/media'
 import type { Nudge } from '#lib/server/chat-room'
 import { INBOX, inbox_room, mark_delivered_live, nudge, nudge_inboxes } from '#lib/server/live'
 import { sign_ticket } from '#lib/server/live-ticket'
@@ -20,6 +20,13 @@ import { follows, is_limited, trust_level } from '#lib/server/moderation/trust'
 import { check_message } from '#lib/server/moderation/write'
 
 const Id = v.pipe(v.string(), v.uuid())
+// Cleaned like a display name, so a group can't be named to redraw the row it sits in.
+const GroupName = v.pipe(
+	v.string(),
+	v.transform(visible_text),
+	v.trim(),
+	v.maxLength(GROUP_NAME_MAX),
+)
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
 const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
@@ -136,21 +143,12 @@ export const react_to_message = command(
 export const start_conversation = command(
 	v.object({
 		user_ids: v.pipe(v.array(UserId), v.minLength(1), v.maxLength(MEMBER_MAX - 1)),
-		// Cleaned like a display name, so a group can't be named to redraw the row it sits in.
-		name: v.optional(
-			v.pipe(v.string(), v.transform(visible_text), v.trim(), v.maxLength(GROUP_NAME_MAX)),
-		),
+		name: v.optional(GroupName),
 	}),
 	async ({ user_ids, name }) => {
 		// Starting a chat puts it in other people's lists, so it goes at the pace of a post.
 		const { db, user_id } = await member()
-		// A new account can only start a chat with people who follow it, so it can't cold-message.
-		if (is_limited(await trust_level(db, user_id))) {
-			for (const other of user_ids) {
-				if (other !== user_id && !(await follows(db, other, user_id)))
-					error(403, 'chat_new_account')
-			}
-		}
+		await only_followers(db, user_id, user_ids)
 		const id = await messages.start_conversation(db, user_id, user_ids, name)
 		if (id === 'invalid') error(400, 'Invalid members.')
 		waitUntil(inboxes(db, id))
@@ -159,12 +157,107 @@ export const start_conversation = command(
 	},
 )
 
+/** A new account can only put people who follow it in a chat, so it can't cold-message. */
+async function only_followers(db: Parameters<typeof trust_level>[0], me: string, others: string[]) {
+	if (!is_limited(await trust_level(db, me))) return
+	for (const other of others) {
+		if (other !== me && !(await follows(db, other, me))) error(403, 'chat_new_account')
+	}
+}
+
+/** What everyone in a group sees change: its row in the inbox and the open chat. */
+const group_changed = (id: string) =>
+	Promise.all([
+		get_conversation(id).refresh(),
+		get_conversations(conversations_arg()).refresh(),
+		// Every change writes a line into the chat.
+		get_messages(messages_arg(id)).refresh(),
+	])
+
+export const rename_group = command(v.object({ id: Id, name: GroupName }), async ({ id, name }) => {
+	const { db, user_id } = await member()
+	if (!(await messages.rename_group(db, user_id, id, name))) error(404, 'Conversation not found.')
+	waitUntil(live(id, { kind: 'group' }))
+	await group_changed(id)
+})
+
+export const set_group_photo = command(
+	// Without a URL the photo is taken off, and the group shows its members' faces again.
+	v.object({ id: Id, url: v.optional(v.pipe(v.string(), v.maxLength(2048))) }),
+	async ({ id, url }) => {
+		const { db, user_id } = await member()
+		if (url && !is_own_message_upload(url, user_id)) error(400, 'Invalid media.')
+		const changed = await messages.set_group_image(db, user_id, id, url)
+		if (changed === 'not_found') error(404, 'Conversation not found.')
+		const { replaced } = changed
+		if (replaced && !(await messages.media_in_use(db, replaced)))
+			waitUntil(
+				delete_media(env.MEDIA, [replaced]).catch((error) =>
+					console.error('Old group photo not deleted', error),
+				),
+			)
+		waitUntil(live(id, { kind: 'group' }))
+		await group_changed(id)
+	},
+)
+
+export const add_group_members = command(
+	v.object({
+		id: Id,
+		user_ids: v.pipe(v.array(UserId), v.minLength(1), v.maxLength(MEMBER_MAX - 1)),
+	}),
+	async ({ id, user_ids }) => {
+		// Like starting a chat, this puts one in other people's lists, so it goes at a post's pace.
+		const { db, user_id } = await member()
+		await only_followers(db, user_id, user_ids)
+		const added = await messages.add_members(db, user_id, id, user_ids)
+		if (added === 'not_found') error(404, 'Conversation not found.')
+		if (added === 'invalid') error(400, 'Invalid members.')
+		if (added === 'full') error(409, 'group_full')
+		waitUntil(live(id, { kind: 'group' }))
+		await group_changed(id)
+	},
+)
+
+export const remove_group_member = command(
+	v.object({ id: Id, user_id: UserId }),
+	async ({ id, user_id: target }) => {
+		const { db, user_id } = await member()
+		// One answer for "not yours to remove" and "not there", so roles can't be probed.
+		if (!(await messages.remove_member(db, user_id, id, target)))
+			error(404, 'Conversation not found.')
+		waitUntil(live(id, { kind: 'kick', user_id: target }).then(() => live(id, { kind: 'group' })))
+		await group_changed(id)
+	},
+)
+
+export const set_group_admin = command(
+	v.object({ id: Id, user_id: UserId, on: v.boolean() }),
+	async ({ id, user_id: target, on }) => {
+		const { db, user_id } = await member()
+		if (!(await messages.set_admin(db, user_id, id, target, on)))
+			error(404, 'Conversation not found.')
+		waitUntil(live(id, { kind: 'group' }))
+		await group_changed(id)
+	},
+)
+
+export const transfer_group_owner = command(
+	v.object({ id: Id, user_id: UserId }),
+	async ({ id, user_id: target }) => {
+		const { db, user_id } = await member()
+		if (!(await messages.transfer_owner(db, user_id, id, target)))
+			error(404, 'Conversation not found.')
+		waitUntil(live(id, { kind: 'group' }))
+		await group_changed(id)
+	},
+)
+
 export const leave_conversation = command(Id, async (id) => {
 	const { db, user_id } = await member()
 	const left = await messages.leave_conversation(db, user_id, id)
 	if (!left) error(404, 'Conversation not found.')
-	waitUntil(live(id, { kind: 'kick', user_id }))
-	waitUntil(inboxes(db, id, [user_id]))
+	waitUntil(live(id, { kind: 'kick', user_id }).then(() => live(id, { kind: 'group' })))
 	await Promise.all([
 		get_conversations(conversations_arg()).refresh(),
 		get_unread_messages().refresh(),

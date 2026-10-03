@@ -13,6 +13,7 @@
 	import { bookmarks_href } from '#lib/posts/links'
 	import { composer } from '#lib/posts/state.svelte'
 	import { explore_href } from '#lib/search/links'
+	import SearchBox from '#lib/search/SearchBox.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
 	import { home_href } from '../(public)/links'
@@ -20,6 +21,7 @@
 	import Wordmark from '../(public)/Wordmark.svelte'
 	import AccountMenu from './AccountMenu.svelte'
 	import ComposerHost from './ComposerHost.svelte'
+	import { follow_scroll } from './follow-scroll'
 	import RailDiscover from './RailDiscover.svelte'
 	import type { LayoutProps } from './$types'
 
@@ -238,12 +240,17 @@
 		<aside class="rail">
 			<!-- Explore and Search already show all of this in the main column. -->
 			{#if !on_explore}
-				<svelte:boundary>
-					<RailDiscover />
-					{#snippet failed()}{/snippet}
-				</svelte:boundary>
+				<div class="rail-search" data-clip-bar><SearchBox /></div>
 			{/if}
-			<SiteFooter />
+			<div class="rail-body" {@attach follow_scroll}>
+				{#if !on_explore}
+					<svelte:boundary>
+						<RailDiscover />
+						{#snippet failed()}{/snippet}
+					</svelte:boundary>
+				{/if}
+				<SiteFooter />
+			</div>
 		</aside>
 	{/if}
 </div>
@@ -412,11 +419,24 @@
 	.rail {
 		width: var(--rail-w);
 		flex: none;
-		padding: 8px 0 32px 28px;
+		padding-left: 28px;
+	}
+	/* The padding above the box is painted too, so nothing shows through as the rail passes under. */
+	.rail-search {
 		position: sticky;
 		top: 0;
-		height: 100vh;
-		overflow-y: auto;
+		z-index: 2;
+		padding: 8px 0 12px;
+		background: var(--bg);
+	}
+	/* `follow_scroll` moves `top`, so a rail taller than the window scrolls with the page. */
+	.rail-body {
+		position: sticky;
+		top: 0;
+		padding-bottom: 32px;
+	}
+	.rail-body:first-child {
+		padding-top: 8px;
 	}
 	.shell.wide .main {
 		width: calc(var(--main-w) + var(--rail-w));

@@ -1,4 +1,10 @@
-export type LiveEvent = { type: 'refresh' } | { type: 'typing'; user_id: string; on: boolean }
+export type LiveEvent =
+	| { type: 'refresh' }
+	/** The group's name, photo, members or roles changed. */
+	| { type: 'group' }
+	/** The room closed this socket: the reader left the group or was removed from it. */
+	| { type: 'removed' }
+	| { type: 'typing'; user_id: string; on: boolean }
 
 const RETRY_MAX = 30_000
 
@@ -30,8 +36,9 @@ export function connect_live(
 			next.onopen = () => (attempt = 0)
 			next.onclose = (event) => {
 				if (socket === next) socket = undefined
+				if (event.code === 4001) return onevent({ type: 'removed' })
 				onevent({ type: 'refresh' })
-				if (event.code !== 4001) retry()
+				retry()
 			}
 			next.onmessage = (event) => {
 				try {
