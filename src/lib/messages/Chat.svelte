@@ -14,15 +14,17 @@
 	import Icon from '#lib/ui/Icon.svelte'
 	import Menu from '#lib/ui/Menu.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
-	import { messages_arg } from './args'
+	import { conversations_arg, messages_arg } from './args'
 	import ConversationAvatar from './ConversationAvatar.svelte'
-	import { format_day } from './format'
+	import { event_text, format_day } from './format'
+	import GroupSettings from './GroupSettings.svelte'
 	import { messages_href } from './links'
 	import { connect_live, type LiveEvent } from './live'
 	import MessageComposer from './MessageComposer.svelte'
 	import MessageItem from './MessageItem.svelte'
 	import {
 		get_conversation,
+		get_conversations,
 		get_messages,
 		leave_conversation,
 		mark_conversation_read,
@@ -52,6 +54,9 @@
 	let pending = $state<MessageView[]>([])
 	let replying = $state<MessageView>()
 	let leaving = $state(false)
+	let settings = $state(false)
+	/** Set once the reader leaves on their own, so the room closing isn't reported as a removal. */
+	let left = false
 	let scroller = $state<HTMLDivElement>()
 	let log = $state<HTMLDivElement>()
 	let stick = true
@@ -83,7 +88,7 @@
 
 	const receipt = $derived.by(() => {
 		const newest = rows.at(-1)
-		if (!newest || newest.pending || !newest.message.mine) return undefined
+		if (!newest || newest.pending || !newest.message.mine || newest.message.event) return undefined
 		const { status, seen_by } = receipt_status(newest.message.created_at, latest.receipts)
 		if (status === 'sent') return m.dm_sent()
 		if (status === 'delivered') return m.dm_delivered()
@@ -98,6 +103,8 @@
 	const joined = (a: MessageView | undefined, b: MessageView | undefined) =>
 		!!a &&
 		!!b &&
+		!a.event &&
+		!b.event &&
 		a.sender.id === b.sender.id &&
 		b.created_at - a.created_at < RUN_GAP &&
 		same_day(a.created_at, b.created_at)
@@ -129,6 +136,25 @@
 			get_messages(messages_arg(id))
 				.refresh()
 				.catch(() => {})
+			return
+		}
+		if (event.type === 'group') {
+			get_conversation(id)
+				.refresh()
+				.catch(() => {})
+			// The change wrote a line into the chat.
+			get_messages(messages_arg(id))
+				.refresh()
+				.catch(() => {})
+			return
+		}
+		if (event.type === 'removed') {
+			if (left) return
+			toast.show(m.dm_removed())
+			get_conversations(conversations_arg())
+				.refresh()
+				.catch(() => {})
+			void goto(messages_href())
 			return
 		}
 		stop_typing(event.user_id)
@@ -169,6 +195,11 @@
 			get_messages(messages_arg(id))
 				.refresh()
 				.catch(() => {})
+			// Without a socket nothing else says the group was renamed or who is in it now.
+			if (convo.group)
+				get_conversation(id)
+					.refresh()
+					.catch(() => {})
 		}, 4_000)
 		return () => clearInterval(timer)
 	})
@@ -289,10 +320,12 @@
 
 	async function leave() {
 		leaving = false
+		left = true
 		try {
 			await leave_conversation(id)
 			await goto(messages_href())
 		} catch {
+			left = false
 			toast.show(m.toast_error())
 		}
 	}
@@ -324,6 +357,17 @@
 					</a>
 				{/if}
 				{#if convo.group}
+					<button
+						type="button"
+						class="menu-item"
+						role="menuitem"
+						onclick={() => {
+							close()
+							settings = true
+						}}
+					>
+						<Icon name="settings" />{m.dm_group_settings()}
+					</button>
 					<button
 						type="button"
 						class="menu-item danger"
@@ -375,18 +419,23 @@
 			{#if !previous || !same_day(previous.created_at, row.message.created_at)}
 				<div class="day">{format_day(row.message.created_at, current_time(), getLocale())}</div>
 			{/if}
-			<MessageItem
-				message={row.message}
-				reactions={reactions.get(row.message.id) ?? row.message.reactions}
-				group={convo.group}
-				first={!joined(previous, row.message)}
-				last={!joined(row.message, following)}
-				pending={row.pending}
-				receipt={i === rows.length - 1 ? receipt : undefined}
-				onreply={() => (replying = row.message)}
-				onreact={(emoji) => react(row.message, emoji)}
-				onjump={jump}
-			/>
+			{@const system = event_text(row.message, m.dm_deleted_account())}
+			{#if system}
+				<div class="event" id="msg-{row.message.id}">{system}</div>
+			{:else}
+				<MessageItem
+					message={row.message}
+					reactions={reactions.get(row.message.id) ?? row.message.reactions}
+					group={convo.group}
+					first={!joined(previous, row.message)}
+					last={!joined(row.message, following)}
+					pending={row.pending}
+					receipt={i === rows.length - 1 ? receipt : undefined}
+					onreply={() => (replying = row.message)}
+					onreact={(emoji) => react(row.message, emoji)}
+					onjump={jump}
+				/>
+			{/if}
 		{/each}
 		{#if typers.length}
 			<div class="typing" role="status">
@@ -403,6 +452,10 @@
 </div>
 
 <MessageComposer {replying} oncancelreply={() => (replying = undefined)} onsend={send} {ontyping} />
+
+{#if settings && convo.group}
+	<GroupSettings {convo} onclose={() => (settings = false)} />
+{/if}
 
 {#if leaving}
 	<ConfirmDialog
@@ -551,6 +604,15 @@
 		.dots i {
 			animation: none;
 		}
+	}
+	.event {
+		align-self: center;
+		max-width: 100%;
+		margin: 8px 0;
+		color: var(--text-2);
+		font-size: 13px;
+		text-align: center;
+		overflow-wrap: anywhere;
 	}
 	.day {
 		align-self: center;

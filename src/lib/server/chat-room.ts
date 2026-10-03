@@ -12,7 +12,7 @@ const quietly = (run: () => void) => {
 	}
 }
 
-export type Nudge = { kind: 'refresh' } | { kind: 'kick'; user_id: string }
+export type Nudge = { kind: 'refresh' } | { kind: 'group' } | { kind: 'kick'; user_id: string }
 
 export class ChatRoom extends DurableObject {
 	private typing = new Map<string, number>()
@@ -65,6 +65,8 @@ export class ChatRoom extends DurableObject {
 	private async nudge(request: Request) {
 		const body = (await request.json().catch(() => undefined)) as Nudge | undefined
 		if (body?.kind === 'refresh') this.send_others(undefined, { type: 'refresh' })
+		// The group's name, photo, members or roles changed.
+		if (body?.kind === 'group') this.send_others(undefined, { type: 'group' })
 		if (body?.kind === 'kick' && typeof body.user_id === 'string') {
 			for (const socket of this.ctx.getWebSockets(body.user_id)) socket.close(4001, 'Left')
 		}

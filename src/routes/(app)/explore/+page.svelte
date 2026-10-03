@@ -6,7 +6,7 @@
 	import UserRow from '#lib/search/UserRow.svelte'
 	import PageBar from '../PageBar.svelte'
 
-	const trending = $derived(await get_trending(10))
+	const trending = $derived(await get_trending(5))
 	const people = $derived(await get_who_to_follow(10))
 </script>
 

@@ -1,5 +1,5 @@
 import { post_length } from '#lib/posts/rules'
-import type { Reaction, Receipt, ReceiptStatus } from './types'
+import type { MemberRole, Reaction, Receipt, ReceiptStatus } from './types'
 
 export const MESSAGE_MAX = 1000
 
@@ -21,6 +21,10 @@ export function message_problem(body: string, has_media = false): MessageProblem
 	if (post_length(body) > MESSAGE_MAX) return 'too_long'
 	return undefined
 }
+
+/** The owner can remove anyone else; an admin, only plain members. */
+export const can_remove = (actor: MemberRole, target: MemberRole) =>
+	actor === 'owner' ? target !== 'owner' : actor === 'admin' && target === 'member'
 
 export const direct_key = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`)
 

@@ -2,15 +2,12 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { explore_href } from '#lib/search/links'
 	import { get_trending, get_who_to_follow } from '#lib/search/search.remote'
-	import SearchBox from '#lib/search/SearchBox.svelte'
 	import TagRow from '#lib/search/TagRow.svelte'
 	import UserRow from '#lib/search/UserRow.svelte'
 
-	const trending = $derived(await get_trending(5).catch(() => []))
+	const trending = $derived(await get_trending(3).catch(() => []))
 	const people = $derived(await get_who_to_follow(3).catch(() => []))
 </script>
-
-<div class="box" data-clip-bar><SearchBox /></div>
 
 {#if trending.length}
 	<section class="card" aria-labelledby="rail-trending">
@@ -29,13 +26,6 @@
 {/if}
 
 <style>
-	.box {
-		position: sticky;
-		top: 0;
-		z-index: 2;
-		padding: 0 0 12px;
-		background: var(--bg);
-	}
 	.card {
 		border: 1px solid var(--line);
 		border-radius: 16px;

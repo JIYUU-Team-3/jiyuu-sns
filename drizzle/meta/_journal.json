@@ -127,6 +127,20 @@
       "when": 1791011424216,
       "tag": "0017_engagement_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791025936942,
+      "tag": "0018_group_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791027699432,
+      "tag": "0019_group_events",
+      "breakpoints": true
     }
   ]
 }

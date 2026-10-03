@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	can_remove,
 	conversation_title,
 	direct_key,
 	MESSAGE_MAX,
@@ -19,6 +20,18 @@ describe('message_problem', () => {
 	it('counts graphemes up to the limit', () => {
 		expect(message_problem('👍🏽'.repeat(MESSAGE_MAX))).toBeUndefined()
 		expect(message_problem('a'.repeat(MESSAGE_MAX + 1))).toBe('too_long')
+	})
+})
+
+describe('can_remove', () => {
+	it('lets the owner remove anyone else, and an admin only plain members', () => {
+		expect(can_remove('owner', 'admin')).toBe(true)
+		expect(can_remove('owner', 'member')).toBe(true)
+		expect(can_remove('owner', 'owner')).toBe(false)
+		expect(can_remove('admin', 'member')).toBe(true)
+		expect(can_remove('admin', 'admin')).toBe(false)
+		expect(can_remove('admin', 'owner')).toBe(false)
+		expect(can_remove('member', 'member')).toBe(false)
 	})
 })
 

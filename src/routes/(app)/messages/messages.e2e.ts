@@ -108,6 +108,117 @@ test('start a named group chat from the new message dialog @writes', async ({ pa
 	await expect(page.locator('nav').getByRole('link', { name: new RegExp(group) })).toBeVisible()
 })
 
+test('a group owner renames it, names an admin and removes someone; a member can do neither @writes', async ({
+	page,
+	browser,
+}) => {
+	// Three accounts and two follows before the group exists: too much for 30s on a busy machine.
+	test.slow()
+	const id = crypto.randomUUID().slice(0, 8)
+	const owner = `e2e_gso_${id}`
+	const first = `e2e_gsa_${id}`
+	const second = `e2e_gsb_${id}`
+	const renamed = `Renamed ${id}`
+
+	await sign_up(page, owner)
+	const others = []
+	for (const handle of [first, second]) {
+		const other = await (await browser.newContext()).newPage()
+		await sign_up(other, handle)
+		// New accounts can only start a chat with people who follow them.
+		await follow(other, owner)
+		others.push(other)
+	}
+	const second_page = others[1]
+
+	await page.goto('/messages')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: 'New message' }).first().click()
+	const create = page.getByRole('dialog')
+	for (const handle of [first, second]) {
+		await create.getByLabel('Search people').fill(handle)
+		await create.getByRole('checkbox', { name: `Select ${handle}` }).check()
+	}
+	await create.getByRole('button', { name: 'Next' }).click()
+	await expect(page).toHaveURL(/\/messages\/[\w-]+$/)
+	const chat = new URL(page.url()).pathname
+	await expect(page.getByText('3 members')).toBeVisible()
+	await expect(page.getByText(`${owner} created the group`)).toBeVisible()
+
+	const open_settings = async (who: typeof page) => {
+		await who.getByRole('button', { name: 'Conversation options' }).click()
+		await who.getByRole('menuitem', { name: 'Group settings' }).click()
+		return who.getByRole('dialog', { name: 'Group settings' })
+	}
+
+	// A plain member sees who is in the group, with nothing to remove or promote them with.
+	await second_page.goto(chat)
+	const member_view = await open_settings(second_page)
+	await expect(member_view.getByText('Owner')).toBeVisible()
+	await expect(member_view.getByRole('button', { name: /^Options for/ })).toHaveCount(0)
+
+	const settings = await open_settings(page)
+	await settings.getByLabel('Group name').fill(renamed)
+	await settings.getByRole('button', { name: 'Save' }).click()
+	await expect(page.getByRole('heading', { name: renamed, level: 1 })).toBeVisible()
+
+	const promote = page.waitForRequest((request) => request.url().includes('/set_group_admin'))
+	await settings.getByRole('button', { name: `Options for ${first}` }).click()
+	await settings.getByRole('menuitem', { name: 'Make admin' }).click()
+	const promote_request = await promote
+	await expect(settings.getByText('Admin', { exact: true })).toBeVisible()
+
+	// The same call from a plain member is refused: the page hiding the menu is not the check.
+	const origin = new URL(page.url()).origin
+	const replay = (from: typeof page, request: typeof promote_request) =>
+		from.request.post(request.url(), {
+			headers: { origin, 'content-type': request.headers()['content-type'] },
+			data: request.postData() ?? '',
+		})
+	expect(await (await replay(second_page, promote_request)).json()).toMatchObject({
+		type: 'error',
+		error: { status: 404 },
+	})
+
+	const removal = page.waitForRequest((request) => request.url().includes('/remove_group_member'))
+	await settings.getByRole('button', { name: `Options for ${second}` }).click()
+	await settings.getByRole('menuitem', { name: 'Remove from group' }).click()
+	await page
+		.getByRole('dialog', { name: `Remove ${second}?` })
+		.getByRole('button', { name: 'Remove' })
+		.click()
+	const removal_request = await removal
+	await expect(settings.getByText('Members · 2')).toBeVisible()
+	// The chat itself says what happened, in order.
+	const events = page.locator('.chat .event')
+	await expect(events).toHaveText([
+		`${owner} created the group`,
+		`${owner} named the group “${renamed}”`,
+		`${owner} made ${first} an admin`,
+		`${owner} removed ${second}`,
+	])
+
+	// The owner hands the group to the admin, and can no longer name admins.
+	await settings.getByRole('button', { name: `Options for ${first}` }).click()
+	await settings.getByRole('menuitem', { name: 'Transfer ownership' }).click()
+	await page
+		.getByRole('dialog', { name: `Make ${first} the owner?` })
+		.getByRole('button', { name: 'Transfer' })
+		.click()
+	await expect(events.last()).toHaveText(`${owner} made ${first} the owner`)
+	await expect(settings.getByRole('button', { name: /^Options for/ })).toHaveCount(0)
+
+	// Removed, they can neither open the chat nor remove anyone from it.
+	await second_page.goto(chat)
+	await expect(second_page.getByText('This conversation doesn’t exist')).toBeVisible()
+	expect(await (await replay(second_page, removal_request)).json()).toMatchObject({
+		type: 'error',
+		error: { status: 404 },
+	})
+
+	for (const other of others) await other.context().close()
+})
+
 test('a message turns delivered once a push reaches the other person @writes', async ({
 	page,
 	browser,

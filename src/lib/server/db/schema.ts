@@ -389,6 +389,8 @@ export const conversation = sqliteTable('conversation', {
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
 	name: text('name'),
+	/** A group's photo: a `/media/messages/…` upload of one of its members. */
+	image: text('image'),
 	isGroup: integer('is_group', { mode: 'boolean' }).notNull().default(false),
 	directKey: text('direct_key').unique(),
 	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -405,6 +407,10 @@ export const conversationMember = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
+		/** Only groups use it: one owner, who names admins; both can remove people. */
+		role: text('role', { enum: ['owner', 'admin', 'member'] })
+			.notNull()
+			.default('member'),
 		lastReadAt: integer('last_read_at', { mode: 'timestamp_ms' }),
 		lastDeliveredAt: integer('last_delivered_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
@@ -431,6 +437,24 @@ export const message = sqliteTable(
 		replyToId: text('reply_to_id').references((): AnySQLiteColumn => message.id, {
 			onDelete: 'set null',
 		}),
+		/**
+		 * Set on the lines a group writes about itself ("Mika added Ken"), which nobody typed:
+		 * `senderId` did it, to `targetId` where there is one. A rename keeps the new name in `body`.
+		 */
+		event: text('event', {
+			enum: [
+				'created',
+				'added',
+				'removed',
+				'left',
+				'admin_on',
+				'admin_off',
+				'owner',
+				'renamed',
+				'photo',
+			],
+		}),
+		targetId: text('target_id').references(() => user.id, { onDelete: 'set null' }),
 		mediaKind: text('media_kind', { enum: ['image', 'gif'] }),
 		mediaUrl: text('media_url'),
 		mediaWidth: integer('media_width'),
