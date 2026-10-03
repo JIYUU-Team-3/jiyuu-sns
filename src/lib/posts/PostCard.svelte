@@ -4,6 +4,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
 	import Avatar from '#lib/ui/Avatar.svelte'
+	import Icon from '#lib/ui/Icon.svelte'
 	import { format_age, format_timestamp } from './format'
 	import { post_href } from './links'
 	import PostActions from './PostActions.svelte'
@@ -30,6 +31,8 @@
 	} = $props()
 
 	const edited = $derived(post.edited || edited_posts.has(post.id))
+	/** Who reposted it, when this entry is a repost. */
+	const reposter = $derived(post.repost?.by)
 	const href = $derived(post_href(post.id))
 	/** The handle this post replies to, when the card should say so. */
 	const replying = $derived(show_replying && !post.reply_to?.self && post.reply_to?.handle)
@@ -78,9 +81,29 @@
 	}
 </script>
 
+{#snippet reposted_by()}
+	{#if post.repost?.mine}
+		{m.post_you_reposted()}
+	{:else}
+		{#each m.post_reposted_by.parts() as part, i (i)}
+			{#if part.type === 'text'}{part.value}{:else if part.name === 'name'}{reposter?.name}{/if}
+		{/each}
+	{/if}
+{/snippet}
+
 <!-- The timestamp link is the keyboard path to the post; the row click is a pointer shortcut. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <article class="post" class:has-next={thread_below} class:bare onclick={open}>
+	{#if reposter}
+		<div class="ctx">
+			<span class="ctx-ico"><Icon name="repost" size="xs" /></span>
+			{#if reposter.handle}
+				<a href={profile_href(reposter.handle)}>{@render reposted_by()}</a>
+			{:else}
+				<span>{@render reposted_by()}</span>
+			{/if}
+		</div>
+	{/if}
 	<div class="row">
 		<div class="gutter" bind:this={gutter}>
 			<div class="av" style:scale={tuck}>
@@ -151,6 +174,32 @@
 	.row {
 		display: flex;
 		gap: 12px;
+	}
+	/* "… reposted", its icon right-aligned to the avatar gutter. */
+	.ctx {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--text-2);
+		margin: -2px 0 4px;
+		min-width: 0;
+	}
+	.ctx-ico {
+		width: 40px;
+		display: flex;
+		justify-content: flex-end;
+		flex: none;
+	}
+	.ctx a,
+	.ctx span:last-child {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.ctx a:hover {
+		text-decoration: underline;
 	}
 	.gutter {
 		display: flex;

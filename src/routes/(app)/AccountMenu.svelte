@@ -2,6 +2,7 @@
 	import { page } from '$app/state'
 	import { mod_href } from '#lib/moderation/links'
 	import { m } from '#lib/paraglide/messages.js'
+	import { bookmarks_href } from '#lib/posts/links'
 	import type { Author } from '#lib/posts/types'
 	import { profile_href } from '#lib/profiles/links'
 	import { settings_href } from '#lib/settings/links'
@@ -31,6 +32,10 @@
 	{#snippet children(close)}
 		<a class="menu-item" role="menuitem" href={profile_href(me.handle)} onclick={close}>
 			<Icon name="user" />{m.app_profile()}
+		</a>
+		<!-- Phones have no room for Bookmarks in the tab bar; wider screens show it in the side nav. -->
+		<a class="menu-item phone-only" role="menuitem" href={bookmarks_href()} onclick={close}>
+			<Icon name="bookmark" />{m.app_bookmarks()}
 		</a>
 		<a class="menu-item" role="menuitem" href={settings_href()} onclick={close}>
 			<Icon name="settings" />{m.settings_title()}
@@ -85,6 +90,12 @@
 	.chev {
 		color: var(--text-2);
 		display: grid;
+	}
+	@media (min-width: 701px) {
+		/* Outranks Menu's `.pop .menu-item { display: flex }`. */
+		a.menu-item.phone-only {
+			display: none;
+		}
 	}
 	@media (max-width: 1180px) {
 		.acct-chip {

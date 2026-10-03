@@ -4,7 +4,7 @@
 	import { author_arg } from '#lib/posts/args'
 	import { format_count } from '#lib/posts/format'
 	import PostList from '#lib/posts/PostList.svelte'
-	import { composer } from '#lib/posts/state.svelte'
+	import { composer, liked_posts } from '#lib/posts/state.svelte'
 	import { get_author_posts } from '#lib/posts/posts.remote'
 	import ProfileHeader from '#lib/profiles/ProfileHeader.svelte'
 	import { get_profile } from '#lib/profiles/profiles.remote'
@@ -24,9 +24,17 @@
 
 	const shut = $derived(profile.private && !profile.followed && !profile.mine)
 
+	/** Posts unliked in this tab leave your own Likes at once. */
+	const unliked = $derived(
+		profile.mine && tab === 'likes'
+			? new Set([...liked_posts].filter(([, state]) => !state.liked).map(([id]) => id))
+			: undefined,
+	)
+
 	const TABS: [ProfileTab, () => string][] = [
 		['posts', m.profile_tab_posts],
 		['replies', m.profile_tab_replies],
+		['likes', m.profile_tab_likes],
 	]
 </script>
 
@@ -69,13 +77,21 @@
 		<div role="tabpanel">
 			<PostList
 				load={(cursor) => get_author_posts(author_arg(profile.id, tab, cursor))}
-				show_replying={tab === 'replies'}
+				show_replying={tab !== 'posts'}
+				hide={unliked}
 			>
 				{#snippet empty()}
 					{#if tab === 'replies'}
 						<EmptyState
 							title={m.profile_empty_replies_title()}
 							body={m.profile_empty_replies_body()}
+						/>
+					{:else if tab === 'likes'}
+						<EmptyState
+							title={m.profile_empty_likes_title()}
+							body={profile.mine
+								? m.profile_empty_likes_mine_body()
+								: m.profile_empty_likes_body({ handle: profile.handle })}
 						/>
 					{:else if profile.mine}
 						<EmptyState

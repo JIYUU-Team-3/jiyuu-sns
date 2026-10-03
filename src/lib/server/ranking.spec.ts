@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { accountStanding, follow, moderationCase, post, postLike, user } from './db/schema'
+import { accountStanding, follow, moderationCase, post, postLike, repost, user } from './db/schema'
 import { add_account, test_db, type TestDb } from './db/test-d1'
 import { feed_page, PAGE_SIZE } from './posts'
 import { hot_score, new_score, rising_score, SLOTS, slotted, type Signals } from './ranking'
@@ -12,6 +12,7 @@ const signals = (id: string, hours_old: number, extra: Partial<Signals> = {}): S
 	created_at: now - hours_old * HOUR,
 	likes: 0,
 	replies: 0,
+	reposts: 0,
 	followed: false,
 	mine: false,
 	earlier: 0,
@@ -120,6 +121,18 @@ describe('the For you feed', () => {
 		// One like from a settled account in good standing is enough to pass it.
 		await db.insert(postLike).values({ postId: 'boosted', userId: 'carol' })
 		expect(await ids('bob')).toEqual(['newest', 'boosted', 'plain'])
+	})
+
+	it('counts reposts like likes, leaving out the author’s own and throwaway accounts’', async () => {
+		await add_post('reposted', 'alice', 10)
+		await add_post('plain', 'carol', 9)
+		await add_post('newest', 'carol', 0)
+		await db.insert(repost).values({ postId: 'reposted', userId: 'alice' })
+		await add_account(db, 'sock')
+		await db.insert(repost).values({ postId: 'reposted', userId: 'sock' })
+		expect(await ids('bob')).toEqual(['newest', 'plain', 'reposted'])
+		await db.insert(repost).values({ postId: 'reposted', userId: 'carol' })
+		expect(await ids('bob')).toEqual(['newest', 'reposted', 'plain'])
 	})
 
 	it('sinks a flood of posts below one post from someone else', async () => {

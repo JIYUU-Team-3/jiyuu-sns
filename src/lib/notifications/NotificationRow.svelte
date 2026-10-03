@@ -21,13 +21,16 @@
 			return item.actor.handle ? profile_href(item.actor.handle) : undefined
 		return item.post_id ? post_href(item.post_id) : undefined
 	})
-	const message = $derived(
-		item.type === 'like'
-			? m.notifications_like
-			: item.type === 'follow_request'
-				? m.notifications_follow_request
-				: m.notifications_follow,
-	)
+	/** The line for a notification that isn't shown as its post: a like, repost or follow. */
+	const LINES = {
+		like: { message: m.notifications_like, icon: 'heart', filled: true },
+		repost: { message: m.notifications_repost, icon: 'repost', filled: false },
+		follow: { message: m.notifications_follow, icon: 'user', filled: true },
+		follow_request: { message: m.notifications_follow_request, icon: 'user', filled: true },
+	} as const
+
+	const line = $derived(LINES[item.type as keyof typeof LINES] ?? LINES.follow)
+	const message = $derived(line.message)
 
 	/** A moderator's action, told without naming the moderator: the post page has the details. */
 	const moderation_text = $derived.by(() => {
@@ -70,7 +73,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 	<div class="nrow" class:unread={item.unread} onclick={open}>
 		<div class="n-ico {item.type}">
-			<Icon name={item.type === 'like' ? 'heart' : 'user'} size="lg" filled />
+			<Icon name={line.icon} size="lg" filled={line.filled} />
 		</div>
 		<div class="n-body">
 			{#if item.actor.handle}
@@ -120,6 +123,9 @@
 	}
 	.n-ico.like {
 		color: var(--like);
+	}
+	.n-ico.repost {
+		color: var(--repost);
 	}
 	.n-ico.follow,
 	.n-ico.follow_request {

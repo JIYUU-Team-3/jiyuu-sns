@@ -13,3 +13,5 @@ export const replies_arg = (id: string, cursor?: string) => (cursor ? { id, curs
 
 export const author_arg = (id: string, tab: ProfileTab, cursor?: string) =>
 	cursor ? { id, tab, cursor } : { id, tab }
+
+export const bookmarks_arg = (cursor?: string) => (cursor ? { cursor } : {})

@@ -213,7 +213,7 @@
 	.compose {
 		border-top: 1px solid var(--line);
 		padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-		background: var(--bg);
+		background: var(--page-bg);
 	}
 	.replying {
 		display: flex;

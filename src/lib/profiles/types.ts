@@ -22,4 +22,4 @@ export type ProfileView = Author & {
 	mine: boolean
 }
 
-export type ProfileTab = 'posts' | 'replies'
+export type ProfileTab = 'posts' | 'replies' | 'likes'

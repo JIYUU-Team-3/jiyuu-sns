@@ -24,6 +24,8 @@
 	{@html accent_style()}
 </svelte:head>
 <svelte:window onpageshow={reload_if_stale_locale} />
+<!-- iOS Safari only shows :active, the touch press state (src/hover-media.ts), under a touch listener. -->
+<svelte:body ontouchstart={() => {}} />
 {@render children()}
 
 <div style="display:none">

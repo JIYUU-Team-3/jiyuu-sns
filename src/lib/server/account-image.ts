@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { sql, type SQLWrapper } from 'drizzle-orm'
 import { profile, user } from './db/schema'
 
 /**
@@ -11,7 +11,11 @@ const GOOGLE_PHOTO = /^https:\/\/lh\d\.googleusercontent\.com\//
 export const account_image = (url: string | null | undefined) =>
 	url && GOOGLE_PHOTO.test(url) ? url : undefined
 
-/** The avatar to show for the joined `profile` and `user`: an upload, else the Google photo. */
-export const shown_image = sql<
-	string | null
->`coalesce(${profile.avatarUrl}, case when ${user.image} like 'https://lh_.googleusercontent.com/%' then ${user.image} end)`
+/** The avatar to show for a profile's upload and its account's photo: the upload, else Google's. */
+export const image_of = (avatar: SQLWrapper, image: SQLWrapper) =>
+	sql<
+		string | null
+	>`coalesce(${avatar}, case when ${image} like 'https://lh_.googleusercontent.com/%' then ${image} end)`
+
+/** The avatar to show for the joined `profile` and `user`. */
+export const shown_image = image_of(profile.avatarUrl, user.image)

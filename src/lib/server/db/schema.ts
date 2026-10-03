@@ -55,6 +55,9 @@ export const post = sqliteTable(
 		replyAudience: text('reply_audience', { enum: ['everyone', 'following', 'mentioned'] })
 			.notNull()
 			.default('everyone'),
+		// The post this one quotes. No foreign key: a quote outlives the post it quotes and then
+		// says that post is unavailable, so the id must stay. Checked to exist when quoting.
+		quoteId: text('quote_id'),
 		createdAt: created_at(),
 		// Set only by an edit, so the "Edited" label never comes from an unrelated write.
 		editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
@@ -84,6 +87,7 @@ export const post = sqliteTable(
 		index('post_timeline_idx').on(table.isReply, table.createdAt),
 		// The hourly job's retry of posts the checks couldn't finish.
 		index('post_checked_idx').on(table.checked, table.createdAt),
+		index('post_quote_idx').on(table.quoteId),
 	],
 )
 
@@ -264,6 +268,44 @@ export const postLike = sqliteTable(
 	(table) => [
 		primaryKey({ columns: [table.userId, table.postId] }),
 		index('post_like_post_idx').on(table.postId),
+		index('post_like_user_created_idx').on(table.userId, table.createdAt),
+	],
+)
+
+/** A repost puts someone else's post (or your own) on your timeline, once per person. */
+export const repost = sqliteTable(
+	'repost',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		createdAt: created_at(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.userId, table.postId] }),
+		index('repost_post_idx').on(table.postId),
+		index('repost_user_created_idx').on(table.userId, table.createdAt),
+	],
+)
+
+/** Posts saved for later. Private: only their owner ever reads them, and no count is shown. */
+export const bookmark = sqliteTable(
+	'bookmark',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		postId: text('post_id')
+			.notNull()
+			.references(() => post.id, { onDelete: 'cascade' }),
+		createdAt: created_at(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.userId, table.postId] }),
+		index('bookmark_user_created_idx').on(table.userId, table.createdAt),
 	],
 )
 
@@ -300,9 +342,18 @@ export const notification = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		type: text('type', {
-			enum: ['follow', 'like', 'reply', 'mention', 'moderation', 'follow_request'],
+			enum: [
+				'follow',
+				'like',
+				'reply',
+				'mention',
+				'repost',
+				'quote',
+				'moderation',
+				'follow_request',
+			],
 		}).notNull(),
-		// The liked post, or the reply or mention itself. Null for a follow.
+		// The liked or reposted post, or the reply, mention or quote itself. Null for a follow.
 		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
 		/** For `moderation`: what a moderator did, which says why. */
 		actionId: text('action_id').references((): AnySQLiteColumn => moderationAction.id, {

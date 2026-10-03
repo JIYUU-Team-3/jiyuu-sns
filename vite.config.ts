@@ -4,6 +4,7 @@ import { playwright } from '@vitest/browser-playwright'
 import adapter from '@sveltejs/adapter-cloudflare'
 import { sveltekit } from '@sveltejs/kit/vite'
 import { variables } from './src/env.ts'
+import { hover_media } from './src/hover-media.ts'
 
 // SvelteKit validates every private env var from src/env.ts during the build's
 // analyse step, but on Cloudflare the real values are Worker secrets that only
@@ -16,6 +17,8 @@ if (process.argv.includes('build') || process.env.VITEST) {
 }
 
 export default defineConfig({
+	// Hover styles only for a real pointer; touch screens leave :hover stuck after a tap.
+	css: { postcss: { plugins: [hover_media()] } },
 	plugins: [
 		sveltekit({
 			compilerOptions: {

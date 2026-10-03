@@ -39,19 +39,45 @@ export function shown_to(viewer: string | undefined) {
 }
 
 /**
- * Who may see a post, and the one filter every query that lists posts includes: not hidden by a
- * moderator (`shown_to`), not across a block, and not a private account's unless the viewer
- * follows it. Needs the author's `profile` joined.
+ * Whether the viewer may see what `account` puts out: not across a block, and not a private
+ * account's unless the viewer follows it. `is_private` is that account's `profile.is_private`.
  */
-export function visible_posts(viewer: string | undefined) {
-	const open = sql`coalesce(${profile.isPrivate}, 0) = 0`
-	if (!viewer) return and(shown_to(viewer), open)
+export function open_to(viewer: string | undefined, account: Side, is_private: SQLWrapper) {
+	const open = sql`coalesce(${is_private}, 0) = 0`
+	if (!viewer) return open
 	return and(
-		shown_to(viewer),
-		sql`not ${blocked_between(viewer, post.authorId)}`,
-		or(eq(post.authorId, viewer), open, follows(viewer, post.authorId)),
+		sql`not ${blocked_between(viewer, account)}`,
+		or(sql`${account} = ${viewer}`, open, follows(viewer, account)),
 	)
 }
+
+/**
+ * Who may see a post, and the one filter every query that lists posts includes: not hidden by a
+ * moderator (`shown_to`), and `open_to` the viewer. Needs the author's `profile` joined.
+ */
+export function visible_posts(viewer: string | undefined) {
+	return and(shown_to(viewer), open_to(viewer, post.authorId, profile.isPrivate))
+}
+
+/**
+ * `visible_posts` for a post outside the query's own `post` and `profile`, such as the one a post
+ * quotes, given as that post's author, moderation state and author's private flag.
+ */
+export function visible_post(
+	viewer: string | undefined,
+	of: { author: SQLWrapper; moderation: SQLWrapper; is_private: SQLWrapper },
+) {
+	const shown = viewer
+		? sql`(${of.moderation} = 'visible' or ${of.author} = ${viewer})`
+		: sql`${of.moderation} = 'visible'`
+	return and(shown, open_to(viewer, of.author, of.is_private))
+}
+
+/** Not an account the viewer muted; the viewer's own always passes. */
+export const unmuted_account = (viewer: string | undefined, account: Side) =>
+	viewer
+		? sql`(${account} = ${viewer} or not exists(select 1 from mute m where m.muter_id = ${viewer} and m.muted_id = ${account}))`
+		: undefined
 
 export function unmuted_posts(viewer: string | undefined) {
 	if (!viewer) return undefined

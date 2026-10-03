@@ -422,7 +422,8 @@
 		min-height: 53px;
 		padding: env(safe-area-inset-top) 12px 0;
 		border-bottom: 1px solid var(--line);
-		background: var(--bg);
+		/* Sits above the scrolling log, so it can fade with the page in transparent mode. */
+		background: var(--page-bg);
 	}
 	.titles {
 		flex: 1;

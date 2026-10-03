@@ -12,7 +12,7 @@ import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/serve
 import { trust_level } from '#lib/server/moderation/trust'
 import { member, signed_in } from '#lib/server/session'
 import { clean_text } from './clean'
-import { author_arg, feed_arg, replies_arg } from './args'
+import { author_arg, bookmarks_arg, feed_arg, replies_arg } from './args'
 import {
 	ALT_MAX,
 	draft_problem,
@@ -28,7 +28,8 @@ import type { Media } from './types'
 const Id = v.pipe(v.string(), v.uuid())
 // Better Auth ids aren't UUIDs, so only the length is bounded.
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
-const Cursor = v.optional(v.pipe(v.string(), v.maxLength(80)))
+// The longest is a repost's `time:post_id:user_id`: 13 + 1 + 36 + 1 + up to 64 characters.
+const Cursor = v.optional(v.pipe(v.string(), v.maxLength(160)))
 // The real limit is checked in graphemes by `post_problem`; this only bounds the payload. Bidi
 // overrides and stacked marks are taken out first, as names and bios already are.
 const Text = v.pipe(
@@ -77,7 +78,12 @@ const PostInput = v.pipe(
 const Audience = v.optional(v.picklist(REPLY_AUDIENCES), 'everyone')
 
 const NewPost = v.pipe(
-	v.object({ ...PostFields, reply_to: v.optional(Id), reply_audience: Audience }),
+	v.object({
+		...PostFields,
+		reply_to: v.optional(Id),
+		reply_audience: Audience,
+		quote: v.optional(Id),
+	}),
 	v.check((draft) => draft_problem(draft) === undefined, 'post_invalid'),
 )
 
@@ -131,12 +137,20 @@ export const get_conversation = query(Id, (id) =>
 )
 
 export const get_author_posts = query(
-	v.object({ id: UserId, tab: v.picklist(['posts', 'replies']), cursor: Cursor }),
-	({ id, tab, cursor }) =>
-		posts.author_page(getRequestEvent().locals.db, viewer(), id, tab === 'replies', cursor),
+	v.object({ id: UserId, tab: v.picklist(['posts', 'replies', 'likes']), cursor: Cursor }),
+	({ id, tab, cursor }) => {
+		const db = getRequestEvent().locals.db
+		if (tab === 'likes') return posts.likes_page(db, viewer(), id, cursor)
+		return posts.author_page(db, viewer(), id, tab === 'replies', cursor)
+	},
 )
 
-type PostPayload = v.InferOutput<typeof PostInput>
+/** The viewer's own bookmarks; there is no way to ask for anyone else's. */
+export const get_bookmarks = query(v.object({ cursor: Cursor }), ({ cursor }) =>
+	posts.bookmarks_page(getRequestEvent().locals.db, viewer(), cursor),
+)
+
+type PostPayload = v.InferOutput<typeof PostInput> & { quote?: string }
 
 function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
 	if (!rest.media.every((media) => allowed_media(media, user_id))) error(400, 'Invalid media.')
@@ -165,10 +179,12 @@ async function publish(
 	const trust = await trust_level(db, user_id)
 	const { risky } = await check_new_posts(db, user_id, trust, prepared)
 	const ids = await posts.insert_thread(db, user_id, prepared, reply_to, audience)
-	if (!ids) error(404, 'The post you replied to was deleted.')
+	if (!ids) error(404, 'The post you replied to or quoted was deleted.')
 	if (ids === 'closed') error(403, 'replies_closed')
+	if (ids === 'private') error(403, 'private_post')
 	await flag_risky_links(db, user_id, ids, risky)
 	check_posts_later(db, ids)
+	const quote = inputs[0]?.quote
 
 	// Single-flight: the fresh first pages ride back with this response.
 	await Promise.all([
@@ -183,6 +199,8 @@ async function publish(
 					get_conversation(reply_to).refresh(),
 				]
 			: []),
+		// Its quote count, on the quoted post's own page.
+		...(quote ? [get_post(quote).refresh()] : []),
 	])
 	const post = await posts.find_post(db, user_id, ids[0])
 	if (!post) error(404, 'Post not found.')
@@ -240,9 +258,25 @@ async function delete_unused_uploads(db: App.Locals['db'], urls: string[]) {
 	await delete_media(env.MEDIA, await posts.unused_uploads(db, urls))
 }
 
-export const set_like = command(v.object({ id: Id, on: v.boolean() }), async ({ id, on }) => {
+const Toggle = v.object({ id: Id, on: v.boolean() })
+
+export const set_like = command(Toggle, async ({ id, on }) => {
 	const { db, user_id } = await author()
 	await posts.set_like(db, user_id, id, on)
+	await get_author_posts(author_arg(user_id, 'likes')).refresh()
+})
+
+export const set_repost = command(Toggle, async ({ id, on }) => {
+	const { db, user_id } = await author()
+	if (!(await posts.set_repost(db, user_id, id, on))) error(403, 'private_post')
+	// The reposter's own profile lists their reposts.
+	await get_author_posts(author_arg(user_id, 'posts')).refresh()
+})
+
+export const set_bookmark = command(Toggle, async ({ id, on }) => {
+	const { db, user_id } = await author()
+	await posts.set_bookmark(db, user_id, id, on)
+	await get_bookmarks(bookmarks_arg()).refresh()
 })
 
 /** Vote in a poll; returns the poll as it now stands, the viewer's counted vote included. */

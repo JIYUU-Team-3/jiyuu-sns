@@ -6,6 +6,9 @@ export const post_href = (id: string) => localizeHref(`/p/${encodeURIComponent(i
 /** The same page as an absolute URL, for copying and sharing. */
 export const post_url = (id: string) => new URL(post_href(id), location.origin).href
 
+/** The viewer's saved posts. */
+export const bookmarks_href = () => localizeHref('/bookmarks')
+
 /** Search results for a query, e.g. a hashtag or a place. */
 export const search_href = (q: string) => localizeHref(`/search?q=${encodeURIComponent(q)}`)
 

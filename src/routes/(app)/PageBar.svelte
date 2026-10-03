@@ -64,7 +64,6 @@
 		padding-top: env(safe-area-inset-top);
 		background: color-mix(in srgb, var(--bg) 88%, transparent);
 		backdrop-filter: saturate(180%) blur(14px);
-		-webkit-backdrop-filter: saturate(180%) blur(14px);
 		border-bottom: 1px solid var(--line);
 	}
 	.bar-row {

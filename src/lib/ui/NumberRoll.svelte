@@ -3,6 +3,8 @@
 A count that rolls when it changes: digits that change slide out one way and in from the other,
 fading and blurring like `TextMorph`, while the width eases to fit. A rising `value` brings new
 digits up from below; a falling one brings them down from above. `text` is `value` as shown.
+`anchor` is the edge that stays put: the right one (default) for a count before its label, the
+left one for a count in a fixed slot after an icon, so its digits never slide sideways.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte'
@@ -15,11 +17,12 @@ digits up from below; a falling one brings them down from above. `text` is `valu
 		MOVE,
 		spots,
 		still,
+		type Anchor,
 		type Spot,
 	} from './morph'
 	import { diff_places, split_graphemes } from './text-diff'
 
-	let { value, text }: { value: number; text: string } = $props()
+	let { value, text, anchor = 'end' }: { value: number; text: string; anchor?: Anchor } = $props()
 
 	type Unit = { key: number; text: string }
 	type Ghost = Unit & Spot
@@ -62,7 +65,7 @@ digits up from below; a falling one brings them down from above. `text` is `valu
 	function stage(next: string, dir: number) {
 		const quiet = still()
 		const width = outer.getBoundingClientRect().width
-		const old_spots = spots(inner, letters.children)
+		const old_spots = spots(inner, letters.children, anchor)
 		outer.getAnimations({ subtree: true }).forEach((a) => a.cancel())
 
 		const old = units
@@ -99,7 +102,7 @@ digits up from below; a falling one brings them down from above. `text` is `valu
 		const shown_ghosts = ghosts
 		const to = dir > 0 ? `-${RISE}` : RISE
 		const done = Array.from(inner.querySelectorAll<HTMLElement>('.ghost'), (el, i) => {
-			align(inner, el, shown_ghosts[i])
+			align(inner, el, shown_ghosts[i], anchor)
 			el.animate(
 				{ transform: ['translateY(0)', `translateY(${to})`] },
 				{ ...MOVE, fill: 'forwards' },
@@ -115,7 +118,7 @@ digits up from below; a falling one brings them down from above. `text` is `valu
 	}
 </script>
 
-<span class="roll" bind:this={outer}>
+<span class="roll" class:start={anchor === 'start'} bind:this={outer}>
 	<span class="inner" bind:this={inner}>
 		<span class="letters" bind:this={letters}>
 			{#each units as unit (unit.key)}
@@ -135,6 +138,9 @@ digits up from below; a falling one brings them down from above. `text` is `valu
 		display: inline-flex;
 		justify-content: flex-end;
 		white-space: pre;
+	}
+	.roll.start {
+		justify-content: flex-start;
 	}
 	.inner {
 		position: relative;

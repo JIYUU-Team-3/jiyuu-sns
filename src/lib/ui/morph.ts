@@ -10,28 +10,33 @@ export const BLUR = 'blur(3px)'
 
 export type Spot = { x: number; y: number }
 
+/** The side text is anchored to: that edge stays put while the width changes. */
+export type Anchor = 'start' | 'end'
+
 export const still = reduced_motion
 
-/**
- * Where each element sits, from the base box's top right. The text is anchored right, so that
- * corner stays put while the width changes.
- */
-export function spots(base: Element, elements: Iterable<Element | Range>): Spot[] {
+/** Where each element sits, from the base box's top corner on the `anchor` side (right by default). */
+export function spots(
+	base: Element,
+	elements: Iterable<Element | Range>,
+	anchor: Anchor = 'end',
+): Spot[] {
 	const box = base.getBoundingClientRect()
+	const edge = anchor === 'end' ? box.right : box.left
 	return Array.from(elements, (el) => {
 		const rect = el.getBoundingClientRect()
-		return { x: rect.left - box.right, y: rect.top - box.top }
+		return { x: rect.left - edge, y: rect.top - box.top }
 	})
 }
 
 /**
- * Put a ghost's text exactly where its letter was. Its spot is from the right edge, and as a
+ * Put a ghost's text exactly where its letter was. Its spot is from the anchored edge, and as a
  * block its text sits half a line's leading lower than an inline letter; move it by the miss.
  */
-export function align(base: Element, el: HTMLElement, spot: Spot) {
+export function align(base: Element, el: HTMLElement, spot: Spot, anchor: Anchor = 'end') {
 	const range = document.createRange()
 	range.selectNodeContents(el)
-	const [at] = spots(base, [range])
+	const [at] = spots(base, [range], anchor)
 	el.style.left = `${el.offsetLeft + spot.x - at.x}px`
 	el.style.top = `${el.offsetTop + spot.y - at.y}px`
 }

@@ -21,7 +21,10 @@ export const BEHAVIOUR_PER_POINT = 20
 /** Each report on a post's open case costs a point, capped so a few people can't bury a post. */
 export const REPORT_POINTS_MAX = 4
 
-/** Rising posts are this young, liked or answered by someone else, and not from a followed account. */
+/**
+ * Rising posts are this young, liked, reposted or answered by someone else, and not from a followed
+ * account.
+ */
 export const RISING_WINDOW = 3 * HOUR
 
 /** Which list fills each position, repeated down the page. */
@@ -36,6 +39,8 @@ export type Signals = {
 	likes: number
 	/** Visible replies from anyone but the author. */
 	replies: number
+	/** Reposts counted the same way as likes. */
+	reposts: number
 	followed: boolean
 	mine: boolean
 	/** The author's top-level posts in `FLOOD_WINDOW` before this one. */
@@ -46,7 +51,7 @@ export type Signals = {
 	reports: number
 }
 
-const engagement = (s: Signals) => s.likes + 2 * s.replies
+const engagement = (s: Signals) => s.likes + 2 * s.replies + 2 * s.reposts
 
 /** Points a post loses to spam signals, whichever list it's in. */
 export const penalty = (s: Signals) =>
