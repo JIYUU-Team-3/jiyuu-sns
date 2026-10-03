@@ -56,7 +56,8 @@
 			{#if profile.mine}
 				<a class="btn btn-outline" href={edit_profile_href()}>{m.profile_edit()}</a>
 			{:else}
-				<ProfileMenu {profile} />
+				<!-- On a phone it sits in the top bar instead, as on X; see the profile page. -->
+				<span class="desk-menu"><ProfileMenu {profile} /></span>
 				{#if !profile.blocked && !profile.blocks_you}
 					<MessageButton user_id={profile.id} handle={profile.handle} />
 					<FollowButton {profile} />
@@ -180,6 +181,14 @@
 		right: var(--pad-x);
 		display: flex;
 		gap: 8px;
+	}
+	.desk-menu {
+		display: contents;
+	}
+	@media (max-width: 700px) {
+		.desk-menu {
+			display: none;
+		}
 	}
 	.ring {
 		margin-top: calc(-1 * var(--rise));
