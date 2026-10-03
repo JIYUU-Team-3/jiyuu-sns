@@ -30,6 +30,8 @@ declare global {
 		interface PageData {
 			/** From the root layout, for every page. */
 			prefs?: Prefs
+			/** From the signed-in layout: whether "Translate post" can work. */
+			translate?: boolean
 		}
 		// interface PageState {}
 	}

@@ -7,6 +7,7 @@
 	import Poll from './Poll.svelte'
 	import PostMedia from './PostMedia.svelte'
 	import PostText from './PostText.svelte'
+	import PostTranslation from './PostTranslation.svelte'
 	import QuoteCard from './QuoteCard.svelte'
 	import { post_content } from './state.svelte'
 	import type { PostView } from './types'
@@ -50,6 +51,7 @@
 			out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
 		/>
 	</div>
+	{#if !post.moderation}<PostTranslation id={post.id} body={content.body} />{/if}
 {/if}
 {#if covered}
 	<!-- The media is there, blurred past recognising and out of reach, with the notice over it. -->

@@ -651,6 +651,7 @@ export const aiUsage = sqliteTable('ai_usage', {
 	text: integer('text').notNull().default(0),
 	image: integer('image').notNull().default(0),
 	report: integer('report').notNull().default(0),
+	translate: integer('translate').notNull().default(0),
 })
 
 export * from './auth.schema'

@@ -758,5 +758,13 @@
 	"post_unpin": "Unpin from profile",
 	"post_pinned": "Pinned",
 	"toast_pinned": "Pinned to your profile",
-	"toast_unpinned": "Unpinned from your profile"
+	"toast_unpinned": "Unpinned from your profile",
+	"post_translate": "Translate post",
+	"post_translating": "Translating…",
+	"post_translated_from": "Translated from {language}",
+	"post_show_original": "Show original",
+	"post_translate_failed": "Couldn’t translate this post. Try again later.",
+	"language_en": "English",
+	"language_ja": "Japanese",
+	"language_km": "Khmer"
 }

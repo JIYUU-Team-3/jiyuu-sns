@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { follow, post, profile } from './db/schema'
+import { aiUsage, follow, post, profile } from './db/schema'
 import { add_account, test_db, type TestDb } from './db/test-d1'
 import { author_page, remove_post, set_pin } from './posts'
 import { find_profile_by_handle, save_profile } from './profiles'
+import { translate_post } from './translate'
 
 let db: TestDb
 
@@ -97,5 +98,40 @@ describe('location and birthday', () => {
 			day: 31,
 			year: 1999,
 		})
+	})
+})
+
+describe('translate_post', () => {
+	const workers_ai = (text: string) => {
+		const calls: unknown[] = []
+		const fetcher = (async (_url: string, init: RequestInit) => {
+			calls.push(JSON.parse(String(init.body)))
+			return Response.json({ success: true, result: { translated_text: text } })
+		}) as unknown as typeof fetch
+		return { calls, fetcher }
+	}
+
+	it('translates a visible post from its language into the reader’s', async () => {
+		await add_post('a1', 'alice', '今日はいい天気ですね')
+		const ai = workers_ai('The weather is nice today')
+		expect(
+			await translate_post(db, 'bob', 'a1', 'en', { enabled: true, fetcher: ai.fetcher }),
+		).toEqual({ from: 'ja', text: 'The weather is nice today' })
+		expect(ai.calls).toEqual([
+			{ text: '今日はいい天気ですね', source_lang: 'ja', target_lang: 'en' },
+		])
+		expect((await db.select().from(aiUsage))[0]?.translate).toBeGreaterThan(0)
+	})
+
+	it('refuses posts the reader can’t see, or that are already in their language', async () => {
+		await add_post('a1', 'alice', '今日はいい天気ですね')
+		await add_post('a2', 'alice', 'Already in English here')
+		await db.update(profile).set({ isPrivate: true }).where(eq(profile.userId, 'alice'))
+		const ai = workers_ai('x')
+		const deps = { enabled: true, fetcher: ai.fetcher }
+		expect(await translate_post(db, 'bob', 'a1', 'en', deps)).toBe('not_found')
+		expect(await translate_post(db, 'carol', 'a2', 'en', deps)).toBe('same_language')
+		expect(await translate_post(db, 'carol', 'a1', 'en', { enabled: false })).toBe('unavailable')
+		expect(ai.calls).toHaveLength(0)
 	})
 })

@@ -134,6 +134,13 @@
       "when": 1791022030224,
       "tag": "0018_profile_details_and_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791022390058,
+      "tag": "0019_translate_budget",
+      "breakpoints": true
     }
   ]
 }
