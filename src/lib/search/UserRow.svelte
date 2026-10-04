@@ -8,7 +8,7 @@
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
-	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import type { UserView } from './types'
 
 	let {
@@ -59,7 +59,7 @@
 	<div class="info">
 		<a class="nm" href={profile_href(user.handle)}>
 			{user.name}
-			{#if user.moderator}<ModeratorBadge />{/if}
+			<NameBadges of={user} />
 		</a>
 		<div class="hd">
 			<span class="at">@{user.handle}</span>

@@ -26,6 +26,8 @@
 		"db:backfill-tags": "node --env-file-if-exists=.env scripts/backfill-tags.ts",
 		"db:grant-moderator": "node --env-file-if-exists=.env scripts/grant-moderator.ts",
 		"db:revoke-moderator": "node --env-file-if-exists=.env scripts/grant-moderator.ts --revoke",
+		"db:grant-verified": "node --env-file-if-exists=.env scripts/grant-verified.ts",
+		"db:revoke-verified": "node --env-file-if-exists=.env scripts/grant-verified.ts --revoke",
 		"ai:measure": "node --env-file-if-exists=.env scripts/measure-ai.ts",
 		"push:keys": "node scripts/push-keys.ts",
 		"auth:schema": "auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",

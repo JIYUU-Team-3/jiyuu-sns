@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { UserView } from '#lib/search/types'
 import { shown_image } from './account-image'
 import { is_moderator } from './moderation/standing'
+import { is_verified } from './verified'
 import type { getDb } from './db'
 import { profile, user } from './db/schema'
 
@@ -16,6 +17,7 @@ export const user_fields = (viewer: string | undefined) => ({
 	location: profile.location,
 	image: shown_image,
 	moderator: is_moderator(profile.userId),
+	verified: is_verified(profile.userId),
 	followed: viewer
 		? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId})`
 		: sql<number>`0`,
@@ -41,6 +43,7 @@ export const to_user = (row: UserRow, viewer: string | undefined): UserView => (
 	location: row.location || undefined,
 	image: row.image ?? undefined,
 	moderator: row.moderator ? true : undefined,
+	verified: row.verified ? true : undefined,
 	followed: !!row.followed,
 	requested: !!row.requested,
 	mine: row.id === viewer,

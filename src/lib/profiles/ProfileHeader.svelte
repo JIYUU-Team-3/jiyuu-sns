@@ -10,7 +10,7 @@
 	import { lists_open } from './access'
 	import FollowButton from './FollowButton.svelte'
 	import { edit_profile_href, followers_href, following_href } from './links'
-	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import { search_href } from '#lib/search/links'
 	import { place_key } from '#lib/search/place'
 	import { reduced_motion } from '#lib/settings/motion'
@@ -78,7 +78,7 @@
 	</div>
 	<h2 class="name">
 		{profile.name}
-		{#if profile.moderator}<ModeratorBadge />{/if}
+		<NameBadges of={profile} />
 		{#if profile.private}
 			<span class="lock" title={m.profile_private()}>
 				<Icon name="lock" size="sm" />
@@ -182,7 +182,6 @@
 	.top {
 		position: relative;
 		padding: var(--pad-top) var(--pad-x) 12px;
-		border-bottom: 1px solid var(--line);
 	}
 	.head {
 		display: flex;

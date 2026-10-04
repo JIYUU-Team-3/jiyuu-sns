@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 /**
  * Changes e2e tests make straight in the local D1 the e2e server reads, for state the app never
- * lets anyone set: moderator rights, and an account's age.
+ * lets anyone set: moderator rights, verified marks, and an account's age.
  */
 
 /** Where `wrangler dev --local` keeps D1, as `pnpm db:migrate:local` and the e2e server use it. */
@@ -48,6 +48,19 @@ export function grant_moderator(handle: string) {
 				`insert into account_standing (user_id, role)
 				select user_id, 'moderator' from profile where handle = ?
 				on conflict (user_id) do update set role = 'moderator'`,
+			)
+			.run(handle)
+		if (granted.changes !== 1) throw new Error(`No local account has the handle @${handle}.`)
+	})
+}
+
+export function grant_verified(handle: string) {
+	write((db) => {
+		const granted = db
+			.prepare(
+				`insert into verified_account (user_id, kind)
+				select user_id, 'developer' from profile where handle = ?
+				on conflict (user_id) do nothing`,
 			)
 			.run(handle)
 		if (granted.changes !== 1) throw new Error(`No local account has the handle @${handle}.`)

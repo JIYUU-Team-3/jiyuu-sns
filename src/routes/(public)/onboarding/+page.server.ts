@@ -6,6 +6,7 @@ import { account_image } from '#lib/server/account-image'
 import { read_form } from '#lib/server/form'
 import { PROFILE_FORM_MAX_BYTES, submit_profile } from '#lib/server/profile-form'
 import { home_href } from '../links'
+import { safe_next } from '../login/next'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = ({ locals }) => {
@@ -18,7 +19,7 @@ export const load: PageServerLoad = ({ locals }) => {
 }
 
 export const actions: Actions = {
-	default: async ({ locals, request }) => {
+	default: async ({ locals, request, url }) => {
 		if (!locals.user) return redirect(302, localizeHref('/login'))
 
 		const result = await submit_profile(
@@ -28,6 +29,6 @@ export const actions: Actions = {
 			await read_form(request, PROFILE_FORM_MAX_BYTES),
 		)
 		if (!('saved' in result)) return result
-		return redirect(303, home_href())
+		return redirect(303, safe_next(url.searchParams.get('next')) ?? home_href())
 	},
 }

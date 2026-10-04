@@ -162,6 +162,13 @@
       "when": 1791038523608,
       "tag": "0022_group_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1791093142631,
+      "tag": "0023_verified_account",
+      "breakpoints": true
     }
   ]
 }

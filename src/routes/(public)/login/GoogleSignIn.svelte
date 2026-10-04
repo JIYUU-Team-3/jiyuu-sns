@@ -3,7 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import GoogleIcon from './GoogleIcon.svelte'
 
-	let { failed = false }: { failed?: boolean } = $props()
+	let { next, failed = false }: { next?: string; failed?: boolean } = $props()
 	let pending = $state(false)
 
 	const submit: SubmitFunction = () => {
@@ -20,6 +20,7 @@
 <svelte:window onpageshow={() => (pending = false)} />
 
 <form method="post" action="?/google" use:enhance={submit}>
+	{#if next}<input type="hidden" name="next" value={next} />{/if}
 	<button type="submit" class="btn-google" disabled={pending}>
 		<GoogleIcon />
 		{pending ? m.login_google_pending() : m.login_google()}

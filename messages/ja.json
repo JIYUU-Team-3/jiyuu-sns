@@ -690,6 +690,7 @@
 	"review_outcome_suspension_upheld": "停止を解除",
 	"review_outcome_suspension_refused": "停止を維持",
 	"moderator_badge": "モデレーター",
+	"verified_developer_badge": "Jiyuu 開発者",
 	"mod_confirm_restore_title": "このポストを復元しますか？",
 	"mod_confirm_restore_body": "ポストは再び全員に表示され、違反警告は取り消されます。投稿者に通知されます。",
 	"mod_confirm_keep_removed_title": "このポストの削除を維持しますか？",

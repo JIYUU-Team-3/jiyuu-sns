@@ -536,6 +536,14 @@ export const accountStanding = sqliteTable('account_standing', {
 	updatedAt: written_at('updated_at'),
 })
 
+export const verifiedAccount = sqliteTable('verified_account', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	kind: text('kind', { enum: ['developer'] }).notNull(),
+	grantedAt: written_at('granted_at'),
+})
+
 const target_kind = () => text('target_kind', { enum: ['post', 'profile', 'message'] }).notNull()
 
 /**

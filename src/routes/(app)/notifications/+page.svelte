@@ -1,3 +1,10 @@
+<script lang="ts" module>
+	import type { NotificationTab } from '#lib/notifications/types'
+
+	/** The tab the page was left on, so coming back from another page doesn't reset it to All. */
+	let last_tab: NotificationTab = 'all'
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { notifications_arg } from '#lib/notifications/args'
@@ -7,13 +14,18 @@
 		mark_notifications_read,
 	} from '#lib/notifications/notifications.remote'
 	import PushToggle from '#lib/notifications/PushToggle.svelte'
-	import type { NotificationTab } from '#lib/notifications/types'
 	import { m } from '#lib/paraglide/messages.js'
 	import EmptyState from '#lib/ui/EmptyState.svelte'
 	import Tabs from '#lib/ui/Tabs.svelte'
 	import PageBar from '../PageBar.svelte'
+	import { keep_scroll } from '../restore-scroll'
 
-	let tab = $state<NotificationTab>('all')
+	let tab = $state<NotificationTab>(last_tab)
+	$effect(() => {
+		last_tab = tab
+	})
+
+	keep_scroll('/(app)/notifications')
 
 	const TABS: [NotificationTab, () => string][] = [
 		['all', m.notifications_all],
@@ -36,7 +48,10 @@
 
 {#key tab}
 	<div role="tabpanel">
-		<NotificationList load={(cursor) => get_notifications(notifications_arg(tab, cursor))}>
+		<NotificationList
+			load={(cursor) => get_notifications(notifications_arg(tab, cursor))}
+			remember="notifications:{tab}"
+		>
 			{#snippet empty()}
 				{#if tab === 'mentions'}
 					<EmptyState

@@ -1,8 +1,8 @@
 import { redirect } from '@sveltejs/kit'
-import { localizeHref } from '#lib/paraglide/runtime'
 import type { PageServerLoad } from './$types'
+import { login_href } from '../../../(public)/links'
 
-export const load: PageServerLoad = ({ locals }) => {
-	if (!locals.user) return redirect(302, localizeHref('/login'))
+export const load: PageServerLoad = ({ locals, url }) => {
+	if (!locals.user) return redirect(302, login_href(url))
 	return {}
 }
