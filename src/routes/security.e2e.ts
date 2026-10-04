@@ -273,7 +273,7 @@ async function try_post(page: Page, text: string) {
 	return (await answered).json()
 }
 
-test('a new account cannot post links or message people who do not follow it @writes', async ({
+test('a new account posts five links a day and cannot message people who do not follow it @writes', async ({
 	page,
 	browser,
 }) => {
@@ -282,10 +282,16 @@ test('a new account cannot post links or message people who do not follow it @wr
 	await sign_up(stranger, `e2e_ns_${id}`)
 	await sign_up(page, `e2e_nn_${id}`)
 
-	const refused = await try_post(page, `See https://example.com/notes ${id}`)
-	expect(refused).toMatchObject({ type: 'error', error: { status: 403 } })
-	await expect(page.getByText('Your account can’t share links yet.')).toBeVisible()
-	await expect(page.locator('article.post', { hasText: id })).toHaveCount(0)
+	for (let i = 0; i < 5; i++) {
+		const posted = await try_post(page, `See https://example.com/notes/${i} ${id}`)
+		expect(posted.type).toBe('result')
+	}
+	const refused = await try_post(page, `See https://example.com/notes/5 ${id}`)
+	expect(refused).toMatchObject({ type: 'error', error: { status: 429 } })
+	await expect(
+		page.getByText('Your account can share links in 5 posts or messages a day'),
+	).toBeVisible()
+	await expect(page.locator('article.post', { hasText: `notes/5 ${id}` })).toHaveCount(0)
 
 	await page.goto(`/u/e2e_ns_${id}`)
 	await page.waitForLoadState('networkidle')
