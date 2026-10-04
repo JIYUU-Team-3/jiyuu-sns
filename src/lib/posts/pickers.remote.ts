@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { query } from '$app/server'
 import { getLocale } from '#lib/paraglide/runtime'
@@ -26,5 +25,5 @@ export const find_gifs = query(Q, async (q) => {
 export const find_places = query(Q, async (q) => {
 	await picker()
 	if (q.length < 2) return []
-	return search_places(env.KV, q, getLocale())
+	return search_places(q, getLocale())
 })

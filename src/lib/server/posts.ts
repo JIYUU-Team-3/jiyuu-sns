@@ -44,6 +44,7 @@ import {
 	user,
 } from './db/schema'
 import { image_of, shown_image } from './account-image'
+import { cached } from './cache'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
 import { is_verified } from './verified'
@@ -447,6 +448,9 @@ async function rank_signals(db: Db, viewer: string | undefined, as_of: number): 
 	}))
 }
 
+/** How long a feed load's order lasts for its later pages; scrolling longer than this re-ranks. */
+const RANK_CACHE_SECONDS = 30 * 60
+
 /** "For you": new, popular and rising posts dealt into slots; see `server/ranking.ts`. */
 async function ranked_page(
 	db: Db,
@@ -454,7 +458,11 @@ async function ranked_page(
 	cursor: string | undefined,
 ): Promise<FeedPage> {
 	const { as_of, offset } = decode_rank_cursor(cursor) ?? { as_of: Date.now(), offset: 0 }
-	const order = slotted(await rank_signals(db, viewer, as_of), as_of)
+	// Ranking reads every candidate's counts, so it runs once per feed load: the later pages of
+	// the same `as_of` reuse its order. Their posts are still read fresh, privacy checks and all.
+	const order = await cached(`rank:${viewer ?? ''}:${as_of}`, RANK_CACHE_SECONDS, async () =>
+		slotted(await rank_signals(db, viewer, as_of), as_of),
+	)
 	const ids = order.slice(offset, offset + PAGE_SIZE)
 	if (!ids.length) return { posts: [], as_of }
 	const rows = await select_posts(db, viewer).where(

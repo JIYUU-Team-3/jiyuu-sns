@@ -169,6 +169,13 @@
       "when": 1791093142631,
       "tag": "0023_verified_account",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791105267899,
+      "tag": "0024_read_indexes",
+      "breakpoints": true
     }
   ]
 }
