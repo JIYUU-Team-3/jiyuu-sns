@@ -1,15 +1,11 @@
 <script lang="ts">
 	import { m } from '#lib/paraglide/messages.js'
 	import { profile_href } from '#lib/profiles/links'
-	import { TEAM, type Role } from './team'
+	import { TEAM, with_live, type LiveProfile } from './team'
 
-	const ROLE_LABELS: Record<Role, () => string> = {
-		lead: m.about_role_lead,
-		backend: m.about_role_backend,
-		design: m.about_role_design,
-		devops: m.about_role_devops,
-		testing: m.about_role_testing,
-	}
+	let { live, signed_in }: { live: LiveProfile[]; signed_in: boolean } = $props()
+
+	const team = $derived(with_live(TEAM, live))
 
 	const github_href = (handle: string) => `https://github.com/${handle}`
 	/** GitHub's mark, on a 16x16 grid. */
@@ -22,16 +18,28 @@
 	}
 </script>
 
-<!-- eslint-disable svelte/no-navigation-without-resolve -- links leave the app or go to routes not built yet -->
+<!-- eslint-disable svelte/no-navigation-without-resolve -- GitHub links leave the app; profile links are already localized by profile_href -->
 <section class="panel" aria-labelledby="team-panel">
 	<h3 id="team-panel">{m.about_team_panel()}</h3>
 	<ul>
-		{#each TEAM as member (member.handle)}
+		{#each team as member (member.handle)}
 			<li class="urow">
 				<span class="pfp" aria-hidden="true">
 					<span class="av" style:--h={member.hue}>
 						{member.name[0]}
+						{#if member.pfp}
+							<img
+								class="photo"
+								src={member.pfp}
+								alt=""
+								width="40"
+								height="40"
+								loading="lazy"
+								onerror={hide}
+							/>
+						{/if}
 						<img
+							class="gh-photo"
 							src={photo_src(member.handle)}
 							alt=""
 							width="40"
@@ -51,7 +59,6 @@
 						<span class="jy">@{member.jiyuu}</span>
 						<span class="gh">@{member.handle}</span>
 					</div>
-					<div class="bio">{ROLE_LABELS[member.role]()}</div>
 				</div>
 				<div class="actions">
 					<a
@@ -67,8 +74,10 @@
 					<a
 						class="btn-outline"
 						href={profile_href(member.jiyuu)}
-						title={m.about_team_sign_in()}
-						aria-label={m.about_team_jiyuu({ name: member.name })}>{m.about_team_view()}</a
+						title={signed_in ? undefined : m.about_team_sign_in()}
+						aria-label={signed_in
+							? m.about_team_on_jiyuu({ name: member.name })
+							: m.about_team_jiyuu({ name: member.name })}>{m.about_team_view()}</a
 					>
 				</div>
 			</li>
@@ -127,6 +136,8 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+	.panel .av .gh-photo {
 		opacity: 0;
 		transition: opacity 0.15s;
 	}
@@ -141,8 +152,8 @@
 	.panel .urow:has(.btn-icon:focus-visible) .gh {
 		display: inline;
 	}
-	.panel .urow:has(.btn-icon:hover) .av img,
-	.panel .urow:has(.btn-icon:focus-visible) .av img {
+	.panel .urow:has(.btn-icon:hover) .gh-photo,
+	.panel .urow:has(.btn-icon:focus-visible) .gh-photo {
 		opacity: 1;
 	}
 	.panel .badge {
@@ -182,9 +193,6 @@
 	}
 	.panel .hd {
 		color: var(--text-2);
-	}
-	.panel .bio {
-		margin-top: 4px;
 	}
 	.panel .btn-outline {
 		display: inline-flex;
