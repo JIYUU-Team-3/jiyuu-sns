@@ -316,9 +316,60 @@ async function url_hash(url: string) {
 
 type Fetched = Omit<LinkPreview, 'url' | 'title'> & { title?: string }
 
+/**
+ * Sites whose oEmbed endpoint is read instead of their page. YouTube sends an address that asks
+ * for pages often to a bot check, but still answers its oEmbed endpoint, which is made for this.
+ */
+const OEMBED = [
+	{
+		host: /^(?:(?:www|m|music)\.)?youtube\.com$|^youtu\.be$/,
+		endpoint: 'https://www.youtube.com/oembed',
+		site_name: 'YouTube',
+	},
+]
+/** An oEmbed answer is a few hundred bytes. */
+const OEMBED_MAX_BYTES = 64 * 1024
+
+/** The card from the link's oEmbed endpoint, or undefined to read the page instead. */
+async function fetch_oembed(db: Db, deps: PreviewDeps, link: string) {
+	const host = public_url(link)?.hostname.toLowerCase()
+	const provider = host && OEMBED.find((entry) => entry.host.test(host))
+	if (!provider) return undefined
+	const endpoint = new URL(provider.endpoint)
+	endpoint.searchParams.set('format', 'json')
+	endpoint.searchParams.set('url', link)
+	const fetched = await fetch_allowed(db, endpoint.href, 'application/json', deps.fetcher ?? fetch)
+	if (!fetched) return undefined
+	if (!/^\s*application\/json/i.test(fetched.response.headers.get('content-type') ?? '')) {
+		discard(fetched.response)
+		return undefined
+	}
+	const bytes = await read_bytes(fetched.response, OEMBED_MAX_BYTES, true)
+	if (!bytes) return undefined
+	const data: unknown = JSON.parse(new TextDecoder().decode(bytes))
+	if (!data || typeof data !== 'object') return undefined
+	const field = (name: string) => {
+		const value = (data as Record<string, unknown>)[name]
+		return typeof value === 'string' ? value : undefined
+	}
+	const title = card_text(field('title'), TITLE_MAX)
+	if (!title) return undefined
+	const thumbnail = field('thumbnail_url')
+	return {
+		title,
+		description: card_text(field('author_name'), DESCRIPTION_MAX),
+		site_name: provider.site_name,
+		image: thumbnail
+			? await copy_image(db, deps, fetched.url, thumbnail, link).catch(() => undefined)
+			: undefined,
+	}
+}
+
 /** Read the page and copy its picture. Never throws: a page that fails has no card. */
 async function fetch_preview(db: Db, deps: PreviewDeps, link: string): Promise<Fetched> {
 	try {
+		const oembed = await fetch_oembed(db, deps, link).catch(() => undefined)
+		if (oembed) return oembed
 		const fetched = await fetch_allowed(
 			db,
 			link,

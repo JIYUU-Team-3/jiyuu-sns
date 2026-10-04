@@ -316,6 +316,47 @@ describe('ensure_preview', () => {
 		})
 	})
 
+	describe('a YouTube link', () => {
+		const VIDEO = 'https://youtu.be/abc123?si=share'
+		const OEMBED = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(VIDEO)}`
+		const json = (body: object) =>
+			new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+		// What YouTube answers an address it has had enough requests from.
+		const bot_check = new Response('', {
+			status: 302,
+			headers: { location: 'https://www.google.com/sorry/index' },
+		})
+
+		it('is read from YouTube’s oEmbed endpoint, even while its pages ask for a bot check', async () => {
+			const { fetcher } = web({
+				[OEMBED]: json({
+					title: 'A video &amp; more',
+					author_name: 'A channel',
+					thumbnail_url: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+				}),
+				'https://i.ytimg.com/vi/abc123/hqdefault.jpg': image(png(480, 360)),
+				[VIDEO]: bot_check,
+				'https://www.google.com/sorry/index': new Response('', { status: 429 }),
+			})
+			expect(await ensure_preview(db, { bucket: bucket().bucket, fetcher }, VIDEO)).toMatchObject({
+				title: 'A video & more',
+				description: 'A channel',
+				site_name: 'YouTube',
+				image: { width: 480, height: 360 },
+			})
+		})
+
+		it('falls back to the page when the endpoint has nothing', async () => {
+			const { fetcher } = web({
+				[OEMBED]: new Response('Not Found', { status: 404 }),
+				[VIDEO]: html(page('<meta property="og:title" content="From the page">')),
+			})
+			expect(await ensure_preview(db, { bucket: bucket().bucket, fetcher }, VIDEO)).toMatchObject({
+				title: 'From the page',
+			})
+		})
+	})
+
 	it('stops reading where the head ends', async () => {
 		const encoder = new TextEncoder()
 		const { fetcher } = web({
