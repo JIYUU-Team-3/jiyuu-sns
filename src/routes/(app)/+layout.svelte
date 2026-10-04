@@ -347,6 +347,9 @@
 		flex: none;
 		position: sticky;
 		top: 0;
+		/* Sticky makes this a stacking context, so the account menu's own z-index stops here. Once the
+		   nav collapses the menu hangs over the feed, and must still be above its avatars and headers. */
+		z-index: 30;
 		height: 100vh;
 		display: flex;
 		flex-direction: column;

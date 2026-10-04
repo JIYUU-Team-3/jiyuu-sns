@@ -5,10 +5,11 @@
 	import SettingRow from '#lib/settings/SettingRow.svelte'
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
-	import { home_href } from '../../(public)/links'
-	import { sign_out } from '../sign-out'
+	import LogOutDialog from '../LogOutDialog.svelte'
 
 	let { me, email }: { me: Author & { handle: string }; email?: string } = $props()
+
+	let asking = $state(false)
 </script>
 
 <a class="row who" href={edit_profile_href()}>
@@ -24,11 +25,13 @@
 		<SettingRow icon="mail" label={m.settings_email()} sub={email} />
 	</div>
 {/if}
-<form method="post" action="{home_href()}?/signOut" onsubmit={sign_out}>
-	<button class="row danger">
-		<SettingRow icon="logout" label={m.app_log_out({ handle: me.handle })} />
-	</button>
-</form>
+<button type="button" class="row danger" onclick={() => (asking = true)}>
+	<SettingRow icon="logout" label={m.app_log_out({ handle: me.handle })} />
+</button>
+
+{#if asking}
+	<LogOutDialog handle={me.handle} oncancel={() => (asking = false)} />
+{/if}
 
 <style>
 	.row {

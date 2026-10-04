@@ -11,7 +11,8 @@ const FORM_OVERHEAD_BYTES = 64 * 1024
 export async function read_form(request: Request, max_bytes: number): Promise<FormData> {
 	const max = max_bytes + FORM_OVERHEAD_BYTES
 	if (Number(request.headers.get('content-length') ?? 0) > max) error(413, 'size')
-	if (!request.body) error(400, 'No form.')
+	// A form with no fields, such as the login button without a `next`, is posted with no body.
+	if (!request.body) return new FormData()
 
 	// The header can be missing or wrong, so the bytes are counted as they arrive too.
 	let seen = 0

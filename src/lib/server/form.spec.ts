@@ -32,6 +32,11 @@ describe('read_form', () => {
 		expect((form.get('file') as File).size).toBe(1000)
 	})
 
+	it('reads a form posted with no body as an empty form', async () => {
+		const form = await read_form(new Request('http://localhost/login', { method: 'POST' }), 4096)
+		expect([...form.keys()]).toEqual([])
+	})
+
 	it('refuses a form whose stated length is over the limit', async () => {
 		const request = upload(10, { 'content-length': String(10 * 1024 * 1024) })
 		await expect(read_form(request, 1024)).rejects.toMatchObject({ status: 413 })
