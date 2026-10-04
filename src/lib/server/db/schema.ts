@@ -71,6 +71,11 @@ export const post = sqliteTable(
 		// The post this one quotes. No foreign key: a quote outlives the post it quotes and then
 		// says that post is unavailable, so the id must stay. Checked to exist when quoting.
 		quoteId: text('quote_id'),
+		/**
+		 * The link its preview card shows, from `link_preview`: the first link in the text, or null
+		 * when there is none or the author took the card off.
+		 */
+		linkUrl: text('link_url'),
 		createdAt: created_at(),
 		// Set only by an edit, so the "Edited" label never comes from an unrelated write.
 		editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
@@ -542,6 +547,22 @@ export const accountStanding = sqliteTable('account_standing', {
 	behaviourScore: integer('behaviour_score').notNull().default(0),
 	scoredAt: integer('scored_at', { mode: 'timestamp_ms' }),
 	updatedAt: written_at('updated_at'),
+})
+
+/**
+ * What a link's page says about itself (its Open Graph tags), fetched once by the server and
+ * shared by every post with that link. `image` is a copy in R2, never the site's own URL. A page
+ * that had nothing to show is kept too, with no title, so it isn't fetched again for a while.
+ */
+export const linkPreview = sqliteTable('link_preview', {
+	url: text('url').primaryKey(),
+	title: text('title'),
+	description: text('description'),
+	siteName: text('site_name'),
+	image: text('image'),
+	imageWidth: integer('image_width'),
+	imageHeight: integer('image_height'),
+	fetchedAt: written_at('fetched_at'),
 })
 
 export const verifiedAccount = sqliteTable('verified_account', {

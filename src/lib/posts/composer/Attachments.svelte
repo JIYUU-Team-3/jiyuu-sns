@@ -4,15 +4,24 @@
 	import type { Draft } from './draft.svelte'
 	import EmojiPicker from './EmojiPicker.svelte'
 	import GifPicker from './GifPicker.svelte'
+	import LinkDraft from './LinkDraft.svelte'
 	import MediaTray from './MediaTray.svelte'
 	import PlacePicker from './PlacePicker.svelte'
 	import PollBuilder from './PollBuilder.svelte'
 
-	/** Everything under the text: the tray, the poll, the place, and whichever picker is open. */
-	let { draft, oninsert }: { draft: Draft; oninsert: (text: string) => void } = $props()
+	/**
+	 * Everything under the text: the tray, the link card, the poll, the place, and whichever picker
+	 * is open. A post that quotes shows the quote instead of a link card.
+	 */
+	let {
+		draft,
+		oninsert,
+		quoting = false,
+	}: { draft: Draft; oninsert: (text: string) => void; quoting?: boolean } = $props()
 </script>
 
 <MediaTray {draft} />
+{#if !quoting && !draft.editing}<LinkDraft {draft} />{/if}
 {#if draft.media.length && !draft.editing}
 	<label class="sensitive">
 		<input type="checkbox" bind:checked={draft.sensitive} disabled={draft.flagged} />

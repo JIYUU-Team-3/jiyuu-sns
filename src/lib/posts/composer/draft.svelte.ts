@@ -8,6 +8,7 @@ import {
 	type PollDays,
 } from '../rules'
 import type { PostContent } from '../state.svelte'
+import { text_segments } from '../text'
 import { is_upload, type Gif, type Media, type MediaKind } from '../types'
 import type { CropBox } from './crop-box'
 import {
@@ -75,8 +76,16 @@ export class Draft {
 	panel = $state<Panel>()
 	/** Editing a published post, where the sensitive mark isn't offered. */
 	editing = false
+	/** The link whose card the author took off; a different link gets its card again. */
+	link_off = $state<string>()
 
 	readonly trimmed = $derived(this.text.trim())
+	/** The link a card would show: the text's first, as the server picks it. */
+	readonly link = $derived(text_segments(this.trimmed).find((segment) => segment.href)?.href)
+	/** Whether the post would show a card: a link, not taken off, and nothing else under the text. */
+	readonly shows_link = $derived(
+		!!this.link && this.link !== this.link_off && !this.media.length && !this.poll,
+	)
 	readonly uploading = $derived(
 		this.media.some((item) => item.state === 'uploading' || item.state === 'checking'),
 	)
@@ -151,6 +160,7 @@ export class Draft {
 			poll: this.poll && { options: [...this.poll.options], days: this.poll.days },
 			location: this.location,
 			sensitive: (this.sensitive || this.flagged) && this.media.length > 0,
+			...(this.link && this.link === this.link_off && { link_preview: false }),
 		}
 	}
 

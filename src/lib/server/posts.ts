@@ -14,6 +14,7 @@ import {
 	type SQLWrapper,
 } from 'drizzle-orm'
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core'
+import { is_blocked_link } from '#lib/posts/blocked'
 import { extract_mentions, extract_tags } from '#lib/posts/text'
 import { post_problem, type PollDays } from '#lib/posts/rules'
 import { may_reply, type ReplyAudience } from '#lib/safety/rules'
@@ -22,6 +23,7 @@ import {
 	type Author,
 	type FeedPage,
 	type FeedTab,
+	type LinkPreview,
 	type Media,
 	type PollView,
 	type PostPage,
@@ -45,6 +47,7 @@ import {
 } from './db/schema'
 import { image_of, shown_image } from './account-image'
 import { cached } from './cache'
+import { preview_link } from './link-preview'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
 import { is_verified } from './verified'
@@ -123,6 +126,12 @@ where q.id = ${post.quoteId} and ${visible_post(viewer, {
 	moderation: sql`q.moderation`,
 	is_private: sql`qp.is_private`,
 })})`
+/** The card for the post's link, once its page has been read and had something to show. */
+const link_json = sql<string | null>`(select json_object(
+	'url', lp.url, 'title', lp.title, 'description', lp.description, 'site_name', lp.site_name,
+	'image', lp.image, 'image_width', lp.image_width, 'image_height', lp.image_height
+) from link_preview lp where lp.url = ${post.linkUrl} and lp.title is not null)`
+
 const poll_json = sql<string>`(select json_group_array(json_object(
 	'position', o.position, 'label', o.label,
 	'votes', (select count(*) from poll_vote v where v.post_id = o.post_id and v.position = o.position)
@@ -174,6 +183,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			poll_ends_at: poll.endsAt,
 			poll_options: poll_json,
 			poll_voted: poll_voted(viewer),
+			link: link_json,
 			author_id: user.id,
 			author_name: display_name,
 			author_handle: profile.handle,
@@ -276,8 +286,37 @@ function to_poll(row: Row): PollView | undefined {
 	}
 }
 
+type LinkRow = {
+	url: string
+	title: string
+	description: string | null
+	site_name: string | null
+	image: string | null
+	image_width: number | null
+	image_height: number | null
+}
+
+/** The link card, unless its domain has been blocked since, which takes the link itself away too. */
+function to_link(json: string | null, blocked: string[]): LinkPreview | undefined {
+	if (!json) return undefined
+	const row: LinkRow = JSON.parse(json)
+	if (is_blocked_link(row.url, blocked)) return undefined
+	return {
+		url: row.url,
+		title: row.title,
+		...(row.description && { description: row.description }),
+		...(row.site_name && { site_name: row.site_name }),
+		...(row.image &&
+			row.image_width &&
+			row.image_height && {
+				image: { url: row.image, width: row.image_width, height: row.image_height },
+			}),
+	}
+}
+
 function to_view(row: Row, viewer: string | undefined): PostView {
 	const mine = row.author_id === viewer
+	const blocked_hosts = JSON.parse(row.blocked_hosts) as string[]
 	return {
 		id: row.id,
 		body: row.body,
@@ -302,6 +341,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		media: to_media(row.media),
 		quote: to_quote(row),
 		poll: to_poll(row),
+		link: to_link(row.link, blocked_hosts),
 		location: row.location ?? undefined,
 		replies: row.replies,
 		likes: row.likes,
@@ -313,7 +353,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		mine,
 		pinned: !!row.pinned,
 		sensitive: row.sensitive,
-		blocked_hosts: JSON.parse(row.blocked_hosts) as string[],
+		blocked_hosts,
 		warn_links: row.author_created_at.getTime() > Date.now() - TRUSTED_DAYS * 24 * 60 * 60 * 1000,
 		// Only its author is ever shown a hidden post, so only they learn its state.
 		moderation: row.moderation === 'visible' ? undefined : row.moderation,
@@ -969,6 +1009,8 @@ export type NewPost = {
 	sensitive?: boolean
 	/** The post it quotes. Only a thread's first post can quote. */
 	quote?: string
+	/** False when the author took the link card off in the composer. */
+	link_preview?: boolean
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -1052,6 +1094,7 @@ export async function insert_thread(
 				checked: 'pending',
 				replyToId: parent_id ?? null,
 				quoteId: i ? null : (quote_id ?? null),
+				linkUrl: input.link_preview === false ? null : (preview_link(input.body) ?? null),
 				isReply: !!parent_id,
 				replyAudience: audience,
 				createdAt: created_at,
@@ -1120,7 +1163,12 @@ export async function update_post(
 	media?: KeptMedia[],
 ): Promise<EditResult> {
 	const [owned] = await db
-		.select({ body: post.body, created_at: post.createdAt, reply_to_id: post.replyToId })
+		.select({
+			body: post.body,
+			created_at: post.createdAt,
+			reply_to_id: post.replyToId,
+			link_url: post.linkUrl,
+		})
 		.from(post)
 		// A post a moderator limited or removed stays as it was reviewed.
 		.where(and(eq(post.id, id), eq(post.authorId, author_id), eq(post.moderation, 'visible')))
@@ -1132,7 +1180,13 @@ export async function update_post(
 	const kept = media ? kept_media(current, media) : current
 	if (!kept || post_problem(body, kept.length > 0)) return 'invalid'
 
-	const edit = db.update(post).set({ body, editedAt: new Date() }).where(eq(post.id, id))
+	// The card follows the text's first link, unless the author took it off for that same link.
+	const link = preview_link(body) ?? null
+	const kept_off = owned.link_url === null && link !== null && preview_link(owned.body) === link
+	const edit = db
+		.update(post)
+		.set({ body, editedAt: new Date(), linkUrl: kept_off ? null : link })
+		.where(eq(post.id, id))
 	// The post's hashtags are rewritten with the text, in the same batch.
 	const retag = [
 		db.delete(postTag).where(eq(postTag.postId, id)),

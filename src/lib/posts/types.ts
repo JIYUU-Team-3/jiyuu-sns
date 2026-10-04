@@ -43,6 +43,18 @@ export type QuotedPost = {
 	sensitive: boolean
 }
 
+/**
+ * The card under a post with a link: what the linked page says about itself. Its picture is our
+ * own copy, so readers never reach the site until they open the link.
+ */
+export type LinkPreview = {
+	url: string
+	title: string
+	description?: string
+	site_name?: string
+	image?: { url: string; width: number; height: number }
+}
+
 export type PostView = {
 	id: string
 	body: string
@@ -57,6 +69,8 @@ export type PostView = {
 	/** The post this one quotes; `post` is missing once that post is deleted. */
 	quote?: { id: string; post?: QuotedPost }
 	poll?: PollView
+	/** The card for its first link, once the server has read that page. */
+	link?: LinkPreview
 	location?: string
 	replies: number
 	likes: number

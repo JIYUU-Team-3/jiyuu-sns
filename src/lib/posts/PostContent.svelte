@@ -4,6 +4,7 @@
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { place_key } from '#lib/search/place'
+	import LinkCard from './LinkCard.svelte'
 	import { out_href, search_href } from './links'
 	import Poll from './Poll.svelte'
 	import PostMedia from './PostMedia.svelte'
@@ -35,6 +36,14 @@
 	const sensitive = $derived(post.sensitive && content.media.length > 0 && !post.mine)
 	const hidden = $derived(sensitive && !prefs.value.show_sensitive)
 	const covered = $derived(hidden || (sensitive && prefs.value.cover_sensitive && !revealed))
+	/** New accounts' links go through the "leaving Jiyuu" page, the card's too. */
+	const out = $derived(
+		post.warn_links && !post.mine ? (n: number) => out_href(post.id, n) : undefined,
+	)
+	/** The card is for posts that have nothing else to show under the text. */
+	const link = $derived(
+		post.link && !content.media.length && !post.poll && !post.quote ? post.link : undefined,
+	)
 </script>
 
 {#if post.moderation}
@@ -49,11 +58,7 @@
 	<PostTranslation id={post.id} body={content.body} offer={!post.moderation}>
 		{#snippet text(body, lang)}
 			<div class="text" class:focus {lang}>
-				<PostText
-					{body}
-					blocked={post.blocked_hosts}
-					out={post.warn_links && !post.mine ? (n) => out_href(post.id, n) : undefined}
-				/>
+				<PostText {body} blocked={post.blocked_hosts} {out} />
 			</div>
 		{/snippet}
 	</PostTranslation>
@@ -79,6 +84,7 @@
 {:else}
 	<PostMedia media={content.media} {focus} {onswipe} />
 {/if}
+{#if link}<LinkCard {link} href={out ? out(0) : link.url} />{/if}
 {#if post.poll}<Poll post_id={post.id} poll={post.poll} mine={post.mine} />{/if}
 {#if post.quote}<QuoteCard quote={post.quote} />{/if}
 {#if post.location}
