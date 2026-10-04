@@ -1,5 +1,6 @@
 import { resolve } from '$app/paths'
-import { getLocale, localizeHref } from '#lib/paraglide/runtime'
+import { deLocalizeHref, getLocale, localizeHref } from '#lib/paraglide/runtime'
+import { with_next } from './login/next'
 
 const CONTACT_EMAIL = 'jiyuu.org@gmail.com'
 
@@ -44,3 +45,8 @@ export const home_href = () => localizeHref('/', { locale: getLocale() })
 
 /** The one-screen profile setup a new account sees after its first Google sign-in. */
 export const onboarding_href = () => localizeHref('/onboarding', { locale: getLocale() })
+
+export const return_path = (from: URL) =>
+	deLocalizeHref(from.pathname) === '/' && !from.search ? undefined : from.pathname + from.search
+
+export const login_href = (from: URL) => with_next(localizeHref('/login'), return_path(from))

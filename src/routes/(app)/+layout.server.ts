@@ -1,18 +1,18 @@
 import { redirect } from '@sveltejs/kit'
-import { localizeHref } from '#lib/paraglide/runtime'
 import type { Author } from '#lib/posts/types'
 import { account_image } from '#lib/server/account-image'
 import { find_profile } from '#lib/server/profiles'
 import { translation_enabled } from '#lib/server/translate'
-import { onboarding_href } from '../(public)/links'
+import { login_href, onboarding_href, return_path } from '../(public)/links'
+import { with_next } from '../(public)/login/next'
 import type { LayoutServerLoad } from './$types'
 
 /** The signed-in app needs an account with a handle; anyone else is sent to finish that first. */
-export const load: LayoutServerLoad = async ({ locals }) => {
-	if (!locals.user) return redirect(302, localizeHref('/login'))
+export const load: LayoutServerLoad = async ({ locals, url }) => {
+	if (!locals.user) return redirect(302, login_href(url))
 
 	const profile = await find_profile(locals.db, locals.user.id)
-	if (!profile) return redirect(302, onboarding_href())
+	if (!profile) return redirect(302, with_next(onboarding_href(), return_path(url)))
 
 	const me: Author & { handle: string } = {
 		id: locals.user.id,
