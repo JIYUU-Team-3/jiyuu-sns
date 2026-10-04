@@ -182,7 +182,6 @@
 	.top {
 		position: relative;
 		padding: var(--pad-top) var(--pad-x) 12px;
-		border-bottom: 1px solid var(--line);
 	}
 	.head {
 		display: flex;

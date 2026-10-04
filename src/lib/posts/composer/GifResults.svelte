@@ -35,13 +35,20 @@
 		max-height: 240px;
 		overflow-y: auto;
 	}
+	/* A square from padding, not aspect-ratio: Safari sizes the rows of a scrolling grid before
+	   it applies a button's aspect-ratio, so the rows came out short and the GIFs overlapped. */
 	button {
-		aspect-ratio: 1;
+		position: relative;
+		display: block;
+		width: 100%;
+		padding: 0 0 100%;
 		border-radius: 8px;
 		overflow: hidden;
 		background: var(--img-fallback);
 	}
 	img {
+		position: absolute;
+		inset: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
