@@ -19,9 +19,12 @@ type Db = ReturnType<typeof getDb>
  * plain `http(s)` host that the link checks would let a post link to.
  */
 
-/** A page with a card is read again after this long; one without, sooner. */
+/**
+ * A page with a card is read again after this long; one without, much sooner, since most misses
+ * are a slow site or a passing bot check. The hourly job retries posts' missing cards too.
+ */
 export const REFRESH_AFTER = 7 * 24 * 60 * 60 * 1000
-export const RETRY_AFTER = 24 * 60 * 60 * 1000
+export const RETRY_AFTER = 30 * 60 * 1000
 
 /**
  * Each request's limits. A page's tags are in its head, and reading stops where the head ends;

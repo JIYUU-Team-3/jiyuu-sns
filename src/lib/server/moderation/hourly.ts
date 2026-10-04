@@ -1,7 +1,20 @@
-import { and, desc, eq, gt, inArray, like, lt, notInArray, or } from 'drizzle-orm'
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	like,
+	lt,
+	notInArray,
+	or,
+} from 'drizzle-orm'
 import type { getDb } from '../db'
 import { chunks } from '../db/chunks'
-import { mediaCheck, post } from '../db/schema'
+import { linkPreview, mediaCheck, post } from '../db/schema'
+import { ensure_preview, RETRY_AFTER } from '../link-preview'
 import { delete_media, media_url } from '../media'
 import { unused_uploads } from '../posts'
 import { raise_case } from './cases'
@@ -30,6 +43,8 @@ export const HOURLY = {
 	/** Post uploads looked at for ones no post uses, and how old one must be: a draft can sit open. */
 	sweep_objects: 500,
 	sweep_grace: 24 * HOUR,
+	/** Links of recent posts whose card is missing, read again; each is a page and a picture. */
+	link_cards: 20,
 } as const
 
 export type HourlyDeps = CheckDeps & {
@@ -132,9 +147,41 @@ export async function run_hourly(db: Db, deps: HourlyDeps, now = Date.now()) {
 			)
 		}
 	}
+	const cards = await retry_link_cards(db, deps, now)
 	const scores = await run_scores(db, now)
 	const swept = await sweep_uploads(db, deps, now)
-	return { purged, retried: pending.length, hosts: hosts.length, blocked, swept, ...scores }
+	return { purged, retried: pending.length, hosts: hosts.length, blocked, cards, swept, ...scores }
+}
+
+/**
+ * Read again the links of the last week's posts that have no card: the page failed or was slow
+ * when the post was made, or reading it never finished. Only links whose last try is older than
+ * `RETRY_AFTER`, so the job and the composer don't ask a site over and over.
+ */
+async function retry_link_cards(db: Db, deps: HourlyDeps, now: number) {
+	const links = await db
+		.selectDistinct({ url: post.linkUrl })
+		.from(post)
+		.leftJoin(linkPreview, eq(linkPreview.url, post.linkUrl))
+		.where(
+			and(
+				isNotNull(post.linkUrl),
+				gt(post.createdAt, new Date(now - HOURLY.link_window)),
+				notInArray(post.moderation, ['removed']),
+				or(
+					isNull(linkPreview.url),
+					and(isNull(linkPreview.title), lt(linkPreview.fetchedAt, new Date(now - RETRY_AFTER))),
+				),
+			),
+		)
+		.limit(HOURLY.link_cards)
+	let found = 0
+	for (const { url } of links) {
+		if (!url) continue
+		const card = await ensure_preview(db, { bucket: deps.bucket, fetcher: deps.fetcher }, url)
+		if (card) found += 1
+	}
+	return found
 }
 
 /**
