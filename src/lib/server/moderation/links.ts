@@ -165,8 +165,9 @@ export type LinkCheck = {
 }
 
 /**
- * Check the links in a post or message before it's saved. `can_link` is false for new and
- * restricted accounts, who can't post links at all. A host the resolver reports goes on the
+ * Check the links in a post or message before it's saved. `can_link` is false for restricted
+ * accounts, who can't post links at all; a new account's daily allowance is counted in
+ * `write.ts`. A host the resolver reports goes on the
  * blocklist, so every post that already has it stops linking to it too.
  */
 export async function check_links(

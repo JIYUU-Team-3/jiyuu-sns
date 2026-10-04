@@ -1,7 +1,8 @@
 import { and, count, eq, gt, inArray, sql } from 'drizzle-orm'
 import { post_length } from '#lib/posts/rules'
 import type { getDb } from '../db'
-import { follow, post, user } from '../db/schema'
+import { follow, newAccountAllowance, post, user } from '../db/schema'
+import { today } from './budget'
 
 type Db = ReturnType<typeof getDb>
 
@@ -21,7 +22,10 @@ export const TRUSTED_DAYS = 30
 export const TRUSTED_POSTS = 20
 export const CLEAN_DAYS = 90
 
-/** Whether an account is held to new-account limits: no links, no video, a slower pace. */
+/**
+ * Whether an account is held to new-account limits: a slower pace, and links and video only
+ * within the daily allowance (none at all when restricted).
+ */
 export const is_limited = (trust: Trust) => trust === 'new' || trust === 'restricted'
 
 /**
@@ -56,6 +60,59 @@ export const LIMITED_POSTS_PER_HOUR = 10
 export const LIMITED_FOLLOWS_PER_HOUR = 20
 
 const HOUR = 60 * 60 * 1000
+
+/**
+ * What a new account may share each UTC day: posts, edits and messages that add a link, and
+ * videos. A restricted account gets none.
+ */
+export const NEW_ALLOWANCE = { links: 5, videos: 5 } as const
+export type Allowance = keyof typeof NEW_ALLOWANCE
+
+/**
+ * Use `wanted` of today's allowance, or none of it when any kind would pass its cap. Returns the
+ * kind that ran out, or `undefined` when it was all granted.
+ */
+export async function use_allowance(
+	db: Db,
+	user_id: string,
+	wanted: Partial<Record<Allowance, number>>,
+	now = Date.now(),
+): Promise<Allowance | undefined> {
+	const links = wanted.links ?? 0
+	const videos = wanted.videos ?? 0
+	if (!links && !videos) return undefined
+	if (links > NEW_ALLOWANCE.links) return 'links'
+	if (videos > NEW_ALLOWANCE.videos) return 'videos'
+	// One statement: the row is created or added to only while both totals stay under their caps.
+	const rows = await db
+		.insert(newAccountAllowance)
+		.values({ userId: user_id, day: today(now), links, videos })
+		.onConflictDoUpdate({
+			target: [newAccountAllowance.userId, newAccountAllowance.day],
+			set: {
+				links: sql`${newAccountAllowance.links} + ${links}`,
+				videos: sql`${newAccountAllowance.videos} + ${videos}`,
+			},
+			setWhere: sql`${newAccountAllowance.links} + ${links} <= ${NEW_ALLOWANCE.links} and ${newAccountAllowance.videos} + ${videos} <= ${NEW_ALLOWANCE.videos}`,
+		})
+		.returning({ day: newAccountAllowance.day })
+	if (rows.length) return undefined
+	const left = await allowance_left(db, user_id, now)
+	return left.links < links ? 'links' : 'videos'
+}
+
+/** What is left of today's allowance. */
+export async function allowance_left(db: Db, user_id: string, now = Date.now()) {
+	const [row] = await db
+		.select({ links: newAccountAllowance.links, videos: newAccountAllowance.videos })
+		.from(newAccountAllowance)
+		.where(and(eq(newAccountAllowance.userId, user_id), eq(newAccountAllowance.day, today(now))))
+		.limit(1)
+	return {
+		links: NEW_ALLOWANCE.links - (row?.links ?? 0),
+		videos: NEW_ALLOWANCE.videos - (row?.videos ?? 0),
+	}
+}
 
 export async function posts_last_hour(db: Db, user_id: string, now = Date.now()) {
 	const [row] = await db

@@ -3,13 +3,14 @@ import { delete_push_subscription, save_push_subscription } from './notification
 
 /**
  * - `unsupported`: this browser can't do push, or the deployment has no keys
- * - `install`: iPhone/iPad Safari, which only offers push to a Home Screen app
+ * - `install`: iPhone/iPad in a browser tab; push is only offered to a Home Screen app
+ * - `update`: iPhone/iPad already opened from the Home Screen, but older than iOS 16.4
  * - `blocked`: the reader said no, and only the browser's site settings can undo that
  * - `unavailable`: the browser couldn't reach its push service, e.g. Brave with Google push
  *   messaging switched off (its default)
  */
 export type PushState =
-	'checking' | 'unsupported' | 'install' | 'blocked' | 'unavailable' | 'off' | 'on'
+	'checking' | 'unsupported' | 'install' | 'update' | 'blocked' | 'unavailable' | 'off' | 'on'
 
 function key_bytes(text: string) {
 	const base64 = text.replace(/-/g, '+').replace(/_/g, '/')
@@ -17,12 +18,20 @@ function key_bytes(text: string) {
 	return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
 
-const is_ios = () =>
+export const is_ios = () =>
 	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
 	(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
+/** Opened from the Home Screen as an app of its own, not in a browser tab. */
+export const is_standalone = () =>
+	matchMedia('(display-mode: standalone)').matches ||
+	(navigator as Navigator & { standalone?: boolean }).standalone === true
+
 /** Brave says so itself; its user agent reads as plain Chrome. */
-export const is_brave = () => 'brave' in navigator
+const is_brave = () => 'brave' in navigator
+
+/** Desktop Brave, whose push needs a setting switched on; Brave on Android has no such setting. */
+export const is_brave_desktop = () => is_brave() && !/Android/i.test(navigator.userAgent)
 
 /** A subscribe that never settles counts as failed, so the button doesn't spin forever. */
 function within<T>(promise: Promise<T>, ms: number) {
@@ -61,7 +70,7 @@ class Push {
 
 	async check() {
 		if (!supported()) {
-			this.state = is_ios() ? 'install' : 'unsupported'
+			this.state = !is_ios() ? 'unsupported' : is_standalone() ? 'update' : 'install'
 			return
 		}
 		const subscription = await current_subscription()

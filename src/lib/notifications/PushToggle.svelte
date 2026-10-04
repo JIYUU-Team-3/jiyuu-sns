@@ -3,7 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js'
 	import Icon from '#lib/ui/Icon.svelte'
 	import { toast } from '#lib/ui/toasts.svelte'
-	import { is_brave, push } from './push.svelte'
+	import { is_brave_desktop, is_ios, is_standalone, push } from './push.svelte'
 
 	onMount(() => {
 		push.check()
@@ -26,9 +26,12 @@
 			<h2 id="push-title">{m.push_title()}</h2>
 			<p>
 				{#if push.state === 'on'}{m.push_on_body()}
-				{:else if push.state === 'blocked'}{m.push_blocked()}
+				{:else if push.state === 'blocked'}{is_ios() && is_standalone()
+						? m.push_blocked_ios()
+						: m.push_blocked()}
 				{:else if push.state === 'install'}{m.push_ios_hint()}
-				{:else if push.state === 'unavailable'}{is_brave()
+				{:else if push.state === 'update'}{m.push_ios_update()}
+				{:else if push.state === 'unavailable'}{is_brave_desktop()
 						? m.push_unavailable_brave()
 						: m.push_unavailable()}
 				{:else}{m.push_off_body()}{/if}

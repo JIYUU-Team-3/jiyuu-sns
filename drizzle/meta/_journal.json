@@ -183,6 +183,13 @@
       "when": 1791107657244,
       "tag": "0025_link_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791108692012,
+      "tag": "0026_new_account_allowance",
+      "breakpoints": true
     }
   ]
 }

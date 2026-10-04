@@ -2,7 +2,15 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { accountStanding, follow, moderationAction, post, user } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
-import { follows, follows_last_hour, posts_last_hour, repeats_own_post, trust_level } from './trust'
+import {
+	allowance_left,
+	follows,
+	follows_last_hour,
+	posts_last_hour,
+	repeats_own_post,
+	trust_level,
+	use_allowance,
+} from './trust'
 
 const DAY = 24 * 60 * 60 * 1000
 const now = Date.now()
@@ -88,5 +96,30 @@ describe('pace and repeats', () => {
 		expect(await repeats_own_post(db, 'a', ['lol'])).toBe(false)
 		expect(await repeats_own_post(db, 'a', ['An old announcement'])).toBe(false)
 		expect(await repeats_own_post(db, 'other', ['Buy cheap followers now'])).toBe(false)
+	})
+})
+
+describe('new-account allowance', () => {
+	it('grants five links and five videos a day, each counted on its own', async () => {
+		await aged('a', 1, 0)
+		expect(await use_allowance(db, 'a', { links: 3 }, now)).toBeUndefined()
+		expect(await use_allowance(db, 'a', { links: 2, videos: 5 }, now)).toBeUndefined()
+		expect(await allowance_left(db, 'a', now)).toEqual({ links: 0, videos: 0 })
+		expect(await use_allowance(db, 'a', { links: 1 }, now)).toBe('links')
+		expect(await use_allowance(db, 'a', { videos: 1 }, now)).toBe('videos')
+		// Another account and the next day start from nothing.
+		await aged('b', 1, 0)
+		expect(await use_allowance(db, 'b', { links: 5 }, now)).toBeUndefined()
+		expect(await use_allowance(db, 'a', { links: 5, videos: 5 }, now + DAY)).toBeUndefined()
+	})
+
+	it('uses none of it when any kind would pass its cap', async () => {
+		await aged('a', 1, 0)
+		expect(await use_allowance(db, 'a', { links: 4 }, now)).toBeUndefined()
+		expect(await use_allowance(db, 'a', { links: 2, videos: 1 }, now)).toBe('links')
+		expect(await allowance_left(db, 'a', now)).toEqual({ links: 1, videos: 5 })
+		// More than a whole day's worth at once never reaches the database.
+		expect(await use_allowance(db, 'a', { videos: 6 }, now)).toBe('videos')
+		expect(await allowance_left(db, 'a', now)).toEqual({ links: 1, videos: 5 })
 	})
 })

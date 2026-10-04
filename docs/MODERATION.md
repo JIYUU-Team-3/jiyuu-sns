@@ -21,7 +21,7 @@ Built as planned, with these differences, each for a reason found while building
   most, so "3 an hour" isn't expressible. One request per suspension is the real limit.
 - **Bios aren't checked for links**, because bios aren't drawn as links.
 - **The "leaving Jiyuu" page covers accounts under a month old**, since new accounts (under three
-  days) can't post links at all.
+  days) can share links in only 5 posts or messages a day.
 - **Images over 1 MB aren't sent to the vision model as they are**: encoding one costs CPU the
   Free plan doesn't have. The `IMAGES` binding makes a small JPEG of a larger one just for the
   check (5,000 a month on the Free plan, then it refuses and the image is left to reports).
@@ -138,8 +138,10 @@ hourly job, stored on the account.
 | `trusted`    | 30+ days, 20+ posts, no upheld report or action in 90 days         |
 | `restricted` | Set by a moderator, or a behaviour score over the threshold        |
 
-`new` and `restricted` accounts can't post links or video, post at most 10 times an hour, follow at
-most 20 accounts an hour, and can only start a direct chat with someone who follows them. All their
+`new` accounts can share links in 5 posts, edits or messages a day and post 5 videos a day (UTC
+days, counted in `new_account_allowance`; deleting a post gives none back). `restricted` accounts
+can't post links or video at all. Both post at most 10 times an hour, follow at most 20 accounts an
+hour, and can only start a direct chat with someone who follows them. All their
 images are checked; `normal` accounts' images are sampled; `trusted` accounts' only on report.
 
 ## When content is checked
@@ -382,6 +384,8 @@ New tables (a migration in `drizzle/`, via `pnpm db:generate`; never `db:push` t
 - `blocked_domain` — domain, added_by, reason, created_at.
 - `blocked_media_hash` — sha256, added_by, created_at.
 - `ai_usage` — day, neurons. One row per day, the budget counter.
+- `new_account_allowance` — user_id, day, links, videos. What a `new` account used of its daily
+  allowance.
 
 `report` comes from #21 (see [Reports](#reports)).
 
