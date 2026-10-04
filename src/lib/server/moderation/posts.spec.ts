@@ -38,6 +38,11 @@ import {
 
 let db: TestDb
 const now = Date.now()
+/**
+ * Just past the review window of a removal made in this test. Removals are stamped with the
+ * real clock, so this is read when asked: `now` can be seconds old by then on a busy machine.
+ */
+const after_window = () => Date.now() + REMOVED_KEPT_MS + 1000
 
 async function add_post(
 	id: string,
@@ -237,9 +242,7 @@ describe('reviews of a removal', () => {
 	it('can be asked for once, by the author, within the day', async () => {
 		await remove()
 		expect(await request_post_review(db, 'bob', 'p1', 'not mine')).toBe(false)
-		expect(await request_post_review(db, 'alice', 'p1', 'late', now + REMOVED_KEPT_MS + 1000)).toBe(
-			false,
-		)
+		expect(await request_post_review(db, 'alice', 'p1', 'late', after_window())).toBe(false)
 		expect(await request_post_review(db, 'alice', 'p1', 'please')).toBe(true)
 		expect(await request_post_review(db, 'alice', 'p1', 'again')).toBe(false)
 	})
@@ -251,10 +254,10 @@ describe('purge_removed_posts', () => {
 		expect((await purge_removed_posts(db, now)).purged).toBe(0)
 
 		await request_post_review(db, 'alice', 'p1', 'please')
-		expect((await purge_removed_posts(db, now + REMOVED_KEPT_MS + 1000)).purged).toBe(0)
+		expect((await purge_removed_posts(db, after_window())).purged).toBe(0)
 
 		await db.update(appeal).set({ status: 'refused' })
-		const result = await purge_removed_posts(db, now + REMOVED_KEPT_MS + 1000)
+		const result = await purge_removed_posts(db, after_window())
 		expect(result).toEqual({ purged: 1, unused: ['/media/posts/alice/a.jpg'] })
 		expect(await db.select().from(post)).toEqual([])
 	})
