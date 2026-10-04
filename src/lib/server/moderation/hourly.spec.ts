@@ -1,7 +1,15 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
-import { blockedDomain, mediaCheck, moderationCase, post, postMedia } from '../db/schema'
+import {
+	blockedDomain,
+	linkPreview,
+	mediaCheck,
+	moderationCase,
+	post,
+	postMedia,
+} from '../db/schema'
 import { add_account, test_db } from '../db/test-d1'
+import { RETRY_AFTER } from '../link-preview'
 import { run_hourly } from './hourly'
 import { moderate_post, REMOVED_KEPT_MS } from './posts'
 
@@ -65,6 +73,52 @@ describe('run_hourly', () => {
 			.from(moderationCase)
 			.where(eq(moderationCase.targetId, 'link'))
 		expect(flagged).toMatchObject({ reason: 'malicious_link', status: 'open' })
+	})
+})
+
+describe('missing link cards', () => {
+	it('reads again the links of recent posts with no card, not ones tried lately', async () => {
+		const db = test_db()
+		await add_account(db, 'alice')
+		const now = Date.now()
+		const url = (name: string) => `https://${name}.example.com/`
+		await db.insert(post).values(
+			['failed', 'never', 'tried-lately', 'has-card', 'old'].map((name) => ({
+				id: name,
+				authorId: 'alice',
+				body: `see ${url(name)}`,
+				linkUrl: url(name),
+				// A post older than a week isn't worth a request.
+				createdAt: new Date(name === 'old' ? now - 8 * 24 * 60 * 60 * 1000 : now),
+			})),
+		)
+		await db.insert(linkPreview).values([
+			{ url: url('failed'), fetchedAt: new Date(now - RETRY_AFTER - 60_000) },
+			{ url: url('tried-lately'), fetchedAt: new Date(now - 60_000) },
+			{ url: url('has-card'), title: 'Already here', fetchedAt: new Date(now) },
+		])
+		const asked: string[] = []
+		const fetcher = vi.fn(async (input: string | URL | Request) => {
+			const target = new URL(String(input))
+			if (target.hostname === 'security.cloudflare-dns.com') {
+				return new Response('{"Status":0,"Answer":[{"data":"93.184.216.34"}]}')
+			}
+			asked.push(target.href)
+			return new Response(
+				`<html><head><meta property="og:title" content="Card for ${target.hostname}"></head></html>`,
+				{ headers: { 'content-type': 'text/html' } },
+			)
+		}) as unknown as typeof fetch
+
+		const summary = await run_hourly(db, { bucket, enabled: false, fetcher }, now)
+
+		expect(summary).toMatchObject({ cards: 2 })
+		expect(asked.sort((a, b) => a.localeCompare(b))).toEqual([url('failed'), url('never')])
+		const [card] = await db
+			.select()
+			.from(linkPreview)
+			.where(eq(linkPreview.url, url('failed')))
+		expect(card.title).toBe('Card for failed.example.com')
 	})
 })
 
