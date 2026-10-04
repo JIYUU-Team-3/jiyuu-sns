@@ -398,22 +398,25 @@ async function rank_signals(db: Db, viewer: string | undefined, as_of: number): 
 	const reposts = settled('repost')
 	const replies = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id}
 		and r.moderation = 'visible' and r.author_id != ${post.authorId})`
-	const earlier = sql<number>`(select count(*) from post q where q.author_id = ${post.authorId}
-		and q.is_reply = 0 and q.created_at < ${post.createdAt}
-		and q.created_at >= ${post.createdAt} - ${FLOOD_WINDOW})`
+	// Bounded by `as_of` so a new post doesn't reorder pages already handed out.
+	const later = sql<number>`(select count(*) from post q where q.author_id = ${post.authorId}
+		and q.is_reply = 0 and q.created_at > ${post.createdAt}
+		and q.created_at <= ${post.createdAt} + ${FLOOD_WINDOW}
+		and q.created_at <= ${as_of})`
 	const behaviour = sql<number>`coalesce((select s.behaviour_score from account_standing s where s.user_id = ${post.authorId}), 0)`
 	const reports = sql<number>`coalesce((select k.reports from moderation_case k
 		where k.target_kind = 'post' and k.target_id = ${post.id} and k.status = 'open'), 0)`
 	const rows = await db
 		.select({
 			id: post.id,
+			author: post.authorId,
 			created_at: post.createdAt,
 			likes,
 			replies,
 			reposts,
 			followed,
 			mine,
-			earlier,
+			later,
 			behaviour,
 			reports,
 		})
