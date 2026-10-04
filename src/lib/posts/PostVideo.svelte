@@ -50,6 +50,13 @@
 		object-fit: cover;
 		background: #000;
 	}
+	/* The browser's own full screen shows the whole video, not the crop that fills a card. */
+	video:fullscreen {
+		object-fit: contain;
+	}
+	video:-webkit-full-screen {
+		object-fit: contain;
+	}
 	/* The whole video is the tap target, so it works anywhere on a phone. */
 	.tap {
 		position: absolute;

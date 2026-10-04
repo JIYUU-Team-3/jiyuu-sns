@@ -19,6 +19,7 @@
 	import Icon from '#lib/ui/Icon.svelte'
 	import Toast from '#lib/ui/Toast.svelte'
 	import { replies_arg } from './args'
+	import { hold_autoplay } from './autoplay'
 	import Composer from './Composer.svelte'
 	import FocusPost from './FocusPost.svelte'
 	import PostList from './PostList.svelte'
@@ -65,7 +66,11 @@
 			index = Math.min(viewer.current?.index ?? 0, media.length - 1)
 		})
 		dialog.showModal()
-		return () => opener?.focus({ preventScroll: true })
+		const release = hold_autoplay()
+		return () => {
+			release()
+			opener?.focus({ preventScroll: true })
+		}
 	}
 
 	function onscroll() {
