@@ -23,6 +23,9 @@ export const email_signup =
 const authConfig = {
 	baseURL: ORIGIN,
 	secret: BETTER_AUTH_SECRET,
+	// Instead of Better Auth's own error page. A sign-in started from /login names the same page in
+	// its own language; this catches a callback too broken to know which sign-in it belongs to.
+	onAPIError: { errorURL: '/session-ended' },
 	// People sign in with Google; the e2e server has no Google to sign in with.
 	emailAndPassword: { enabled: email_signup },
 	// Every request needs the session, and the app polls. A signed copy in a cookie answers for

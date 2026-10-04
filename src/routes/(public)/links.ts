@@ -46,6 +46,9 @@ export const home_href = () => localizeHref('/', { locale: getLocale() })
 /** The one-screen profile setup a new account sees after its first Google sign-in. */
 export const onboarding_href = () => localizeHref('/onboarding', { locale: getLocale() })
 
+/** Where a Google sign-in that was cancelled or failed comes back to. */
+export const session_ended_href = () => localizeHref('/session-ended', { locale: getLocale() })
+
 export const return_path = (from: URL) =>
 	deLocalizeHref(from.pathname) === '/' && !from.search ? undefined : from.pathname + from.search
 

@@ -11,8 +11,7 @@
 	import Avatar from '#lib/ui/Avatar.svelte'
 	import Icon from '#lib/ui/Icon.svelte'
 	import Menu from '#lib/ui/Menu.svelte'
-	import { home_href } from '../(public)/links'
-	import { sign_out } from './sign-out'
+	import LogOutDialog from './LogOutDialog.svelte'
 
 	let {
 		me,
@@ -24,6 +23,8 @@
 		/** Nav items the side nav had no room for. */
 		extras?: Snippet<[close: () => void]>
 	} = $props()
+
+	let asking = $state(false)
 </script>
 
 <Menu label={m.app_account_menu()} placement={compact ? 'cover-start' : 'above'}>
@@ -64,13 +65,23 @@
 				<Icon name="shield" />{m.mod_title()}
 			</a>
 		{/if}
-		<form method="post" action="{home_href()}?/signOut" onsubmit={sign_out}>
-			<button class="menu-item" role="menuitem">
-				<Icon name="logout" />{m.app_log_out({ handle: me.handle })}
-			</button>
-		</form>
+		<button
+			type="button"
+			class="menu-item"
+			role="menuitem"
+			onclick={() => {
+				close()
+				asking = true
+			}}
+		>
+			<Icon name="logout" />{m.app_log_out({ handle: me.handle })}
+		</button>
 	{/snippet}
 </Menu>
+
+{#if asking}
+	<LogOutDialog handle={me.handle} oncancel={() => (asking = false)} />
+{/if}
 
 <style>
 	.av-btn {

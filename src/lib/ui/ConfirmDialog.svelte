@@ -10,7 +10,7 @@
 		oncancel,
 	}: {
 		title: string
-		body: string
+		body?: string
 		/** The destructive action's label, e.g. "Delete". */
 		cta: string
 		onconfirm: () => void
@@ -21,7 +21,7 @@
 <Modal size="sm" label={title} onrequestclose={oncancel}>
 	<div class="confirm">
 		<h2>{title}</h2>
-		<p>{body}</p>
+		{#if body}<p>{body}</p>{/if}
 		<button type="button" class="btn btn-danger" onclick={onconfirm}>{cta}</button>
 		<button type="button" class="btn btn-outline" onclick={oncancel}>{m.dialog_cancel()}</button>
 	</div>
@@ -40,6 +40,10 @@
 	p {
 		color: var(--text-2);
 		margin: 0 0 22px;
+	}
+	/* No body: the title keeps the gap the body would have left above the buttons. */
+	h2:has(+ .btn) {
+		margin-bottom: 22px;
 	}
 	.btn {
 		width: 100%;

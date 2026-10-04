@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit'
 import { APIError } from 'better-auth/api'
 import { read_form } from '#lib/server/form'
 import { limit } from '#lib/server/rate-limit'
-import { home_href, onboarding_href } from '../links'
+import { home_href, onboarding_href, session_ended_href } from '../links'
 import { safe_next, with_next } from './next'
 import type { Actions, PageServerLoad } from './$types'
 
@@ -20,6 +20,7 @@ async function google_consent_url(auth: App.Locals['auth'], next: string | undef
 				provider: 'google',
 				callbackURL: next ?? home_href(),
 				newUserCallbackURL: with_next(onboarding_href(), next),
+				errorCallbackURL: session_ended_href(),
 			},
 		})
 		return result.url
