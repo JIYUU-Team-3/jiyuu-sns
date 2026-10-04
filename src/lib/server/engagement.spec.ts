@@ -85,7 +85,11 @@ describe('reposts, quotes, likes and bookmarks across privacy, blocks and mutes'
 	it('leaves reposts by a muted account out of the Following feed', async () => {
 		await add_post('d1', 'dave')
 		await db.insert(follow).values({ followerId: 'bob', followingId: 'alice' })
-		await db.insert(repost).values({ userId: 'alice', postId: 'd1' })
+		// A second ago: the feed leaves out anything after the moment it's read, and SQLite's
+		// default timestamp can land a millisecond ahead of `Date.now()`.
+		await db
+			.insert(repost)
+			.values({ userId: 'alice', postId: 'd1', createdAt: new Date(Date.now() - 1000) })
 		const feed = async () =>
 			(await feed_page(db, 'bob', 'following', undefined)).posts.map((view) => view.id)
 		expect(await feed()).toEqual(['d1'])
