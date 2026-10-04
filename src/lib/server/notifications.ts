@@ -1,4 +1,4 @@
-import { env, waitUntil } from 'cloudflare:workers'
+import { waitUntil } from 'cloudflare:workers'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
 	CARD_TYPES,
@@ -8,6 +8,7 @@ import {
 	type NotificationView,
 } from '#lib/notifications/types'
 import { shown_image } from './account-image'
+import { seen_recently } from './cache'
 import type { getDb } from './db'
 import { chunks } from './db/chunks'
 import { appeal, conversation, moderationAction, notification, profile, user } from './db/schema'
@@ -119,15 +120,12 @@ const REPEAT_QUIET_SECONDS = 60 * 60
 const TOGGLED: NotificationType[] = ['like', 'repost', 'follow', ...GROUP_TYPES]
 
 async function not_just_pushed(events: NewNotification[]) {
-	const kv: KVNamespace | undefined = env.KV
-	if (!kv) return events
 	const fresh: NewNotification[] = []
 	for (const event of events) {
-		if (TOGGLED.includes(event.type)) {
-			const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? event.conversation_id ?? ''}`
-			if (await kv.get(key)) continue
-			await kv.put(key, '1', { expirationTtl: REPEAT_QUIET_SECONDS })
-		}
+		// Kept per location in the Cache API, not KV: a like is a write, and the free plan's 1,000
+		// KV writes a day would run out. Someone toggling a like stays in one location anyway.
+		const key = `pushed:${event.type}:${event.actor_id}:${event.user_id}:${event.post_id ?? event.conversation_id ?? ''}`
+		if (TOGGLED.includes(event.type) && (await seen_recently(key, REPEAT_QUIET_SECONDS))) continue
 		fresh.push(event)
 	}
 	return fresh

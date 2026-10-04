@@ -1,8 +1,10 @@
 import type { Place } from '#lib/posts/types'
+import { cached } from './cache'
 
 /**
  * Photon (komoot) searches OpenStreetMap and, unlike the public Nominatim server, allows
- * search-as-you-type. Results are cached in KV for a day to stay a light user of it.
+ * search-as-you-type. Results are cached for a day to stay a light user of it, in the Cache API
+ * rather than KV, whose free plan allows only 1,000 writes a day.
  */
 const API = 'https://photon.komoot.io/api/'
 const LIMIT = 6
@@ -40,11 +42,6 @@ async function fetch_places(q: string, locale: string): Promise<Place[]> {
 	return unique_places(features)
 }
 
-export async function search_places(kv: KVNamespace, q: string, locale: string) {
-	const key = `places:${locale}:${q.toLowerCase()}`
-	const cached = await kv.get<Place[]>(key, 'json')
-	if (cached) return cached
-	const places = await fetch_places(q, locale)
-	await kv.put(key, JSON.stringify(places), { expirationTtl: CACHE_TTL })
-	return places
+export function search_places(q: string, locale: string) {
+	return cached(`places:${locale}:${q.toLowerCase()}`, CACHE_TTL, () => fetch_places(q, locale))
 }

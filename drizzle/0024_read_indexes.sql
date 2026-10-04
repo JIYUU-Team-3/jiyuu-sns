@@ -1,0 +1,2 @@
+CREATE INDEX `notification_unread_idx` ON `notification` (`user_id`) WHERE "notification"."read_at" is null;--> statement-breakpoint
+CREATE INDEX `post_tag_created_idx` ON `post_tag` (`created_at`,`tag`);
