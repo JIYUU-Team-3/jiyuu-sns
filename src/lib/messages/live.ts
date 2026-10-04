@@ -4,6 +4,8 @@ export type LiveEvent =
 	| { type: 'group' }
 	/** The room closed this socket: the reader left the group or was removed from it. */
 	| { type: 'removed' }
+	/** On the inbox socket: the reader's unread notifications changed. */
+	| { type: 'notification' }
 	| { type: 'typing'; user_id: string; on: boolean }
 
 const RETRY_MAX = 30_000

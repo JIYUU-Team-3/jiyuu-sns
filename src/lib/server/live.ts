@@ -75,12 +75,17 @@ export async function mark_delivered_live(
 	)
 }
 
-export async function nudge_inboxes(chat: DurableObjectNamespace | undefined, user_ids: string[]) {
+export async function nudge_inboxes(
+	chat: DurableObjectNamespace | undefined,
+	user_ids: string[],
+	/** `notification` when it's the bell's count that changed, not the messages'. */
+	kind: 'refresh' | 'notification' = 'refresh',
+) {
 	await Promise.all(
-		user_ids
+		[...new Set(user_ids)]
 			.slice(0, INBOX_NUDGE_MAX)
 			.map((user_id) =>
-				nudge(chat, inbox_room(user_id), { kind: 'refresh' }).catch((error) =>
+				nudge(chat, inbox_room(user_id), { kind }).catch((error) =>
 					console.error('Inbox update failed', error),
 				),
 			),

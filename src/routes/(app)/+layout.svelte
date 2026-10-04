@@ -11,6 +11,7 @@
 	import { profile_href } from '#lib/profiles/links'
 	import { morph_profile_edit } from '#lib/profiles/morph'
 	import { bookmarks_href } from '#lib/posts/links'
+	import MediaViewer from '#lib/posts/MediaViewer.svelte'
 	import { composer } from '#lib/posts/state.svelte'
 	import { explore_href } from '#lib/search/links'
 	import SearchBox from '#lib/search/SearchBox.svelte'
@@ -45,8 +46,8 @@
 	const unread_dms = $derived(await get_unread_messages().catch(() => 0))
 	const unread_dms_label = $derived(unread_dms >= 100 ? '99+' : String(unread_dms))
 
-	// New notifications arrive while the tab is open; check once a minute when it's visible.
-	// With push on, the service worker also says the moment one arrives.
+	// New notifications arrive while the tab is open: the inbox socket says the moment one does,
+	// as does the service worker with push on. The check once a minute covers a dropped socket.
 	onMount(() => {
 		const refresh = () => {
 			get_unread_count()
@@ -65,6 +66,7 @@
 			if (document.visibilityState === 'visible') refresh_unread_dms()
 		}
 		const live = connect_live('inbox', inbox_ticket, (event) => {
+			if (event.type === 'notification') return refresh()
 			if (event.type !== 'refresh') return
 			refresh_unread_dms()
 			inbox.changed()
@@ -328,6 +330,7 @@
 	<Icon name="compose" size="lg" />
 </button>
 
+<MediaViewer me={data.me} />
 <ComposerHost me={data.me} />
 <Toast />
 

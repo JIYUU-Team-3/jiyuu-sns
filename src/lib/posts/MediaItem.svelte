@@ -17,28 +17,37 @@
 		item,
 		label,
 		eager = false,
+		onopen,
 	}: {
 		item: Media
 		/** What a photo or video without a description is announced as. */
 		label: string
 		eager?: boolean
+		/** Given where a click on a photo opens it full screen. A video keeps its own tap. */
+		onopen?: () => void
 	} = $props()
 </script>
+
+{#snippet photo()}
+	<!-- A GIF comes from GIPHY's CDN, which needn't learn which page it was seen on. -->
+	<img
+		src={item.url}
+		referrerpolicy="no-referrer"
+		alt={item.alt || (item.kind === 'gif' ? m.post_gif_label() : label)}
+		width={item.width}
+		height={item.height}
+		loading={eager ? 'eager' : 'lazy'}
+		decoding="async"
+	/>
+{/snippet}
 
 <div class="m">
 	{#if item.kind === 'video'}
 		<PostVideo {item} {label} />
+	{:else if onopen}
+		<button type="button" class="open" onclick={onopen}>{@render photo()}</button>
 	{:else}
-		<!-- A GIF comes from GIPHY's CDN, which needn't learn which page it was seen on. -->
-		<img
-			src={item.url}
-			referrerpolicy="no-referrer"
-			alt={item.alt || (item.kind === 'gif' ? m.post_gif_label() : label)}
-			width={item.width}
-			height={item.height}
-			loading={eager ? 'eager' : 'lazy'}
-			decoding="async"
-		/>
+		{@render photo()}
 	{/if}
 	{#if item.kind === 'gif'}<span class="gif-badge" aria-hidden="true">GIF</span>{/if}
 </div>
@@ -49,6 +58,16 @@
 		width: 100%;
 		height: 100%;
 		background: var(--img-fallback);
+	}
+	.open {
+		display: block;
+		width: 100%;
+		height: 100%;
+		cursor: zoom-in;
+	}
+	.open:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
 	}
 	img {
 		display: block;
