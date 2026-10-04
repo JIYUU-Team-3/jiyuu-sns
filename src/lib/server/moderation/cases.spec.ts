@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { conversation, message, moderationCase, post } from '../db/schema'
 import { add_account, test_db, type TestDb } from '../db/test-d1'
 import {
@@ -11,6 +11,8 @@ import {
 	reopen_review,
 } from './cases'
 import { request_review, suspend } from './standing'
+
+vi.mock('./after-write', () => ({ check_posts_later: () => {} }))
 
 let db: TestDb
 beforeEach(async () => {
