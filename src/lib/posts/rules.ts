@@ -7,8 +7,8 @@ export const POST_WARN_AT = 20
 /** Photos, GIFs and videos on one post. */
 export const MEDIA_MAX = 6
 
-/** Longest video, in seconds (2:20). */
-export const VIDEO_MAX_SECONDS = 140
+/** Longest video, in seconds. */
+export const VIDEO_MAX_SECONDS = 600
 
 /** Longest description (alt text) on one photo or GIF. */
 export const ALT_MAX = 1000

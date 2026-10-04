@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { shown_birthday } from '#lib/profiles/details'
 import type { ProfileDetails } from '#lib/profiles/form/profile'
 import type { ProfileView } from '#lib/profiles/types'
@@ -90,6 +90,16 @@ export async function find_profile_by_handle(
 		muted: !!row.muted,
 		mine,
 	}
+}
+
+/** The name and photo of each profile in `handles`, at most 20; handles nobody holds are left out. */
+export async function profile_cards(db: Db, handles: string[]) {
+	const rows = await db
+		.select({ handle: profile.handle, name: profile.displayName, image: shown_image })
+		.from(profile)
+		.innerJoin(user, eq(user.id, profile.userId))
+		.where(inArray(profile.handle, handles.slice(0, 20)))
+	return rows.map((row) => ({ ...row, image: row.image ?? undefined }))
 }
 
 /** Whether another account already holds `handle`. */

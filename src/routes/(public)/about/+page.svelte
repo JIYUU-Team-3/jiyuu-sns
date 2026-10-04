@@ -4,6 +4,8 @@
 	import RichText from '../RichText.svelte'
 	import { EXTERNAL_HREFS } from '../links'
 	import TeamPanel from './TeamPanel.svelte'
+
+	let { data } = $props()
 </script>
 
 <DocPage title={m.about_title()}>
@@ -14,7 +16,7 @@
 
 	<h2>{m.about_team_heading()}</h2>
 	<p>{m.about_team()}</p>
-	<TeamPanel />
+	<TeamPanel live={data.live} signed_in={data.signed_in} />
 
 	<h2>{m.about_tech_heading()}</h2>
 	<p><RichText parts={m.about_tech.parts()} hrefs={EXTERNAL_HREFS} /></p>
