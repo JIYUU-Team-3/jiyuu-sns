@@ -23,9 +23,12 @@ type Db = ReturnType<typeof getDb>
 export const REFRESH_AFTER = 7 * 24 * 60 * 60 * 1000
 export const RETRY_AFTER = 24 * 60 * 60 * 1000
 
-/** Each request's limits. A page's tags are in its head, well inside the first bytes. */
+/**
+ * Each request's limits. A page's tags are in its head, and reading stops where the head ends;
+ * some heads are large (a YouTube video's tags start past 700 KB), so the cap is generous.
+ */
 const TIMEOUT_MS = 3000
-const PAGE_MAX_BYTES = 512 * 1024
+export const PAGE_MAX_BYTES = 2 * 1024 * 1024
 export const IMAGE_MAX_BYTES = 3 * 1024 * 1024
 const REDIRECTS_MAX = 3
 /** Smaller is an icon or a tracking pixel, not a picture worth a card. */
@@ -111,10 +114,21 @@ async function fetch_allowed(db: Db, href: string, accept: string, fetcher: type
 	return undefined
 }
 
-/** Up to `max` bytes of the body; undefined past `max` when `whole` is asked for. */
-async function read_bytes(response: Response, max: number, whole: boolean) {
+/** Where a page's head ends: plain ASCII in any charset a page we read can be in. */
+const HEAD_END = /<\/head\s*>/i
+/** Bytes of the previous chunk searched with the next, for a `</head>` split between them. */
+const HEAD_END_OVERLAP = 16
+
+/**
+ * Up to `max` bytes of the body; undefined past `max` when `whole` is asked for. With `until`,
+ * stops after the chunk where that ASCII pattern turns up.
+ */
+async function read_bytes(response: Response, max: number, whole: boolean, until?: RegExp) {
 	const reader = response.body?.getReader()
 	if (!reader) return undefined
+	// Every byte is one character in windows-1252, so ASCII is found whatever the page's charset.
+	const latin = until && new TextDecoder('windows-1252')
+	let tail = ''
 	const parts: Uint8Array[] = []
 	let length = 0
 	for (;;) {
@@ -122,6 +136,14 @@ async function read_bytes(response: Response, max: number, whole: boolean) {
 		if (done) break
 		parts.push(value)
 		length += value.length
+		if (latin && until) {
+			const text = tail + latin.decode(value)
+			if (until.test(text)) {
+				reader.cancel().catch(() => {})
+				break
+			}
+			tail = text.slice(-HEAD_END_OVERLAP)
+		}
 		if (length >= max) {
 			reader.cancel().catch(() => {})
 			if (whole && length > max) return undefined
@@ -309,7 +331,7 @@ async function fetch_preview(db: Db, deps: PreviewDeps, link: string): Promise<F
 			discard(fetched.response)
 			return {}
 		}
-		const bytes = await read_bytes(fetched.response, PAGE_MAX_BYTES, false)
+		const bytes = await read_bytes(fetched.response, PAGE_MAX_BYTES, false, HEAD_END)
 		if (!bytes) return {}
 		const tags = page_tags(charset(fetched.response).decode(bytes))
 		if (!tags.title) return {}

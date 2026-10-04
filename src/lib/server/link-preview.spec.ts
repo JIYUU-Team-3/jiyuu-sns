@@ -306,6 +306,36 @@ describe('ensure_preview', () => {
 		}
 	})
 
+	it('reads tags far into a large head, as on a YouTube video page', async () => {
+		const script = `<script>var data = "${'x'.repeat(700 * 1024)}"</script>`
+		const { fetcher } = web({
+			[ARTICLE]: html(page(`${script}<meta property="og:title" content="A video">`)),
+		})
+		expect(await ensure_preview(db, { bucket: bucket().bucket, fetcher }, ARTICLE)).toMatchObject({
+			title: 'A video',
+		})
+	})
+
+	it('stops reading where the head ends', async () => {
+		const encoder = new TextEncoder()
+		const { fetcher } = web({
+			// The body never finishes, as a slow or endless page wouldn't.
+			[ARTICLE]: () =>
+				new Response(
+					new ReadableStream({
+						start(controller) {
+							controller.enqueue(encoder.encode('<html><head><title>Slow</title></he'))
+							controller.enqueue(encoder.encode('ad><body>'))
+						},
+					}),
+					{ headers: { 'content-type': 'text/html' } },
+				),
+		})
+		expect(await ensure_preview(db, { bucket: bucket().bucket, fetcher }, ARTICLE)).toMatchObject({
+			title: 'Slow',
+		})
+	})
+
 	it('reads only pages, not files', async () => {
 		const { fetcher } = web({
 			[ARTICLE]: new Response('%PDF-1.7', { headers: { 'content-type': 'application/pdf' } }),
