@@ -7,7 +7,7 @@
 	import { localized } from '../links'
 	import GoogleSignIn from './GoogleSignIn.svelte'
 
-	let { form }: PageProps = $props()
+	let { data, form }: PageProps = $props()
 </script>
 
 <svelte:head><title>{m.login_page_title()}</title></svelte:head>
@@ -22,7 +22,7 @@
 				{#if part.type === 'text'}{part.value}{:else if part.name === 'wordmark'}<Wordmark />{/if}
 			{/each}
 		</h2>
-		<GoogleSignIn failed={form?.google_failed} />
+		<GoogleSignIn next={data.next} failed={form?.google_failed} />
 		<p class="auth-legal">
 			<RichText
 				parts={m.login_legal.parts()}

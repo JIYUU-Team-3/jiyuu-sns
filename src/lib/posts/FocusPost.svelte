@@ -9,7 +9,7 @@
 	import PostMenu from './PostMenu.svelte'
 	import PostContent from './PostContent.svelte'
 	import { edited_posts, like_state, repost_state } from './state.svelte'
-	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import type { PostView } from './types'
 
 	let { post, ondeleted }: { post: PostView; ondeleted?: () => void } = $props()
@@ -39,7 +39,7 @@
 			<a class="who" href={profile_href(post.author.handle)}>
 				<div class="nm">
 					{post.author.name}
-					{#if post.author.moderator}<ModeratorBadge />{/if}
+					<NameBadges of={post.author} />
 				</div>
 				<div class="hd">@{post.author.handle}</div>
 			</a>
@@ -48,7 +48,7 @@
 			<div class="who">
 				<div class="nm">
 					{post.author.name}
-					{#if post.author.moderator}<ModeratorBadge />{/if}
+					<NameBadges of={post.author} />
 				</div>
 			</div>
 		{/if}

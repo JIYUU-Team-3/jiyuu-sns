@@ -1,9 +1,9 @@
 import { error, redirect } from '@sveltejs/kit'
 import { is_blocked_link } from '#lib/posts/blocked'
 import { text_segments } from '#lib/posts/text'
-import { localizeHref } from '#lib/paraglide/runtime'
 import { find_post } from '#lib/server/posts'
 import type { PageServerLoad } from './$types'
+import { login_href } from '../../(public)/links'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * a link in it, never a URL, so it only ever leads where a post the reader can see already points.
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
-	if (!locals.user) return redirect(302, localizeHref('/login'))
+	if (!locals.user) return redirect(302, login_href(url))
 	const id = url.searchParams.get('post') ?? ''
 	const n = Number(url.searchParams.get('n'))
 	if (!UUID.test(id) || !Number.isInteger(n) || n < 0) error(404, 'Not found.')

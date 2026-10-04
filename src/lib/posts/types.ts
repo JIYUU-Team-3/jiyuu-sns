@@ -9,6 +9,7 @@ export type Author = {
 	image?: string
 	/** Moderates Jiyuu, which a shield beside the name shows. */
 	moderator?: boolean
+	verified?: boolean
 }
 
 export type MediaKind = 'image' | 'gif' | 'video'

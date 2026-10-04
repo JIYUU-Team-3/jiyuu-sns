@@ -690,6 +690,7 @@
 	"review_outcome_suspension_upheld": "Suspension lifted",
 	"review_outcome_suspension_refused": "Suspension kept",
 	"moderator_badge": "Moderator",
+	"verified_developer_badge": "Jiyuu developer",
 	"mod_confirm_restore_title": "Restore this post?",
 	"mod_confirm_restore_body": "The post becomes visible to everyone again and its strike is taken back. The author is told.",
 	"mod_confirm_keep_removed_title": "Keep this post removed?",

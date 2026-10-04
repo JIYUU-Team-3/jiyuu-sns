@@ -46,6 +46,22 @@ test('a signed-out caller is refused what a signed-in reader gets @writes', asyn
 	await anonymous.dispose()
 })
 
+test('a login link cannot send anyone to another site @writes', async ({ page }) => {
+	await sign_up(page, `e2e_nr_${unique()}`)
+	for (const next of [
+		'https://evil.example/',
+		'//evil.example',
+		'/\\evil.example',
+		'/.//evil.example',
+		'javascript:alert(1)',
+	]) {
+		const response = await page.request.get(`/login?next=${encodeURIComponent(next)}`, {
+			maxRedirects: 0,
+		})
+		expect(response.headers().location, next).toBe('/')
+	}
+})
+
 test('an account that skipped onboarding cannot upload @writes', async ({ page }) => {
 	const name = `e2e_n_${unique()}`
 	const account = await page.request.post('/api/auth/sign-up/email', {
