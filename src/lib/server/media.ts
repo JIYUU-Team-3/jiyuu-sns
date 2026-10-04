@@ -4,9 +4,12 @@ import { strip_metadata } from './strip-metadata'
 /** Uploads are stored as `/media/<key>` URLs, served by `src/routes/media/[...key]`. */
 const PREFIX = '/media/'
 
-/** Keys this app writes: `avatars/<user>/<uuid>.<ext>`, `banners/…` or `posts/…` (videos too). */
+/**
+ * Keys this app writes: `avatars/<user>/<uuid>.<ext>`, `banners/…` or `posts/…` (videos too), and
+ * `links/<url hash>/<uuid>.<ext>` for link preview pictures.
+ */
 const KEY_PATTERN =
-	/^(?:(?:avatars|banners|posts|messages)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4)$/
+	/^(?:(?:avatars|banners|posts|messages|links)\/[\w-]+\/[\w-]+\.(?:jpg|png|gif|webp)|posts\/[\w-]+\/[\w-]+\.mp4)$/
 
 export const is_media_key = (key: string) => KEY_PATTERN.test(key)
 

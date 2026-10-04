@@ -173,7 +173,11 @@
 		onpaste={(event) => onpaste(event, post)}
 	/>
 	{#if attachments}
-		<Attachments draft={post} oninsert={(text) => editors[i].insert(text)} />
+		<Attachments
+			draft={post}
+			oninsert={(text) => editors[i].insert(text)}
+			quoting={!!quoting && i === 0}
+		/>
 	{:else if editing}
 		<!-- An edit can drop or reorder the post's photos, but not add any. -->
 		<MediaTray {draft} />
