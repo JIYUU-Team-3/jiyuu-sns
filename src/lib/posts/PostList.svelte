@@ -1,5 +1,10 @@
+<script lang="ts" module>
+	/** The pages reached in each remembered list, so coming back to one shows as much as before. */
+	const remembered: Record<string, (string | undefined)[]> = {}
+</script>
+
 <script lang="ts">
-	import type { Snippet } from 'svelte'
+	import { untrack, type Snippet } from 'svelte'
 	import type { RemoteQuery } from '$app/server'
 	import { m } from '#lib/paraglide/messages.js'
 	import PostPage from './PostPage.svelte'
@@ -10,6 +15,7 @@
 		show_replying = true,
 		hide,
 		empty,
+		remember,
 	}: {
 		/** The query for one page; `undefined` is the first. */
 		load: (cursor?: string) => RemoteQuery<Page>
@@ -18,10 +24,21 @@
 		hide?: ReadonlySet<string>
 		/** Shown when the first page comes back empty. */
 		empty?: Snippet
+		/** A name for this list; leaving the page and coming back reopens the pages already reached. */
+		remember?: string
 	} = $props()
 
 	/** One entry per page the reader has reached (nearing the end appends the next cursor). */
-	let cursors = $state<(string | undefined)[]>([undefined])
+	let cursors = $state<(string | undefined)[]>(
+		untrack(() => (remember && remembered[remember]) || [undefined]),
+	)
+
+	function more(next: string) {
+		// The end of the list can come into view twice before the next page takes its place.
+		if (cursors.includes(next)) return
+		cursors.push(next)
+		if (remember) remembered[remember] = [...cursors]
+	}
 </script>
 
 {#snippet skeleton()}
@@ -62,10 +79,7 @@
 			{show_replying}
 			{hide}
 			{empty}
-			onmore={(next) => {
-				// The end of the list can come into view twice before the next page takes its place.
-				if (!cursors.includes(next)) cursors.push(next)
-			}}
+			onmore={more}
 		/>
 	</svelte:boundary>
 {/each}
