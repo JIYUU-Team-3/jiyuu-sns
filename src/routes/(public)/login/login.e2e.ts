@@ -29,6 +29,7 @@ test('a shared link is where a new account lands after login and onboarding @wri
 	await expect(page.locator('input[name="next"]')).toHaveValue('/search?q=hello')
 
 	const sign_up = await page.request.post('/api/auth/sign-up/email', {
+		headers: { origin: new URL(page.url()).origin },
 		data: { email: `${handle}@example.test`, password: crypto.randomUUID(), name: handle },
 	})
 	expect(sign_up.ok()).toBe(true)
