@@ -117,6 +117,13 @@
 		font: inherit;
 		padding: 0 8px;
 	}
+	/* iOS zooms the page into a focused field whose text is under 16px. */
+	@media (pointer: coarse) {
+		input,
+		select {
+			font-size: 16px;
+		}
+	}
 	.remove {
 		color: var(--danger);
 		font-weight: 600;

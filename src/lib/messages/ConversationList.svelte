@@ -143,6 +143,12 @@
 		background: none;
 		color: var(--text);
 	}
+	/* iOS zooms the page into a focused field whose text is under 16px. */
+	@media (pointer: coarse) {
+		.search input {
+			font-size: 16px;
+		}
+	}
 	.search input::placeholder {
 		color: var(--text-3);
 	}

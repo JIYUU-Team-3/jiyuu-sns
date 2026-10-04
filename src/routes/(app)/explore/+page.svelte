@@ -45,9 +45,12 @@
 		margin: 0;
 		letter-spacing: -0.01em;
 	}
+	/* The last trend's own bottom border would sit just above this one as a second line. */
 	section + section {
-		margin-top: 8px;
 		border-top: 1px solid var(--line);
+	}
+	section :global(.trend:last-child) {
+		border-bottom: 0;
 	}
 	.none {
 		color: var(--text-2);

@@ -77,6 +77,12 @@
 		color: var(--text);
 		font: inherit;
 	}
+	/* iOS zooms the page into a focused field whose text is under 16px. */
+	@media (pointer: coarse) {
+		input {
+			font-size: 16px;
+		}
+	}
 	.note {
 		margin: 0;
 		padding: 12px 14px 16px;
