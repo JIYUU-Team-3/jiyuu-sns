@@ -18,9 +18,12 @@
 <style>
 	.host {
 		position: fixed;
-		left: 50%;
+		/* Centred between the gutters, so a long message wraps instead of running off a phone. */
+		left: 16px;
+		right: 16px;
 		bottom: 28px;
-		transform: translateX(-50%);
+		display: flex;
+		justify-content: center;
 		z-index: 200;
 		pointer-events: none;
 	}
@@ -36,9 +39,10 @@
 		font-size: 15px;
 		pointer-events: auto;
 		animation: toastin 0.32s var(--ease-out);
-		white-space: nowrap;
+		text-wrap: balance;
 	}
 	a {
+		flex: none;
 		font-weight: 700;
 		text-decoration: underline;
 		text-underline-offset: 2px;

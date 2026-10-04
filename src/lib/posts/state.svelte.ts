@@ -27,6 +27,21 @@ export const composer = {
 	},
 }
 
+let viewed = $state<{ post: PostView; index: number } | undefined>()
+
+/** The full-screen photo viewer: a post, and which of its photos or videos to start on. */
+export const viewer = {
+	get current() {
+		return viewed
+	},
+	open(post: PostView, index: number) {
+		viewed = { post, index }
+	},
+	close() {
+		viewed = undefined
+	},
+}
+
 /**
  * Posts deleted in this tab. Every list hides them at once, instead of refetching each page
  * that might contain one.

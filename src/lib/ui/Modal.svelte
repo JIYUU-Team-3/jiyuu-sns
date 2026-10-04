@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte'
+	import Toast from './Toast.svelte'
 
 	let {
 		size = 'default',
@@ -41,6 +42,8 @@
 	}}
 >
 	<div class="modal" class:sm={size === 'sm'}>{@render children()}</div>
+	<!-- A modal dialog covers the page's own toast, so it shows them itself while it's open. -->
+	<Toast />
 </dialog>
 
 <style>

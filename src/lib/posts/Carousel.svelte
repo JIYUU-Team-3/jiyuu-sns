@@ -9,11 +9,14 @@
 		media,
 		focus = false,
 		onswipe,
+		onopen,
 	}: {
 		media: Media[]
 		focus?: boolean
 		/** Whether the track has left its start, with the carousel's top edge on screen. */
 		onswipe?: (swiped: boolean, top: number) => void
+		/** A photo was clicked: open it, by its place in the post, full screen. */
+		onopen?: (index: number) => void
 	} = $props()
 
 	/** The track's padding either side of the text column: the gutter bleed, then the edge. */
@@ -81,7 +84,7 @@
 				aria-label={item.alt ? position : undefined}
 				style:--r={item.width / item.height}
 			>
-				<MediaItem {item} label={position} eager={i === 0} />
+				<MediaItem {item} label={position} eager={i === 0} onopen={onopen && (() => onopen(i))} />
 			</div>
 		{/each}
 	</div>
@@ -176,5 +179,13 @@
 	}
 	.focus .prev {
 		left: 24px;
+	}
+	/* On a phone the post's own page gives each slide the whole column, as tall as its shape makes it. */
+	@media (max-width: 700px) {
+		.focus .slide {
+			width: 100%;
+			height: auto;
+			aspect-ratio: var(--r);
+		}
 	}
 </style>

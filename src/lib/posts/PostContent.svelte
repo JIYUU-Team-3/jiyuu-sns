@@ -18,10 +18,13 @@
 	let {
 		post,
 		focus = false,
+		media = true,
 		onswipe,
 	}: {
 		post: PostView
 		focus?: boolean
+		/** Off beside the full-screen viewer, which is already showing them. */
+		media?: boolean
 		/** A carousel was swiped away from, or back to, its first photo. */
 		onswipe?: (swiped: boolean, top: number) => void
 	} = $props()
@@ -63,7 +66,9 @@
 		{/snippet}
 	</PostTranslation>
 {/if}
-{#if covered}
+{#if !media}
+	<!-- Shown by whoever asked for the rest. -->
+{:else if covered}
 	<!-- The media is there, blurred past recognising and out of reach, with the notice over it. -->
 	<div class="veil">
 		<div class="blurred" inert aria-hidden="true">
@@ -82,7 +87,7 @@
 		</div>
 	</div>
 {:else}
-	<PostMedia media={content.media} {focus} {onswipe} />
+	<PostMedia media={content.media} {post} {focus} {onswipe} />
 {/if}
 {#if link}<LinkCard {link} href={out ? out(0) : link.url} />{/if}
 {#if post.poll}<Poll post_id={post.id} poll={post.poll} mine={post.mine} />{/if}

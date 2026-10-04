@@ -159,6 +159,7 @@
 			void goto(messages_href())
 			return
 		}
+		if (event.type !== 'typing') return
 		stop_typing(event.user_id)
 		if (event.on)
 			typing.set(

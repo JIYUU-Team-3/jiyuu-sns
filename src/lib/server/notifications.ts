@@ -1,4 +1,4 @@
-import { waitUntil } from 'cloudflare:workers'
+import { env, waitUntil } from 'cloudflare:workers'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
 	CARD_TYPES,
@@ -13,6 +13,7 @@ import type { getDb } from './db'
 import { chunks } from './db/chunks'
 import { appeal, conversation, moderationAction, notification, profile, user } from './db/schema'
 import { is_rule } from '#lib/moderation/rules'
+import { nudge_inboxes } from './live'
 import { find_posts } from './posts'
 import { push_notifications } from './push'
 import { actor_shown, silenced } from './safety'
@@ -53,11 +54,27 @@ export async function notify(db: Db, rows: NewNotification[]) {
 			})),
 		)
 	}
+	// Open tabs hear at once, over the socket their message badge already listens on.
+	waitUntil(nudge_unread(events.map((event) => event.user_id)))
 	// Pushes go out after the response, so a slow push service never delays a like or a post.
 	waitUntil(
 		not_just_pushed(events)
 			.then((fresh) => push_notifications(db, fresh))
 			.catch((error) => console.error('Push failed', error)),
+	)
+}
+
+/** Tell these people's open tabs that their unread count changed. Never fails the write it follows. */
+function nudge_unread(user_ids: string[]) {
+	let chat: DurableObjectNamespace | undefined
+	try {
+		chat = (env as Partial<Pick<Env, 'CHAT'>>).CHAT
+	} catch {
+		// Outside a Worker (a unit test) there are no rooms to tell.
+		return Promise.resolve()
+	}
+	return nudge_inboxes(chat, user_ids, 'notification').catch((error) =>
+		console.error('Notification update failed', error),
 	)
 }
 
@@ -147,6 +164,7 @@ export async function retract(db: Db, row: NewNotification) {
 				row.post_id ? eq(notification.postId, row.post_id) : isNull(notification.postId),
 			),
 		)
+	waitUntil(nudge_unread([row.user_id]))
 }
 
 /** Unread notifications, counted up to 100 so a busy account never scans its whole history. */

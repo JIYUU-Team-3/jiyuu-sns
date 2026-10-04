@@ -12,7 +12,16 @@
 	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import type { PostView } from './types'
 
-	let { post, ondeleted }: { post: PostView; ondeleted?: () => void } = $props()
+	let {
+		post,
+		media = true,
+		ondeleted,
+	}: {
+		post: PostView
+		/** Off beside the full-screen viewer, which is already showing them. */
+		media?: boolean
+		ondeleted?: () => void
+	} = $props()
 
 	const edited = $derived(post.edited || edited_posts.has(post.id))
 	const locale = $derived(getLocale())
@@ -63,7 +72,7 @@
 			{/each}
 		</div>
 	{/if}
-	<PostContent {post} focus />
+	<PostContent {post} {media} focus />
 	<div class="fmeta">
 		<time datetime={new Date(post.created_at).toISOString()}
 			>{format_timestamp(post.created_at, locale)}</time
