@@ -11,7 +11,7 @@
 	import PostMenu from './PostMenu.svelte'
 	import PostContent from './PostContent.svelte'
 	import { current_time, edited_posts, post_content } from './state.svelte'
-	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import type { PostView } from './types'
 
 	/** The feed avatar's size, in pixels. */
@@ -134,7 +134,7 @@
 				{:else}
 					<span class="nm">{post.author.name}</span>
 				{/if}
-				{#if post.author.moderator}<ModeratorBadge />{/if}
+				<NameBadges of={post.author} />
 				{#if post.author.handle}<span class="meta">@{post.author.handle}</span>{/if}
 				<span class="time" aria-hidden="true">·</span>
 				<a class="time" {href} title={format_timestamp(post.created_at, getLocale())}>

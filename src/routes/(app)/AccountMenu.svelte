@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte'
 	import { page } from '$app/state'
 	import { mod_href } from '#lib/moderation/links'
-	import ModeratorBadge from '#lib/moderation/ModeratorBadge.svelte'
+	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import { m } from '#lib/paraglide/messages.js'
 	import { bookmarks_href } from '#lib/posts/links'
 	import type { Author } from '#lib/posts/types'
@@ -37,7 +37,9 @@
 				<Avatar name={me.name} seed={me.id} image={me.image} />
 				<span class="who">
 					<span class="name"
-						><b>{me.name}</b>{#if page.data.moderator}<ModeratorBadge />{/if}</span
+						><b>{me.name}</b><NameBadges
+							of={{ moderator: page.data.moderator, verified: me.verified }}
+						/></span
 					>
 					<span class="handle">@{me.handle}</span>
 				</span>

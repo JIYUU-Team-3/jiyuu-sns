@@ -46,6 +46,7 @@ import {
 import { image_of, shown_image } from './account-image'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
+import { is_verified } from './verified'
 import { NEW_DAYS, TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
 import { CANDIDATES_MAX, FLOOD_WINDOW, slotted, type Signals } from './ranking'
@@ -112,6 +113,7 @@ const quote_json = (viewer: string | undefined) => sql<string | null>`(select js
 	'author_id', qu.id, 'author_name', coalesce(qp.display_name, qu.name), 'author_handle', qp.handle,
 	'author_image', ${image_of(sql`qp.avatar_url`, sql`qu.image`)},
 	'author_moderator', ${is_moderator(sql`qu.id`)},
+	'author_verified', ${is_verified(sql`qu.id`)},
 	'sensitive', ${viewer ? sql`q.sensitive and q.author_id != ${viewer}` : sql`q.sensitive`},
 	'media', json(${media_of(sql`q.id`)})
 ) from post q join "user" qu on qu.id = q.author_id left join profile qp on qp.user_id = q.author_id
@@ -176,6 +178,7 @@ export function select_posts(db: Db, viewer: string | undefined) {
 			author_handle: profile.handle,
 			author_image: shown_image,
 			author_moderator: is_moderator(user.id),
+			author_verified: is_verified(user.id),
 			author_private: profile.isPrivate,
 			pinned: sql<number>`coalesce(${profile.pinnedPostId} = ${post.id}, 0)`,
 			parent_handle: parent_profile.handle,
@@ -233,6 +236,7 @@ type QuoteRow = {
 	author_handle: string | null
 	author_image: string | null
 	author_moderator: number
+	author_verified: number
 	sensitive: number
 	media: Positioned<MediaRow>[]
 }
@@ -249,6 +253,7 @@ function to_quoted(json: string): QuotedPost {
 			handle: row.author_handle ?? undefined,
 			image: row.author_image ?? undefined,
 			moderator: row.author_moderator ? true : undefined,
+			verified: row.author_verified ? true : undefined,
 		},
 		media: to_media(row.media),
 		sensitive: !!row.sensitive,
@@ -283,6 +288,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 			handle: row.author_handle ?? undefined,
 			image: row.author_image ?? undefined,
 			moderator: row.author_moderator ? true : undefined,
+			verified: row.author_verified ? true : undefined,
 		},
 		reply_to: row.reply_to_id
 			? {

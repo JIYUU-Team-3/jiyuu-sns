@@ -3,6 +3,7 @@ import type { Author } from '#lib/posts/types'
 import { account_image } from '#lib/server/account-image'
 import { find_profile } from '#lib/server/profiles'
 import { translation_enabled } from '#lib/server/translate'
+import { find_verified } from '#lib/server/verified'
 import { login_href, onboarding_href, return_path } from '../(public)/links'
 import { with_next } from '../(public)/login/next'
 import type { LayoutServerLoad } from './$types'
@@ -11,7 +12,10 @@ import type { LayoutServerLoad } from './$types'
 export const load: LayoutServerLoad = async ({ locals, url }) => {
 	if (!locals.user) return redirect(302, login_href(url))
 
-	const profile = await find_profile(locals.db, locals.user.id)
+	const [profile, verified] = await Promise.all([
+		find_profile(locals.db, locals.user.id),
+		find_verified(locals.db, locals.user.id),
+	])
 	if (!profile) return redirect(302, with_next(onboarding_href(), return_path(url)))
 
 	const me: Author & { handle: string } = {
@@ -19,6 +23,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		name: profile.displayName,
 		handle: profile.handle,
 		image: profile.avatarUrl ?? account_image(locals.user.image),
+		verified: verified || undefined,
 	}
 	// The rest of the account's profile, for the edit page, so it needn't query it again.
 	const own = {
