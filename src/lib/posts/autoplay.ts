@@ -12,6 +12,8 @@ type Entry = {
 	ratio: number
 	/** Tapped: the viewer plays and pauses it now. */
 	manual: boolean
+	/** In an iPhone's full-screen player, from the moment it starts opening. */
+	fullscreen?: boolean
 }
 
 /** Less than this much of a video on screen and it doesn't count as in view. */
@@ -33,9 +35,20 @@ function on_visibility(changes: IntersectionObserverEntry[]) {
 		const entry = entries.get(video)
 		if (!entry) continue
 		entry.ratio = change.intersectionRatio
-		if (entry.manual && entry.ratio < IN_VIEW) video.pause()
+		// Full screen takes it out of the page's flow on some browsers; that isn't scrolling away.
+		if (entry.manual && entry.ratio < IN_VIEW && !in_fullscreen(video)) video.pause()
 	}
 	pick()
+}
+
+/** Whether the video fills the screen, by the standard API or an iPhone's own player. */
+function in_fullscreen(video: HTMLVideoElement) {
+	const ios = video as HTMLVideoElement & { webkitDisplayingFullscreen?: boolean }
+	return (
+		document.fullscreenElement === video ||
+		entries.get(video)?.fullscreen ||
+		!!ios.webkitDisplayingFullscreen
+	)
 }
 
 /** How far a video's middle is from the screen's, to break ties between fully shown ones. */
@@ -59,7 +72,7 @@ const viewer_playing = () => [...entries].some(([video, entry]) => entry.manual 
 
 /** Play the video most in view and pause every other autoplaying one. */
 function pick() {
-	const quiet = reduced_motion() || !prefs.value.autoplay || viewer_playing()
+	const quiet = held > 0 || reduced_motion() || !prefs.value.autoplay || viewer_playing()
 	const next = quiet ? undefined : most_in_view()
 	for (const [video, entry] of entries) {
 		if (!entry.manual && video !== next) video.pause()
@@ -71,13 +84,40 @@ function pick() {
 	}
 }
 
+let held = 0
+
+/**
+ * Stop every list video while something covers the page (the full-screen viewer), so none plays
+ * on unseen or talks over it. Returns the way to let autoplay go again.
+ */
+export function hold_autoplay() {
+	held++
+	for (const video of entries.keys()) video.pause()
+	return () => {
+		held--
+		pick()
+	}
+}
+
+function set_fullscreen(video: HTMLVideoElement, on: boolean) {
+	const entry = entries.get(video)
+	if (entry) entry.fullscreen = on
+}
+
 /** Attachment for a list video: joins autoplay while it's on the page. */
 export function autoplay(video: HTMLVideoElement) {
 	video.muted = true
 	entries.set(video, { ratio: 0, manual: false })
 	watch(video)
 	video.addEventListener('pause', pick)
+	// An iPhone announces its player before the page can see the video has left it.
+	const begin = () => set_fullscreen(video, true)
+	const end = () => set_fullscreen(video, false)
+	video.addEventListener('webkitbeginfullscreen', begin)
+	video.addEventListener('webkitendfullscreen', end)
 	return () => {
+		video.removeEventListener('webkitbeginfullscreen', begin)
+		video.removeEventListener('webkitendfullscreen', end)
 		observer?.unobserve(video)
 		entries.delete(video)
 		video.removeEventListener('pause', pick)
