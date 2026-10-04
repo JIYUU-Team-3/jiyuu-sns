@@ -151,7 +151,9 @@ function decode_entities(text: string) {
 	return text.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (match, name: string) => {
 		if (name[0] !== '#') return ENTITIES[name.toLowerCase()] ?? match
 		const code =
-			name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : Number(name.slice(1))
+			name[1] === 'x' || name[1] === 'X'
+				? Number.parseInt(name.slice(2), 16)
+				: Number(name.slice(1))
 		return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
 	})
 }
@@ -170,18 +172,55 @@ function card_text(raw: string | undefined, max: number) {
 		: text
 }
 
-const ATTRIBUTE = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g
+const NAME = /[\w:-]+/y
+const SPACE = /\s*/y
+const BARE = /[^\s"'>]+/y
+
+/**
+ * A tag's `name="value"` pairs, lowercase names. One pass left to right, never going back, so a
+ * hostile page can't make it slow: a regex over the whole tag would retry from every character.
+ */
+export function attributes(tag: string) {
+	const values = new Map<string, string>()
+	let at = 0
+	const take = (pattern: RegExp) => {
+		pattern.lastIndex = at
+		const found = pattern.exec(tag)
+		if (found) at = pattern.lastIndex
+		return found?.[0]
+	}
+	while (at < tag.length) {
+		const name = take(NAME)
+		if (!name) {
+			at += 1
+			continue
+		}
+		take(SPACE)
+		if (tag[at] !== '=') continue
+		at += 1
+		take(SPACE)
+		const quote = tag[at]
+		if (quote === '"' || quote === "'") {
+			const end = tag.indexOf(quote, at + 1)
+			// An unclosed quote runs to the end of the tag; nothing after it is an attribute.
+			if (end === -1) break
+			values.set(name.toLowerCase(), tag.slice(at + 1, end))
+			at = end + 1
+		} else {
+			const bare = take(BARE)
+			if (bare) values.set(name.toLowerCase(), bare)
+		}
+	}
+	return values
+}
 
 /** The `<meta>` tags and `<title>` in a page's head, as a card needs them. */
 export function page_tags(html: string) {
 	const end = html.search(/<\/head\s*>/i)
 	const head = end === -1 ? html : html.slice(0, end)
 	const meta = new Map<string, string>()
-	for (const [, attributes] of head.matchAll(/<meta\b([^>]*)>/gi)) {
-		const values = new Map<string, string>()
-		for (const [, name, double, single, bare] of attributes.matchAll(ATTRIBUTE)) {
-			values.set(name.toLowerCase(), double ?? single ?? bare ?? '')
-		}
+	for (const [, tag] of head.matchAll(/<meta\b([^>]*)>/gi)) {
+		const values = attributes(tag)
 		const key = (values.get('property') ?? values.get('name'))?.toLowerCase()
 		const content = values.get('content')
 		// The first of a repeated tag wins, as it does for the sites' own previews.

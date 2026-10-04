@@ -3,6 +3,7 @@ import { linkPreview } from './db/schema'
 import { add_account, test_db, type TestDb } from './db/test-d1'
 import { image_size } from './image-size'
 import {
+	attributes,
 	ensure_preview,
 	IMAGE_MAX_BYTES,
 	page_tags,
@@ -117,13 +118,33 @@ describe('page_tags', () => {
 	it('cleans what it reads like post text, and cuts it short', () => {
 		const tags = page_tags(
 			page(
-				`<meta property="og:title" content="a‮b">` +
+				`<meta property="og:title" content="a\u202eb">` +
 					`<meta property="og:description" content="${'word '.repeat(200)}">`,
 			),
 		)
 		expect(tags.title).toBe('ab')
 		expect([...tags.description!].length).toBe(300)
 		expect(tags.description!.endsWith('…')).toBe(true)
+	})
+
+	it('reads attributes in any quoting, and stops at an unclosed quote', () => {
+		expect(attributes(` property="og:title" content='It' x=bare data-Y = "z" `)).toEqual(
+			new Map([
+				['property', 'og:title'],
+				['content', 'It'],
+				['x', 'bare'],
+				['data-y', 'z'],
+			]),
+		)
+		expect(attributes(` a="1" b="never closed c=3`)).toEqual(new Map([['a', '1']]))
+	})
+
+	it('stays fast on a page built to make a parser backtrack', () => {
+		const started = performance.now()
+		page_tags(`<head><meta ${'a'.repeat(500_000)}>`)
+		page_tags(`<head><meta ${'a="'.repeat(150_000)}>`)
+		page_tags(`<head><meta ${'a ='.repeat(150_000)}>`)
+		expect(performance.now() - started).toBeLessThan(500)
 	})
 
 	it('ignores tags after the head', () => {
