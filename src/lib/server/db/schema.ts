@@ -742,4 +742,22 @@ export const aiUsage = sqliteTable('ai_usage', {
 	translate: integer('translate').notNull().default(0),
 })
 
+/**
+ * What a new account used of its daily links and videos, each UTC day, against
+ * `server/moderation/trust.ts`. Deleting the post gives nothing back.
+ */
+export const newAccountAllowance = sqliteTable(
+	'new_account_allowance',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** `YYYY-MM-DD`, UTC. */
+		day: text('day').notNull(),
+		links: integer('links').notNull().default(0),
+		videos: integer('videos').notNull().default(0),
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.day] })],
+)
+
 export * from './auth.schema'

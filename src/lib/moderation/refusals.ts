@@ -10,6 +10,8 @@ const REFUSALS: Record<string, () => string> = {
 	post_duplicate: m.refusal_post_duplicate,
 	post_rate: m.refusal_post_rate,
 	video_new_account: m.refusal_video_new_account,
+	link_daily_limit: m.refusal_link_daily_limit,
+	video_daily_limit: m.refusal_video_daily_limit,
 	gif_rating: m.refusal_gif_rating,
 	chat_new_account: m.refusal_chat_new_account,
 	follow_rate: m.refusal_follow_rate,

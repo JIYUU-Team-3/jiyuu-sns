@@ -659,6 +659,8 @@
 	"refusal_post_duplicate": "You already posted that in the last day.",
 	"refusal_post_rate": "Your account can post 10 times an hour for now. Try again later.",
 	"refusal_video_new_account": "Your account can’t post videos yet. New accounts can after a few days.",
+	"refusal_link_daily_limit": "Your account can share links in 5 posts or messages a day for now. Try again tomorrow.",
+	"refusal_video_daily_limit": "Your account can post 5 videos a day for now. Try again tomorrow.",
 	"refusal_gif_rating": "That GIF isn’t one the GIF picker offers.",
 	"refusal_chat_new_account": "For now, your account can only message people who follow it.",
 	"refusal_follow_rate": "Your account can follow 20 people an hour for now. Try again later.",

@@ -11,7 +11,7 @@ import { check_posts_later } from '#lib/server/moderation/after-write'
 import { sensitive_uploads } from '#lib/server/moderation/checks'
 import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
 import { links_in } from '#lib/server/moderation/links'
-import { is_limited, trust_level } from '#lib/server/moderation/trust'
+import { allowance_left, trust_level } from '#lib/server/moderation/trust'
 import { limit } from '#lib/server/rate-limit'
 import { member, signed_in } from '#lib/server/session'
 import { clean_text } from './clean'
@@ -157,14 +157,17 @@ export const get_bookmarks = query(v.object({ cursor: Cursor }), ({ cursor }) =>
 
 /**
  * The card the composer shows for a link while the post is written. The page is read by the
- * server under the link lookup limit, and only for a link a post by this account could carry.
+ * server under the link lookup limit, and only for a link a post by this account could carry: a
+ * new account's only while it has links left today, a restricted account's never.
  */
 export const get_link_preview = query(Url, async (url) => {
 	const { user_id } = signed_in()
 	const { db } = getRequestEvent().locals
 	const [link] = links_in(url)
 	if (!link || link.href !== url || link.refusal || preview_link(url) !== url) return null
-	if (is_limited(await trust_level(db, user_id))) return null
+	const trust = await trust_level(db, user_id)
+	if (trust === 'restricted') return null
+	if (trust === 'new' && (await allowance_left(db, user_id)).links <= 0) return null
 	await limit('LINK_LOOKUP_LIMIT', user_id)
 	return (await ensure_preview(db, { bucket: env.MEDIA }, url)) ?? null
 })
@@ -271,7 +274,7 @@ export const edit_post = command(
 	}),
 	async ({ id, body, media }) => {
 		const { db, user_id } = await author()
-		await check_edited_post(db, user_id, await trust_level(db, user_id), body)
+		await check_edited_post(db, user_id, await trust_level(db, user_id), id, body)
 		const result = await posts.update_post(db, user_id, id, body, media)
 		if (result === 'not_found') error(404, 'Post not found.')
 		if (result === 'invalid') error(400, 'post_invalid')
