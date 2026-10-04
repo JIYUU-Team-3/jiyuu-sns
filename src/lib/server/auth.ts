@@ -25,6 +25,11 @@ const authConfig = {
 	secret: BETTER_AUTH_SECRET,
 	// People sign in with Google; the e2e server has no Google to sign in with.
 	emailAndPassword: { enabled: email_signup },
+	// Every request needs the session, and the app polls. A signed copy in a cookie answers for
+	// five minutes before D1 is asked again, so most requests skip two reads. Signing out clears
+	// it at once; a session deleted elsewhere lasts at most that long. Suspensions don't wait:
+	// they're read from `account_standing` on every request.
+	session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
 	socialProviders: {
 		google: {
 			clientId: GOOGLE_CLIENT_ID,

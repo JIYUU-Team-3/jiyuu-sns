@@ -342,6 +342,8 @@ export const postTag = sqliteTable(
 	(table) => [
 		primaryKey({ columns: [table.postId, table.tag] }),
 		index('post_tag_tag_created_idx').on(table.tag, table.createdAt),
+		// Trending counts one week of tags; without this it reads every tag ever used.
+		index('post_tag_created_idx').on(table.createdAt, table.tag),
 	],
 )
 
@@ -388,7 +390,13 @@ export const notification = sqliteTable(
 		readAt: integer('read_at', { mode: 'timestamp_ms' }),
 		createdAt: created_at(),
 	},
-	(table) => [index('notification_user_created_idx').on(table.userId, table.createdAt)],
+	(table) => [
+		index('notification_user_created_idx').on(table.userId, table.createdAt),
+		// The unread badge, asked on every page and every minute, reads only unread rows.
+		index('notification_unread_idx')
+			.on(table.userId)
+			.where(sql`${table.readAt} is null`),
+	],
 )
 
 /** One browser that turned on push notifications. An account can have several. */

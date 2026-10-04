@@ -173,8 +173,15 @@
     {
       "idx": 24,
       "version": "6",
-      "when": 1791104013022,
-      "tag": "0024_link_preview",
+      "when": 1791105267899,
+      "tag": "0024_read_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1791107657244,
+      "tag": "0025_link_preview",
       "breakpoints": true
     }
   ]

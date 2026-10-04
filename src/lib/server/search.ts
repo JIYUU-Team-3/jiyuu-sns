@@ -1,10 +1,11 @@
-import { and, desc, eq, gte, inArray, ne, notExists, or, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, notExists, or, sql, type SQLWrapper } from 'drizzle-orm'
 import { normalize_tag } from '#lib/posts/text'
 import type { PostPage } from '#lib/posts/types'
 import { PLACE_MIN, place_key } from '#lib/search/place'
 import type { TagView, UserView } from '#lib/search/types'
+import { cached } from './cache'
 import type { getDb } from './db'
-import { follow, post, postTag, profile } from './db/schema'
+import { follow, mutedTerm, post, postTag, profile } from './db/schema'
 import { typo_budget, typo_match } from './fuzzy'
 import { select_users, to_user } from './people'
 import { unmuted_posts, visible_people, visible_posts } from './safety'
@@ -200,42 +201,80 @@ export async function suggestions(db: Db, viewer: string | undefined, q: string)
 	return { people: await search_people(db, viewer, q, 6), tags: [] }
 }
 
-/** The most used tags of the last week. */
+/**
+ * The sidebar's lists are the same for everyone before each viewer's own filters, so the shared
+ * part is counted once every few minutes per location and the viewer's mutes, follows and blocks
+ * are applied to that. The pools are larger than any list shown, so filtering still fills it.
+ */
+const SIDEBAR_CACHE_SECONDS = 5 * 60
+const TRENDING_POOL = 40
+const POPULAR_POOL = 60
+
+/** The week's most used tags on visible posts, for everyone. */
+function top_tags(db: Db) {
+	const since = Date.now() - TRENDING_WINDOW_MS
+	// The week's rows come from `post_tag_created_idx` in a subquery that `limit -1` keeps SQLite
+	// from merging into the count; merged, it walks every tag ever used to save a sort.
+	return cached(`trending:${TRENDING_POOL}`, SIDEBAR_CACHE_SECONDS, () =>
+		db.all<TagView>(sql`select tag, count(*) as posts from (
+			select ${postTag.tag} as tag from ${postTag}
+			where ${postTag.createdAt} >= ${since} and ${tag_shown} limit -1
+		) group by tag order by posts desc, tag limit ${TRENDING_POOL}`),
+	)
+}
+
+/** The most used tags of the last week, without the ones the viewer muted. */
 export async function trending_tags(db: Db, limit: number, viewer?: string): Promise<TagView[]> {
-	const posts = sql<number>`count(*)`
-	return db
-		.select({ tag: postTag.tag, posts })
-		.from(postTag)
+	const tags = await top_tags(db)
+	if (!viewer || !tags.length) return tags.slice(0, limit)
+	const muted = await db
+		.select({ term: mutedTerm.term })
+		.from(mutedTerm)
 		.where(
 			and(
-				gte(postTag.createdAt, new Date(Date.now() - TRENDING_WINDOW_MS)),
-				tag_shown,
-				viewer
-					? sql`not exists(select 1 from muted_term t where t.user_id = ${viewer} and t.term = '#' || ${postTag.tag})`
-					: undefined,
+				eq(mutedTerm.userId, viewer),
+				inArray(
+					mutedTerm.term,
+					tags.map((row) => `#${row.tag}`),
+				),
 			),
 		)
-		.groupBy(postTag.tag)
-		.orderBy(desc(posts), postTag.tag)
-		.limit(limit)
+	const hidden = new Set(muted.map((row) => row.term))
+	return tags.filter((row) => !hidden.has(`#${row.tag}`)).slice(0, limit)
+}
+
+/** The most followed accounts, then the newest, for everyone. */
+function popular_accounts(db: Db) {
+	return cached(`popular:${POPULAR_POOL}`, SIDEBAR_CACHE_SECONDS, async () => {
+		const rows = await db
+			.select({ id: profile.userId })
+			.from(profile)
+			.orderBy(desc(follower_count), desc(profile.createdAt))
+			.limit(POPULAR_POOL)
+		return rows.map((row) => row.id)
+	})
 }
 
 /** Accounts the viewer doesn't follow yet, most followed first. */
 export async function who_to_follow(db: Db, viewer: string, limit: number) {
-	const rows = await select_users(db, viewer)
-		.where(
-			and(
-				ne(profile.userId, viewer),
-				visible_people(viewer),
-				notExists(
-					db
-						.select({ one: sql`1` })
-						.from(follow)
-						.where(and(eq(follow.followerId, viewer), eq(follow.followingId, profile.userId))),
-				),
+	const popular = await popular_accounts(db)
+	if (!popular.length) return []
+	const rows = await select_users(db, viewer).where(
+		and(
+			inArray(profile.userId, popular),
+			ne(profile.userId, viewer),
+			visible_people(viewer),
+			notExists(
+				db
+					.select({ one: sql`1` })
+					.from(follow)
+					.where(and(eq(follow.followerId, viewer), eq(follow.followingId, profile.userId))),
 			),
-		)
-		.orderBy(desc(follower_count), desc(profile.createdAt))
-		.limit(limit)
-	return rows.map((row) => to_user(row, viewer))
+		),
+	)
+	const rank = new Map(popular.map((id, i) => [id, i]))
+	return rows
+		.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
+		.slice(0, limit)
+		.map((row) => to_user(row, viewer))
 }
