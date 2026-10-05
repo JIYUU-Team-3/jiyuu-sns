@@ -131,12 +131,12 @@ successful appeal removes the strike.
 One number decides how strict limits are and how much gets checked. Computed on write and by the
 hourly job, stored on the account.
 
-| Level        | Rule (starting values, constants in code)                          |
-| ------------ | ------------------------------------------------------------------ |
-| `new`        | Account under 3 days old, or fewer than 3 posts that passed checks |
-| `normal`     | Everyone else                                                      |
-| `trusted`    | 30+ days, 20+ posts, no upheld report or action in 90 days         |
-| `restricted` | Set by a moderator, or a behaviour score over the threshold        |
+| Level        | Rule (starting values, constants in code)                   |
+| ------------ | ----------------------------------------------------------- |
+| `new`        | Account under 6 hours old                                   |
+| `normal`     | Everyone else                                               |
+| `trusted`    | 30+ days, 20+ posts, no upheld report or action in 90 days  |
+| `restricted` | Set by a moderator, or a behaviour score over the threshold |
 
 `new` accounts can share links in 5 posts, edits or messages a day and post 5 videos a day (UTC
 days, counted in `new_account_allowance`; deleting a post gives none back). `restricted` accounts

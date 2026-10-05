@@ -12,11 +12,11 @@ type Db = ReturnType<typeof getDb>
  */
 export type Trust = 'new' | 'normal' | 'trusted' | 'restricted'
 
-const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
+const DAY = 24 * HOUR
 
-/** An account is new for its first days, and until it has a few posts nobody took down. */
-export const NEW_DAYS = 3
-export const NEW_POSTS = 3
+/** An account is new for its first hours. */
+export const NEW_HOURS = 6
 /** Trusted after a month, twenty posts, and three clean months. */
 export const TRUSTED_DAYS = 30
 export const TRUSTED_POSTS = 20
@@ -50,7 +50,7 @@ export async function trust_level(db: Db, user_id: string, now = Date.now()): Pr
 	if (!row) return 'new'
 	if (row.restricted) return 'restricted'
 	const age = now - row.created_at.getTime()
-	if (age < NEW_DAYS * DAY || row.posts < NEW_POSTS) return 'new'
+	if (age < NEW_HOURS * HOUR) return 'new'
 	if (age >= TRUSTED_DAYS * DAY && row.posts >= TRUSTED_POSTS && row.actions === 0) return 'trusted'
 	return 'normal'
 }
@@ -58,8 +58,6 @@ export async function trust_level(db: Db, user_id: string, now = Date.now()): Pr
 /** A new or restricted account's pace: posts (replies included) and follows an hour. */
 export const LIMITED_POSTS_PER_HOUR = 10
 export const LIMITED_FOLLOWS_PER_HOUR = 20
-
-const HOUR = 60 * 60 * 1000
 
 /**
  * What a new account may share each UTC day: posts, edits and messages that add a link, and

@@ -37,11 +37,11 @@ beforeEach(() => {
 })
 
 describe('trust_level', () => {
-	it('is new for the first days, and until a few posts', async () => {
-		await aged('fresh', 1, 10)
-		await aged('quiet', 10, 2)
+	it('is new for the first six hours only, however few its posts', async () => {
+		await aged('fresh', 5 / 24, 10)
+		await aged('quiet', 7 / 24, 0)
 		expect(await trust_level(db, 'fresh')).toBe('new')
-		expect(await trust_level(db, 'quiet')).toBe('new')
+		expect(await trust_level(db, 'quiet')).toBe('normal')
 	})
 
 	it('is normal, then trusted after a clean month and twenty posts', async () => {
