@@ -73,7 +73,7 @@ const cases = () => db.select().from(moderationCase)
 
 beforeEach(async () => {
 	db = test_db()
-	await age('newbie', 1, 0)
+	await age('newbie', 0, 0)
 	await age('regular', 10, 5)
 	await age('veteran', 40, 25)
 })
