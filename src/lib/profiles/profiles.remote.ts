@@ -6,6 +6,7 @@ import {
 	list_follows,
 	remove_follower as drop_follower,
 	set_follow as save_follow,
+	set_post_alerts as save_post_alerts,
 } from '#lib/server/follows'
 import { find_profile, find_profile_by_handle } from '#lib/server/profiles'
 import {
@@ -40,6 +41,17 @@ export const set_follow = command(
 		)
 			error(429, 'follow_rate')
 		await save_follow(db, user_id, handle, on)
+		await get_profile(handle).refresh()
+	},
+)
+
+/** Hear about each new post from an account the viewer follows, or stop. */
+export const set_post_alerts = command(
+	v.object({ handle: Handle, on: v.boolean() }),
+	async ({ handle, on }) => {
+		const { db, user_id } = await member()
+		await limit('WRITE_LIMIT', user_id)
+		if (!(await save_post_alerts(db, user_id, handle, on))) error(404, 'Not following.')
 		await get_profile(handle).refresh()
 	},
 )

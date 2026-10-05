@@ -1,5 +1,6 @@
 import { env, waitUntil } from 'cloudflare:workers'
 import type { getDb } from '../db'
+import { announce_post } from '../notifications'
 import { ai_enabled } from './ai-client'
 import { check_post, check_profile, type CheckDeps } from './checks'
 
@@ -28,6 +29,20 @@ function later(task: () => Promise<unknown>) {
 export function check_posts_later(db: Db, post_ids: string[], budget: 'text' | 'report' = 'text') {
 	// One post's failure leaves it `pending` for the hourly job; the rest of the thread still runs.
 	for (const id of post_ids) later(async () => check_post(db, check_deps(), id, budget))
+}
+
+/**
+ * A new top-level post or quote: check it, then tell the followers who asked, unless the check hid
+ * it. A failed check leaves it showing, as it does for everyone, so it is still announced.
+ */
+export function check_then_announce_later(db: Db, post_id: string) {
+	later(async () => {
+		try {
+			await check_post(db, check_deps(), post_id)
+		} finally {
+			await announce_post(db, post_id)
+		}
+	})
 }
 
 /** A profile whose bio, photo or banner just changed. */

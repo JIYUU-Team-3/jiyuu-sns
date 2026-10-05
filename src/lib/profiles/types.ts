@@ -23,6 +23,8 @@ export type ProfileView = Author & {
 	blocked: boolean
 	blocks_you: boolean
 	muted: boolean
+	/** The viewer follows this account and asked to hear about its new posts. */
+	alerts: boolean
 	/** Whether this is the viewer's own profile. */
 	mine: boolean
 }

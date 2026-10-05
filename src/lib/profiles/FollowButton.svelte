@@ -21,6 +21,8 @@
 						: {
 								...current,
 								followed: on,
+								// Unfollowing ends alerts for their posts along with the follow.
+								alerts: on && current.alerts,
 								followers: current.followers + (on ? 1 : -1),
 							},
 				),
