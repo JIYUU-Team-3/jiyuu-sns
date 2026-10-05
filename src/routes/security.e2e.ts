@@ -326,7 +326,7 @@ test('a blocked domain is refused, and its links already posted stop linking @wr
 	await expect(page).toHaveURL(/\/p\/[0-9a-f-]{36}$/)
 	const post_id = page.url().split('/p/')[1]
 
-	// A day-young account's link goes through the leaving page, which only follows the post.
+	// A new account's link goes through the leaving page, which only follows the post.
 	await reader.goto(`/p/${post_id}`)
 	const link = reader.getByRole('link', { name: `${domain}/start` })
 	await expect(link).toHaveAttribute('href', new RegExp(`/out\\?post=${post_id}&n=0$`))

@@ -20,8 +20,8 @@ Built as planned, with these differences, each for a reason found while building
 - **The suspension review form uses `WRITE_LIMIT`**: Cloudflare rate limits count per minute at
   most, so "3 an hour" isn't expressible. One request per suspension is the real limit.
 - **Bios aren't checked for links**, because bios aren't drawn as links.
-- **The "leaving Jiyuu" page covers accounts under a day old**, since new accounts (under six
-  hours) can share links in only 5 posts or messages a day.
+- **The "leaving Jiyuu" page covers new accounts (under six hours old)**, which can share links in
+  only 5 posts or messages a day.
 - **Images over 1 MB aren't sent to the vision model as they are**: encoding one costs CPU the
   Free plan doesn't have. The `IMAGES` binding makes a small JPEG of a larger one just for the
   check (5,000 a month on the Free plan, then it refuses and the image is left to reports).
