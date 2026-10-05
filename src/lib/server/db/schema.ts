@@ -179,11 +179,17 @@ export const follow = sqliteTable(
 		followingId: text('following_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
+		/** The follower asked to hear about each new post; it goes when the follow does. */
+		notifyPosts: integer('notify_posts', { mode: 'boolean' }).notNull().default(false),
 		createdAt: created_at(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.followerId, table.followingId] }),
 		index('follow_following_idx').on(table.followingId),
+		// A new post looks up only the followers who rang the bell.
+		index('follow_notify_idx')
+			.on(table.followingId)
+			.where(sql`${table.notifyPosts} = 1`),
 	],
 )
 
@@ -373,9 +379,11 @@ export const notification = sqliteTable(
 				'follow_request',
 				'group_add',
 				'group_remove',
+				'post',
 			],
 		}).notNull(),
-		// The liked or reposted post, or the reply, mention or quote itself. Null for a follow.
+		// The liked or reposted post, the reply, mention or quote itself, or a new post from
+		// someone the reader asked to hear about. Null for a follow.
 		postId: text('post_id').references(() => post.id, { onDelete: 'cascade' }),
 		/** For `moderation`: what a moderator did, which says why. */
 		actionId: text('action_id').references((): AnySQLiteColumn => moderationAction.id, {

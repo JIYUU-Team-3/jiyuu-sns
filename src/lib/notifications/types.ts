@@ -12,9 +12,10 @@ export type NotificationType =
 	| 'follow_request'
 	| 'group_add'
 	| 'group_remove'
+	| 'post'
 
 /** The types shown as the post itself, as a card, rather than as a line about it. */
-export const CARD_TYPES: NotificationType[] = ['reply', 'mention', 'quote']
+export const CARD_TYPES: NotificationType[] = ['reply', 'mention', 'quote', 'post']
 
 export type NotificationTab = 'all' | 'mentions'
 

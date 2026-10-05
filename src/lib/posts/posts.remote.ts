@@ -7,7 +7,7 @@ import { is_gif_url } from '#lib/server/gifs'
 import { ensure_preview, preview_link } from '#lib/server/link-preview'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
-import { check_posts_later } from '#lib/server/moderation/after-write'
+import { check_posts_later, check_then_announce_later } from '#lib/server/moderation/after-write'
 import { sensitive_uploads } from '#lib/server/moderation/checks'
 import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
 import { links_in } from '#lib/server/moderation/links'
@@ -225,7 +225,13 @@ async function publish(
 	if (ids === 'closed') error(403, 'replies_closed')
 	if (ids === 'private') error(403, 'private_post')
 	await flag_risky_links(db, user_id, ids, risky)
-	check_posts_later(db, ids)
+	// A new post or quote is announced to followers who asked; a reply, and the rest of a thread,
+	// are not.
+	if (reply_to) check_posts_later(db, ids)
+	else {
+		check_then_announce_later(db, ids[0])
+		check_posts_later(db, ids.slice(1))
+	}
 	await previews(
 		db,
 		prepared.filter((draft) => draft.link_preview !== false).map((draft) => draft.body),
