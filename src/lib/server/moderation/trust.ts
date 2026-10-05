@@ -17,6 +17,8 @@ const DAY = 24 * HOUR
 
 /** An account is new for its first hours. */
 export const NEW_HOURS = 6
+/** Links in posts by an account younger than this go through the "leaving Jiyuu" page. */
+export const LINK_WARN_DAYS = 1
 /** Trusted after a month, twenty posts, and three clean months. */
 export const TRUSTED_DAYS = 30
 export const TRUSTED_POSTS = 20

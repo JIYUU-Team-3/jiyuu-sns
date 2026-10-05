@@ -51,7 +51,7 @@ import { preview_link } from './link-preview'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
 import { is_verified } from './verified'
-import { NEW_HOURS, TRUSTED_DAYS } from './moderation/trust'
+import { LINK_WARN_DAYS, NEW_HOURS } from './moderation/trust'
 import { notify, retract } from './notifications'
 import { CANDIDATES_MAX, FLOOD_WINDOW, slotted, type Signals } from './ranking'
 import {
@@ -354,7 +354,7 @@ function to_view(row: Row, viewer: string | undefined): PostView {
 		pinned: !!row.pinned,
 		sensitive: row.sensitive,
 		blocked_hosts,
-		warn_links: row.author_created_at.getTime() > Date.now() - TRUSTED_DAYS * 24 * 60 * 60 * 1000,
+		warn_links: row.author_created_at.getTime() > Date.now() - LINK_WARN_DAYS * DAY_MS,
 		// Only its author is ever shown a hidden post, so only they learn its state.
 		moderation: row.moderation === 'visible' ? undefined : row.moderation,
 		reply_audience: row.reply_audience,
