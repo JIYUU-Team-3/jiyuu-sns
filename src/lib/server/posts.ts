@@ -51,7 +51,7 @@ import { preview_link } from './link-preview'
 import { blocked_hosts_in } from './moderation/links'
 import { is_moderator } from './moderation/standing'
 import { is_verified } from './verified'
-import { NEW_DAYS, TRUSTED_DAYS } from './moderation/trust'
+import { NEW_HOURS, TRUSTED_DAYS } from './moderation/trust'
 import { notify, retract } from './notifications'
 import { CANDIDATES_MAX, FLOOD_WINDOW, slotted, type Signals } from './ranking'
 import {
@@ -434,13 +434,13 @@ async function rank_signals(db: Db, viewer: string | undefined, as_of: number): 
 	const mine = viewer ? sql<number>`${post.authorId} = ${viewer}` : sql<number>`0`
 	const restricted = (account: SQL) =>
 		sql`exists(select 1 from account_standing s where s.user_id = ${account} and s.restricted = 1)`
-	// A like or repost counts once the account behind it is past its first days and isn't
+	// A like or repost counts once the account behind it is past its first hours and isn't
 	// restricted, so throwaway accounts can't lift a post. The count shown on the post stays the
 	// real one.
 	const settled = (table: 'post_like' | 'repost') =>
 		sql<number>`(select count(*) from ${sql.raw(table)} l join "user" u on u.id = l.user_id
 		where l.post_id = ${post.id} and l.user_id != ${post.authorId}
-			and u.created_at <= ${as_of - NEW_DAYS * DAY_MS} and not ${restricted(sql`l.user_id`)})`
+			and u.created_at <= ${as_of - NEW_HOURS * HOUR_MS} and not ${restricted(sql`l.user_id`)})`
 	const likes = settled('post_like')
 	const reposts = settled('repost')
 	const replies = sql<number>`(select count(*) from post r where r.reply_to_id = ${post.id}
@@ -1013,7 +1013,8 @@ export type NewPost = {
 	link_preview?: boolean
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
 
 /** The inserts for a post's photos and poll, which ride in the same batch as the post. */
 function attachment_inserts(db: Db, post_id: string, input: NewPost) {

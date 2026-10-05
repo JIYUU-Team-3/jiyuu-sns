@@ -230,6 +230,7 @@ const approve_requests = (db: Db, where: SQL | undefined) =>
 				.select({
 					followerId: followRequest.requesterId,
 					followingId: followRequest.targetId,
+					notifyPosts: sql<boolean>`0`.as('notify_posts'),
 					createdAt: sql<Date>`cast(unixepoch('subsecond') * 1000 as integer)`.as('created_at'),
 				})
 				.from(followRequest)

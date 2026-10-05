@@ -5,7 +5,7 @@ import { add_account, test_db, type TestDb } from './db/test-d1'
 import { remove_follower, set_follow, set_post_alerts } from './follows'
 import { announce_post, POST_ALERTS_MAX } from './notifications'
 import { insert_thread } from './posts'
-import { set_block, set_mute } from './safety'
+import { answer_request, set_block, set_mute, set_private } from './safety'
 
 // Pushes go out through the Worker's own runtime, which a unit test doesn't have.
 vi.mock('cloudflare:workers', () => ({ env: {}, waitUntil: () => {} }))
@@ -93,6 +93,21 @@ describe('alerts for new posts', () => {
 		await set_post_alerts(db, 'adam', 'olive', true)
 		await set_block(db, 'olive', 'adam', true)
 		expect(await alerts_on('adam')).toEqual([])
+	})
+
+	it('starts off when a private account approves the follow', async () => {
+		await set_private(db, 'eve', true)
+		await set_follow(db, 'mia', 'eve', true)
+		expect(await answer_request(db, 'eve', 'mia', true)).toBe(true)
+		expect(await set_post_alerts(db, 'mia', 'eve', true)).toBe(true)
+
+		await set_follow(db, 'adam', 'eve', true)
+		await set_private(db, 'eve', false)
+		const [approved] = await db
+			.select({ on: follow.notifyPosts })
+			.from(follow)
+			.where(and(eq(follow.followerId, 'adam'), eq(follow.followingId, 'eve')))
+		expect(approved).toEqual({ on: false })
 	})
 
 	it('leaves out a follower who muted the author', async () => {
