@@ -14,3 +14,9 @@ overrides:
   # fixed in 5.9.3). SvelteKit already resolves a patched one; this brings svelte's copy along.
   # Drop it once svelte depends on >=5.9.3 itself.
   'svelte>devalue': '^5.9.3'
+  # miniflare pins sharp 0.35.4, which GHSA-wq5f-xc86-pv6w covers (its bundled librsvg; fixed in
+  # 0.35.5). Drop this once miniflare depends on >=0.35.5 itself.
+  'miniflare>sharp': '^0.35.5'
+  # GHSA-68fv-2mgg-jv7q (fixed in 1.2.2), reached through postcss. postcss's range already allows
+  # it, so this only keeps an install from settling on an older copy; drop it whenever.
+  'source-map-js': '^1.2.2'
