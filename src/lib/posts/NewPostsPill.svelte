@@ -20,16 +20,17 @@
 	let shown = $state(false)
 	let loading = $state(false)
 
-	// The same query the list shows, so "new" means newer than what is on screen.
-	const since = $derived((await get_feed(feed_arg(tab))).as_of)
-	const check = $derived({ tab, since })
+	// The same query the list shows, so "new" means newer than what is on screen. Only in the
+	// browser: Home's list loads there, and asking here on the server would rank the feed anyway.
+	const since = $derived(mounted ? (await get_feed(feed_arg(tab))).as_of : undefined)
+	const check = $derived(since === undefined ? undefined : { tab, since })
 	// Nothing can be new while the server renders the page.
-	const authors = $derived(mounted ? await get_new_posts(check).catch(() => []) : [])
+	const authors = $derived(check ? await get_new_posts(check).catch(() => []) : [])
 
 	onMount(() => {
 		mounted = true
 		const refresh = () => {
-			if (document.visibilityState === 'visible') get_new_posts(check).refresh()
+			if (check && document.visibilityState === 'visible') get_new_posts(check).refresh()
 		}
 		const timer = setInterval(refresh, CHECK_EVERY)
 		document.addEventListener('visibilitychange', refresh)

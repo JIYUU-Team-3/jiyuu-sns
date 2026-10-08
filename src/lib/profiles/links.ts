@@ -1,4 +1,4 @@
-import { localizeHref } from '#lib/paraglide/runtime'
+import { localizeHref } from '#lib/localize-href'
 
 /**
  * A Jiyuu profile in the current locale, e.g. `manut` → `/ja/u/manut`.

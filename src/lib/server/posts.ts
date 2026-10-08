@@ -453,7 +453,9 @@ async function rank_signals(db: Db, viewer: string | undefined, as_of: number): 
 	const behaviour = sql<number>`coalesce((select s.behaviour_score from account_standing s where s.user_id = ${post.authorId}), 0)`
 	const reports = sql<number>`coalesce((select k.reports from moderation_case k
 		where k.target_kind = 'post' and k.target_id = ${post.id} and k.status = 'open'), 0)`
-	const rows = await db
+	// Read as plain arrays: Drizzle's row mapping costs more CPU than the rest of the page for
+	// this many rows, and every column here is already a string or a number.
+	const query = db
 		.select({
 			id: post.id,
 			author: post.authorId,
@@ -480,12 +482,47 @@ async function rank_signals(db: Db, viewer: string | undefined, as_of: number): 
 		)
 		.orderBy(desc(post.createdAt), desc(post.id))
 		.limit(CANDIDATES_MAX)
-	return rows.map((row) => ({
-		...row,
-		created_at: row.created_at.getTime(),
-		followed: !!row.followed,
-		mine: !!row.mine,
-	}))
+	type Raw = [
+		string,
+		string,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+	]
+	const rows = await db.values<Raw>(query)
+	return rows.map(
+		([
+			id,
+			author,
+			created_at,
+			likes,
+			replies,
+			reposts,
+			followed,
+			mine,
+			later,
+			behaviour,
+			reports,
+		]) => ({
+			id,
+			author,
+			created_at,
+			likes,
+			replies,
+			reposts,
+			followed: !!followed,
+			mine: !!mine,
+			later,
+			behaviour,
+			reports,
+		}),
+	)
 }
 
 /** How long a feed load's order lasts for its later pages; scrolling longer than this re-ranks. */

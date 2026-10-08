@@ -16,6 +16,7 @@
 		hide,
 		empty,
 		remember,
+		server_render = true,
 	}: {
 		/** The query for one page; `undefined` is the first. */
 		load: (cursor?: string) => RemoteQuery<Page>
@@ -26,6 +27,11 @@
 		empty?: Snippet
 		/** A name for this list; leaving the page and coming back reopens the pages already reached. */
 		remember?: string
+		/**
+		 * Whether the server renders the first page. Off, the server sends the skeleton and the
+		 * browser asks for the page, so the work lands in a request of its own.
+		 */
+		server_render?: boolean
 	} = $props()
 
 	/** One entry per page the reader has reached (nearing the end appends the next cursor). */
@@ -68,10 +74,11 @@
 	{/snippet}
 
 	<!--
-		The first page has no pending state, so the server renders real posts. Later pages load on
-		their own behind a skeleton, so scrolling on never blanks what is already on screen.
+		The first page has no pending state, so the server renders real posts, unless
+		`server_render` is off. Later pages load on their own behind a skeleton, so scrolling on
+		never blanks what is already on screen.
 	-->
-	<svelte:boundary {failed} pending={i === 0 ? undefined : skeleton}>
+	<svelte:boundary {failed} pending={i === 0 && server_render ? undefined : skeleton}>
 		<PostPage
 			query={load(cursor)}
 			first={i === 0}

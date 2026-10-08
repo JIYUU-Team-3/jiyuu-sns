@@ -1,3 +1,3 @@
-import { localizeHref } from '#lib/paraglide/runtime'
+import { localizeHref } from '#lib/localize-href'
 
 export const notifications_href = () => localizeHref('/notifications')

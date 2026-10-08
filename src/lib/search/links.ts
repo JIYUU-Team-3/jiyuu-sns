@@ -1,4 +1,4 @@
-import { localizeHref } from '#lib/paraglide/runtime'
+import { localizeHref } from '#lib/localize-href'
 
 export type SearchTab = 'top' | 'latest' | 'people' | 'tags'
 

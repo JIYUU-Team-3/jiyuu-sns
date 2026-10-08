@@ -1,4 +1,4 @@
-import { localizeHref } from '#lib/paraglide/runtime'
+import { localizeHref } from '#lib/localize-href'
 
 /** A post's own page in the current locale, e.g. `/ja/p/…`. */
 export const post_href = (id: string) => localizeHref(`/p/${encodeURIComponent(id)}`)

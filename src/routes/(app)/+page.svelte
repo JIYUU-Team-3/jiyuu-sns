@@ -69,6 +69,7 @@
 				load={(cursor) => get_feed(feed_arg(tab, cursor))}
 				hide={fresh_ids}
 				remember="home:{tab}:{timeline.version}"
+				server_render={false}
 			>
 				{#snippet empty()}
 					{#if fresh.length}
