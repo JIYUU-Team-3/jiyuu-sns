@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { read_form } from './form'
+import { read_form, read_json } from './form'
 
 function upload(bytes: number, headers: Record<string, string> = {}) {
 	const body = new FormData()
@@ -46,5 +46,28 @@ describe('read_form', () => {
 		const request = await unsized(upload(300 * 1024))
 		expect(request.headers.has('content-length')).toBe(false)
 		await expect(read_form(request, 1024)).rejects.toMatchObject({ status: 413 })
+	})
+})
+
+describe('read_json', () => {
+	const post = (body: string) =>
+		new Request('http://localhost/api/v1/posts', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body,
+		})
+
+	it('reads JSON within the limit', async () => {
+		expect(await read_json(post('{"text":"hi"}'), 100)).toEqual({ text: 'hi' })
+	})
+
+	it('refuses a body over the limit, stated or not', async () => {
+		const big = JSON.stringify({ text: 'x'.repeat(200) })
+		await expect(read_json(post(big), 100)).rejects.toMatchObject({ status: 413 })
+		await expect(read_json(await unsized(post(big)), 100)).rejects.toMatchObject({ status: 413 })
+	})
+
+	it('refuses what is not JSON', async () => {
+		await expect(read_json(post('{text'), 100)).rejects.toMatchObject({ status: 400 })
 	})
 })

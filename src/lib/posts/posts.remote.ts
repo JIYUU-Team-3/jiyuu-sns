@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit'
-import { env, waitUntil } from 'cloudflare:workers'
+import { env } from 'cloudflare:workers'
 import * as v from 'valibot'
 import { command, getRequestEvent, query } from '$app/server'
 import { REPLY_AUDIENCES, type ReplyAudience } from '#lib/safety/rules'
@@ -8,14 +8,14 @@ import { ensure_preview, preview_link } from '#lib/server/link-preview'
 import { delete_media, is_own_post_upload, is_video_url } from '#lib/server/media'
 import * as posts from '#lib/server/posts'
 import { check_posts_later } from '#lib/server/moderation/after-write'
-import { sensitive_uploads } from '#lib/server/moderation/checks'
-import { check_edited_post, check_new_posts, flag_risky_links } from '#lib/server/moderation/write'
+import { check_edited_post } from '#lib/server/moderation/write'
 import { links_in } from '#lib/server/moderation/links'
 import { allowance_left, trust_level } from '#lib/server/moderation/trust'
+import { previews, publish_posts } from '#lib/server/publish'
 import { limit } from '#lib/server/rate-limit'
 import { member, signed_in } from '#lib/server/session'
-import { clean_text } from './clean'
 import { author_arg, bookmarks_arg, feed_arg, replies_arg } from './args'
+import { PostText as Text } from './input'
 import {
 	ALT_MAX,
 	draft_problem,
@@ -33,15 +33,6 @@ const Id = v.pipe(v.string(), v.uuid())
 const UserId = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
 // The longest is a repost's `time:post_id:user_id`: 13 + 1 + 36 + 1 + up to 64 characters.
 const Cursor = v.optional(v.pipe(v.string(), v.maxLength(160)))
-// The real limit is checked in graphemes by `post_problem`; this only bounds the payload. Bidi
-// overrides and stacked marks are taken out first, as names and bios already are.
-const Text = v.pipe(
-	v.string(),
-	v.maxLength(8000),
-	v.transform(clean_text),
-	v.trim(),
-	v.maxLength(4000),
-)
 const Size = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20_000))
 const Url = v.pipe(v.string(), v.maxLength(2048))
 // A blank description is no description.
@@ -172,26 +163,6 @@ export const get_link_preview = query(Url, async (url) => {
 	return (await ensure_preview(db, { bucket: env.MEDIA }, url)) ?? null
 })
 
-/** Most link pages one publish reads; a thread's other links get no card. */
-const PREVIEWS_PER_PUBLISH = 3
-/** How long publishing waits for them, so the new post usually comes back with its card. */
-const PREVIEW_WAIT_MS = 2500
-
-/**
- * Read the pages behind the posts' links, waiting a little so the card is there when the post is
- * shown; whatever takes longer finishes after the response and shows on the next load.
- */
-async function previews(db: App.Locals['db'], bodies: string[]) {
-	const links = [...new Set(bodies.map(preview_link).filter((link) => link !== undefined))]
-	const reading = Promise.all(
-		links
-			.slice(0, PREVIEWS_PER_PUBLISH)
-			.map((link) => ensure_preview(db, { bucket: env.MEDIA }, link).catch(() => undefined)),
-	)
-	waitUntil(reading)
-	await Promise.race([reading, new Promise((resolve) => setTimeout(resolve, PREVIEW_WAIT_MS))])
-}
-
 type PostPayload = v.InferOutput<typeof PostInput> & { quote?: string }
 
 function prepare({ poll, location, ...rest }: PostPayload, user_id: string) {
@@ -210,26 +181,7 @@ async function publish(
 ) {
 	const { db, user_id } = await author()
 	const drafts = inputs.map((input) => prepare(input, user_id))
-	// A photo found sensitive while it was being written goes behind the cover whatever was ticked.
-	const flagged = await sensitive_uploads(
-		db,
-		drafts.flatMap((draft) => draft.media.map((media) => media.url)),
-	)
-	const prepared = drafts.map((draft) =>
-		draft.media.some((media) => flagged.has(media.url)) ? { ...draft, sensitive: true } : draft,
-	)
-	const trust = await trust_level(db, user_id)
-	const { risky } = await check_new_posts(db, user_id, trust, prepared)
-	const ids = await posts.insert_thread(db, user_id, prepared, reply_to, audience)
-	if (!ids) error(404, 'The post you replied to or quoted was deleted.')
-	if (ids === 'closed') error(403, 'replies_closed')
-	if (ids === 'private') error(403, 'private_post')
-	await flag_risky_links(db, user_id, ids, risky)
-	check_posts_later(db, ids)
-	await previews(
-		db,
-		prepared.filter((draft) => draft.link_preview !== false).map((draft) => draft.body),
-	)
+	const ids = await publish_posts(db, user_id, drafts, reply_to, audience)
 	const quote = inputs[0]?.quote
 
 	// Single-flight: the fresh first pages ride back with this response.

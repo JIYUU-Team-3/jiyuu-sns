@@ -12,6 +12,7 @@ export type Limiter =
 	| 'LINK_LOOKUP_LIMIT'
 	| 'MEDIA_CHECK_LIMIT'
 	| 'TRANSLATE_LIMIT'
+	| 'API_LIMIT'
 
 type Binding = { limit(options: { key: string }): Promise<{ success: boolean }> }
 

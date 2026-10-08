@@ -760,4 +760,29 @@ export const newAccountAllowance = sqliteTable(
 	(table) => [primaryKey({ columns: [table.userId, table.day] })],
 )
 
+/**
+ * A key a member made for their own agent, which may post as them through `/api/v1`. Only the
+ * key's SHA-256 is kept; the key itself is shown once, when it is made. See docs/API.md.
+ */
+export const apiToken = sqliteTable(
+	'api_token',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** What its owner called it, so they can tell their keys apart. */
+		name: text('name').notNull(),
+		/** SHA-256 of the whole key, hex. */
+		hash: text('hash').notNull().unique(),
+		/** The key's last four characters, shown next to its name. */
+		hint: text('hint').notNull(),
+		createdAt: created_at(),
+		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+	},
+	(table) => [index('api_token_user_idx').on(table.userId)],
+)
+
 export * from './auth.schema'

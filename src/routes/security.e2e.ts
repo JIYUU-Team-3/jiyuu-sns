@@ -659,3 +659,64 @@ test('a private account and a blocker keep their follow lists from direct reques
 
 	for (const other of pages) await other.context().close()
 })
+
+test('an API key posts as its owner, opens nothing else, and stops when revoked @writes', async ({
+	page,
+	playwright,
+}) => {
+	const handle = `e2e_k_${unique()}`
+	// Home asks for a remote query as soon as it's on screen; the key must not open it.
+	const news = page.waitForRequest((request) => request.url().includes('/get_new_posts'))
+	await sign_up(page, handle)
+	const query_url = (await news).url()
+
+	// A brand-new account can't make one.
+	await page.goto('/settings/api')
+	await page.waitForLoadState('networkidle')
+	await page.getByLabel('Key name, like My agent').fill('agent')
+	await page.getByRole('button', { name: 'Create key' }).click()
+	await expect(page.getByText('once it is six hours old')).toBeVisible()
+
+	settle_account(handle)
+	await page.reload()
+	await page.waitForLoadState('networkidle')
+	await page.getByLabel('Key name, like My agent').fill('agent')
+	await page.getByRole('button', { name: 'Create key' }).click()
+	const key = (await page.locator('code.key').textContent())!.trim()
+	expect(key).toMatch(/^jiyuu_/)
+
+	const agent = await playwright.request.newContext({ baseURL: new URL(page.url()).origin })
+	const as_key = { authorization: `Bearer ${key}` }
+	const post = (headers: Record<string, string>, text = `From my agent ${unique()}`) =>
+		agent.post('/api/v1/posts', { headers, data: { text } })
+
+	expect((await agent.get('/api/v1/me')).status()).toBe(401)
+	expect(
+		(await agent.get('/api/v1/me', { headers: { authorization: 'Bearer jiyuu_guess' } })).status(),
+	).toBe(401)
+	expect(await (await agent.get('/api/v1/me', { headers: as_key })).json()).toMatchObject({
+		handle,
+	})
+	expect((await post({})).status()).toBe(401)
+
+	const text = `From my agent ${unique()}`
+	const made = await post(as_key, text)
+	expect(made.status()).toBe(201)
+	const { url } = await made.json()
+	await page.goto(url)
+	await expect(page.getByText(text)).toBeVisible()
+
+	// The write checks still run: the same text twice is refused.
+	expect((await post(as_key, text)).ok()).toBe(false)
+	// A key is not a session: remote functions stay closed to it.
+	const refused = await (await agent.get(query_url, { headers: as_key })).json()
+	expect(refused).toMatchObject({ type: 'error', error: { status: 401 } })
+
+	await page.goto('/settings/api')
+	await page.waitForLoadState('networkidle')
+	await page.getByRole('button', { name: 'Revoke agent' }).click()
+	await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
+	await expect(page.getByText('You haven’t made any keys.')).toBeVisible()
+	expect((await post(as_key)).status()).toBe(401)
+	await agent.dispose()
+})

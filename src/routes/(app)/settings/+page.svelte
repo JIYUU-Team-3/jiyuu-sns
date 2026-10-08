@@ -5,7 +5,7 @@
 	import AccentPicker from '#lib/settings/AccentPicker.svelte'
 	import { desktop } from '#lib/settings/clear.svelte'
 	import LanguagePicker from '#lib/settings/LanguagePicker.svelte'
-	import { privacy_href } from '#lib/settings/links'
+	import { api_tokens_href, privacy_href } from '#lib/settings/links'
 	import { prefs } from '#lib/settings/prefs.svelte'
 	import SettingRow from '#lib/settings/SettingRow.svelte'
 	import SettingsSection from '#lib/settings/SettingsSection.svelte'
@@ -31,6 +31,11 @@
 <SettingsSection id="settings-privacy" title={m.settings_privacy()}>
 	<a class="link" href={privacy_href()}>
 		<SettingRow icon="shield" label={m.settings_privacy()} sub={m.settings_privacy_sub()}>
+			{#snippet end()}<Icon name="chev-right" size="sm" />{/snippet}
+		</SettingRow>
+	</a>
+	<a class="link" href={api_tokens_href()}>
+		<SettingRow icon="lock" label={m.settings_api()} sub={m.settings_api_sub()}>
 			{#snippet end()}<Icon name="chev-right" size="sm" />{/snippet}
 		</SettingRow>
 	</a>
