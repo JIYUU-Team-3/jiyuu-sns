@@ -79,6 +79,8 @@
 		},
 		// "Translate post": each one may call Workers AI. A reader translates a few a minute.
 		{ "name": "TRANSLATE_LIMIT", "namespace_id": "1709", "simple": { "limit": 20, "period": 60 } },
+		// Calls to `/api/v1` with a member's API key, per address, before the key is looked up.
+		{ "name": "API_LIMIT", "namespace_id": "1710", "simple": { "limit": 30, "period": 60 } },
 	],
 	// The hourly moderation job (scripts/wrap-worker.js). The Free plan allows 5 per account.
 	"triggers": { "crons": ["17 * * * *"] },

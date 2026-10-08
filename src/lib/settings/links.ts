@@ -4,3 +4,4 @@ import { localizeHref } from '#lib/localize-href'
 export const settings_href = () => localizeHref('/settings')
 
 export const privacy_href = () => localizeHref('/settings/privacy')
+export const api_tokens_href = () => localizeHref('/settings/api')
