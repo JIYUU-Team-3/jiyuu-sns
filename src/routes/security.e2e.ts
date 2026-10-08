@@ -312,8 +312,8 @@ test('a blocked domain is refused, and its links already posted stop linking @wr
 	const [reader, mod] = await Promise.all(
 		[0, 1].map(async () => (await browser.newContext()).newPage()),
 	)
+	// Left new: its links go through the leaving page, and two are within its daily allowance.
 	await sign_up(page, `e2e_la_${id}`)
-	settle_account(`e2e_la_${id}`)
 	await sign_up(reader, `e2e_lr_${id}`)
 	await sign_up(mod, `e2e_lm_${id}`)
 	grant_moderator(`e2e_lm_${id}`)
