@@ -1,4 +1,4 @@
-import { localizeHref } from '#lib/paraglide/runtime'
+import { localizeHref } from '#lib/localize-href'
 
 /** The moderator's queue. */
 export const mod_href = () => localizeHref('/mod')

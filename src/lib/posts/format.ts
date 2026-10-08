@@ -15,8 +15,28 @@ const intl_locale = (locale: Locale) => (locale === 'km' ? 'en' : locale)
 
 type Zone = { time_zone?: string }
 
+/**
+ * Formatters are slow to build and a page of posts asks for the same few dozens of times, so each
+ * is built once per locale and options.
+ */
+const date_formats = new Map<string, Intl.DateTimeFormat>()
+function date_format(locale: string, options: Intl.DateTimeFormatOptions) {
+	const key = `${locale}|${JSON.stringify(options)}`
+	let format = date_formats.get(key)
+	if (!format) date_formats.set(key, (format = new Intl.DateTimeFormat(locale, options)))
+	return format
+}
+
+const number_formats = new Map<string, Intl.NumberFormat>()
+function number_format(locale: string, options: Intl.NumberFormatOptions) {
+	const key = `${locale}|${JSON.stringify(options)}`
+	let format = number_formats.get(key)
+	if (!format) number_formats.set(key, (format = new Intl.NumberFormat(locale, options)))
+	return format
+}
+
 function parts(time: number, time_zone: string | undefined) {
-	const f = new Intl.DateTimeFormat('en', {
+	const f = date_format('en', {
 		timeZone: time_zone,
 		year: 'numeric',
 		month: 'numeric',
@@ -25,7 +45,8 @@ function parts(time: number, time_zone: string | undefined) {
 		minute: '2-digit',
 		hourCycle: 'h23',
 	})
-	const get = (type: string) => Number(f.formatToParts(time).find((p) => p.type === type)?.value)
+	const all = f.formatToParts(time)
+	const get = (type: string) => Number(all.find((p) => p.type === type)?.value)
 	return {
 		year: get('year'),
 		month: get('month') - 1,
@@ -45,7 +66,7 @@ export function format_short_date(
 	const { year, month, day } = parts(time, time_zone)
 	const same_year = year === parts(now, time_zone).year
 	if (locale === 'km') return `${day} ${KHMER_MONTHS[month]}${same_year ? '' : ` ${year}`}`
-	return new Intl.DateTimeFormat(locale, {
+	return date_format(locale, {
 		timeZone: time_zone,
 		month: 'short',
 		day: 'numeric',
@@ -69,12 +90,12 @@ export function format_timestamp(time: number, locale: Locale, { time_zone }: Zo
 		const clock = `${hour}:${String(minute).padStart(2, '0')}`
 		return `${clock} · ${day} ${KHMER_MONTHS[month]} ${year}`
 	}
-	const clock = new Intl.DateTimeFormat(locale, {
+	const clock = date_format(locale, {
 		timeZone: time_zone,
 		hour: 'numeric',
 		minute: '2-digit',
 	}).format(time)
-	const date = new Intl.DateTimeFormat(locale, {
+	const date = date_format(locale, {
 		timeZone: time_zone,
 		dateStyle: 'medium',
 	}).format(time)
@@ -93,7 +114,7 @@ export function format_time_left(ends_at: number, now: number, locale: Locale) {
 export function format_count(count: number, locale: Locale) {
 	// Like X, tens of thousands drop the decimal (12K, not 12.3K).
 	const whole = count >= 10_000 && count < 1_000_000
-	return new Intl.NumberFormat(intl_locale(locale), {
+	return number_format(intl_locale(locale), {
 		notation: 'compact',
 		maximumFractionDigits: whole ? 0 : 1,
 	}).format(count)

@@ -39,6 +39,8 @@ export const AUTHOR_GAP = 5
 /** Which list fills each position, repeated down the page. */
 export const SLOTS = ['new', 'hot', 'new', 'hot', 'rising'] as const
 type Slot = (typeof SLOTS)[number]
+const SLOT_NAMES: Slot[] = ['new', 'hot', 'rising']
+const SLOT_NAMES_NOT_RISING: Slot[] = ['new', 'hot']
 
 /** What the ranking reads about one post. */
 export type Signals = {
@@ -107,10 +109,31 @@ export function slotted(candidates: Signals[], as_of: number): string[] {
 	}
 	const at: Record<Slot, number> = { new: 0, hot: 0, rising: 0 }
 	const placed = new Set<string>()
+	// Each list's unplaced posts, counted by author: when every one left is by a recent author,
+	// the list has nothing to give, and scanning it to find that out costs most of the ranking
+	// once only a few accounts are posting.
+	const left = (list: Signals[]) => {
+		const by_author = new Map<string, number>()
+		for (const s of list) by_author.set(s.author, (by_author.get(s.author) ?? 0) + 1)
+		return { total: list.length, by_author }
+	}
+	const remaining: Record<Slot, ReturnType<typeof left>> = {
+		new: left(lists.new),
+		hot: left(lists.hot),
+		rising: left(lists.rising),
+	}
+	const rising = new Set(lists.rising.map((s) => s.id))
 	const next = (slot: Slot, recent: Set<string>) => {
+		const { total, by_author } = remaining[slot]
+		let blocked = 0
+		for (const author of recent) blocked += by_author.get(author) ?? 0
+		if (blocked >= total) return undefined
 		const list = lists[slot]
 		while (at[slot] < list.length && placed.has(list[at[slot]].id)) at[slot] += 1
-		return list.slice(at[slot]).find((s) => !placed.has(s.id) && !recent.has(s.author))
+		for (let i = at[slot]; i < list.length; i++) {
+			if (!placed.has(list[i].id) && !recent.has(list[i].author)) return list[i]
+		}
+		return undefined
 	}
 	const order: Signals[] = []
 	while (order.length < candidates.length) {
@@ -120,6 +143,10 @@ export function slotted(candidates: Signals[], as_of: number): string[] {
 		if (s === undefined) break
 		placed.add(s.id)
 		order.push(s)
+		for (const slot of rising.has(s.id) ? SLOT_NAMES : SLOT_NAMES_NOT_RISING) {
+			remaining[slot].total -= 1
+			remaining[slot].by_author.set(s.author, remaining[slot].by_author.get(s.author)! - 1)
+		}
 	}
 	return order.map((s) => s.id)
 }

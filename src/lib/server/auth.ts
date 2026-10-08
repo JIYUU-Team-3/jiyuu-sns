@@ -44,11 +44,21 @@ const authConfig = {
 	],
 } satisfies Omit<Parameters<typeof betterAuth>[0], 'database'>
 
-export const createAuth = (d1: D1Database) =>
+const make = (d1: D1Database) =>
 	betterAuth({
 		...authConfig,
 		database: drizzleAdapter(getDb(d1), { provider: 'sqlite' }),
 	})
+
+const instances = new WeakMap<D1Database, ReturnType<typeof make>>()
+
+/** One instance per binding, built on the first request rather than on every one. */
+export function createAuth(d1: D1Database) {
+	if (!d1) return make(d1)
+	let auth = instances.get(d1)
+	if (!auth) instances.set(d1, (auth = make(d1)))
+	return auth
+}
 
 /**
  * DO NOT USE!
