@@ -29,11 +29,11 @@
 		height: 16px;
 	}
 	.seal {
-		fill: #1a8cd8;
+		fill: var(--accent);
 	}
 	.tick {
 		fill: none;
-		stroke: #fff;
+		stroke: var(--on-accent);
 		stroke-width: 2.4;
 		stroke-linecap: round;
 		stroke-linejoin: round;

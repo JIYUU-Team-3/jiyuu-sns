@@ -366,7 +366,7 @@
 	"push_repost": "{name} reposted your post",
 	"push_quote": "{name} quoted your post",
 	"push_title": "Push notifications",
-	"push_off_body": "Get notified about messages, likes, replies, mentions and new followers even when Jiyuu is closed.",
+	"push_off_body": "Get notified about messages, likes, replies, mentions, new followers and posts from people you rang the bell for, even when Jiyuu is closed.",
 	"push_on_body": "On for this browser.",
 	"push_turn_on": "Turn on",
 	"push_turn_off": "Turn off",
@@ -859,5 +859,9 @@
 	"push_group_add": "{name} added you to the group “{group}”",
 	"push_group_add_unnamed": "{name} added you to a group",
 	"push_group_remove": "{name} removed you from the group “{group}”",
-	"push_group_remove_unnamed": "{name} removed you from a group"
+	"push_group_remove_unnamed": "{name} removed you from a group",
+	"push_post": "{name} posted",
+	"post_alerts_label": "Notify me when @{handle} posts",
+	"post_alerts_on_toast": "You’ll be notified when {name} posts",
+	"post_alerts_off_toast": "You won’t be notified about {name}’s posts"
 }

@@ -111,6 +111,7 @@ const TITLES = {
 	follow_request: m.push_follow_request,
 	repost: m.push_repost,
 	quote: m.push_quote,
+	post: m.push_post,
 } as const
 
 /** A group with no name of its own is "a group". */

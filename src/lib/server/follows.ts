@@ -134,3 +134,17 @@ export async function remove_follower(db: Db, me: string, handle: string) {
 	}
 	return removed.length > 0
 }
+
+/**
+ * Turn alerts for `handle`'s new posts on or off. Only a follow `me` already has can carry them;
+ * returns whether one did.
+ */
+export async function set_post_alerts(db: Db, me: string, handle: string, on: boolean) {
+	const them = db.select({ id: profile.userId }).from(profile).where(eq(profile.handle, handle))
+	const changed = await db
+		.update(follow)
+		.set({ notifyPosts: on })
+		.where(and(eq(follow.followerId, me), eq(follow.followingId, them)))
+		.returning({ id: follow.followingId })
+	return changed.length > 0
+}

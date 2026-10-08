@@ -366,7 +366,7 @@
 	"push_repost": "{name} さんがあなたのポストをリポストしました",
 	"push_quote": "{name} さんがあなたのポストを引用しました",
 	"push_title": "プッシュ通知",
-	"push_off_body": "Jiyuu を閉じていても、メッセージ、いいね、返信、メンション、新しいフォロワーをお知らせします。",
+	"push_off_body": "Jiyuu を閉じていても、メッセージ、いいね、返信、メンション、新しいフォロワー、ベルをオンにした人のポストをお知らせします。",
 	"push_on_body": "このブラウザでオンになっています。",
 	"push_turn_on": "オンにする",
 	"push_turn_off": "オフにする",
@@ -859,5 +859,9 @@
 	"push_group_add": "{name} さんがあなたをグループ「{group}」に追加しました",
 	"push_group_add_unnamed": "{name} さんがあなたをグループに追加しました",
 	"push_group_remove": "{name} さんがあなたをグループ「{group}」から削除しました",
-	"push_group_remove_unnamed": "{name} さんがあなたをグループから削除しました"
+	"push_group_remove_unnamed": "{name} さんがあなたをグループから削除しました",
+	"push_post": "{name} さんがポストしました",
+	"post_alerts_label": "@{handle}さんのポストを通知",
+	"post_alerts_on_toast": "{name} さんがポストすると通知します",
+	"post_alerts_off_toast": "{name} さんのポストを通知しません"
 }

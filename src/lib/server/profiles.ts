@@ -61,6 +61,9 @@ export async function find_profile_by_handle(
 			muted: viewer
 				? sql<number>`exists(select 1 from mute m where m.muter_id = ${viewer} and m.muted_id = ${profile.userId})`
 				: sql<number>`0`,
+			alerts: viewer
+				? sql<number>`exists(select 1 from follow f where f.follower_id = ${viewer} and f.following_id = ${profile.userId} and f.notify_posts = 1)`
+				: sql<number>`0`,
 		})
 		.from(profile)
 		.innerJoin(user, eq(user.id, profile.userId))
@@ -88,6 +91,7 @@ export async function find_profile_by_handle(
 		blocked: !!row.blocked,
 		blocks_you: !!row.blocks_you,
 		muted: !!row.muted,
+		alerts: !!row.alerts,
 		mine,
 	}
 }

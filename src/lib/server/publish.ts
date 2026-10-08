@@ -3,7 +3,7 @@ import { env, waitUntil } from 'cloudflare:workers'
 import type { ReplyAudience } from '#lib/safety/rules'
 import type { getDb } from './db'
 import { ensure_preview, preview_link } from './link-preview'
-import { check_posts_later } from './moderation/after-write'
+import { check_posts_later, check_then_announce_later } from './moderation/after-write'
 import { sensitive_uploads } from './moderation/checks'
 import { trust_level } from './moderation/trust'
 import { check_new_posts, flag_risky_links } from './moderation/write'
@@ -58,7 +58,13 @@ export async function publish_posts(
 	if (ids === 'closed') error(403, 'replies_closed')
 	if (ids === 'private') error(403, 'private_post')
 	await flag_risky_links(db, user_id, ids, risky)
-	check_posts_later(db, ids)
+	// A new post or quote is announced to followers who asked; a reply, and the rest of a thread,
+	// are not.
+	if (reply_to) check_posts_later(db, ids)
+	else {
+		check_then_announce_later(db, ids[0])
+		check_posts_later(db, ids.slice(1))
+	}
 	await previews(
 		db,
 		prepared.filter((draft) => draft.link_preview !== false).map((draft) => draft.body),

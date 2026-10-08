@@ -1,5 +1,5 @@
 import { env, waitUntil } from 'cloudflare:workers'
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
 	CARD_TYPES,
 	type NotificationPage,
@@ -11,12 +11,21 @@ import { shown_image } from './account-image'
 import { seen_recently } from './cache'
 import type { getDb } from './db'
 import { chunks } from './db/chunks'
-import { appeal, conversation, moderationAction, notification, profile, user } from './db/schema'
+import {
+	appeal,
+	conversation,
+	follow,
+	moderationAction,
+	notification,
+	post,
+	profile,
+	user,
+} from './db/schema'
 import { is_rule } from '#lib/moderation/rules'
 import { nudge_inboxes } from './live'
 import { find_posts } from './posts'
 import { push_notifications } from './push'
-import { actor_shown, silenced } from './safety'
+import { actor_shown, blocked_between, silenced } from './safety'
 
 type Db = ReturnType<typeof getDb>
 
@@ -81,7 +90,7 @@ function nudge_unread(user_ids: string[]) {
 const GROUP_TYPES = ['group_add', 'group_remove'] as const
 
 /** Few enough ids that the block lookup in `notify` stays under D1's 100 parameters. */
-const GROUP_USERS_PER_NOTIFY = 30
+const USERS_PER_NOTIFY = 30
 
 /**
  * Tell `user_ids` that `actor_id` put them in a group chat, or took them out of it. Whatever was
@@ -102,7 +111,7 @@ export async function notify_group(
 		.where(and(eq(conversation.id, conversation_id), eq(conversation.isGroup, true)))
 		.limit(1)
 	if (!group) return
-	for (const ids of chunks([...new Set(user_ids)], GROUP_USERS_PER_NOTIFY)) {
+	for (const ids of chunks([...new Set(user_ids)], USERS_PER_NOTIFY)) {
 		await db
 			.delete(notification)
 			.where(
@@ -121,6 +130,49 @@ export async function notify_group(
 				conversation_id,
 				group_name: group.name ?? undefined,
 			})),
+		)
+	}
+}
+
+/**
+ * The most followers one post is announced to. Each can have several browsers, and every browser
+ * is a push request, so this keeps a post's pushes within what one Worker run may send, as
+ * `DM_PUSH_MAX` does for a group message. The earliest to ask hear first.
+ */
+export const POST_ALERTS_MAX = 100
+
+/**
+ * Tell the followers who asked about `post_id`, a new top-level post or quote. Asked once, right
+ * after it is written and checked; a post that is a reply, or that the checks hid, says nothing.
+ * Anyone blocked either way, or who muted the author, is left out before the cap is counted.
+ */
+export async function announce_post(db: Db, post_id: string) {
+	const [found] = await db
+		.select({ author_id: post.authorId })
+		.from(post)
+		.where(and(eq(post.id, post_id), eq(post.moderation, 'visible'), eq(post.isReply, false)))
+		.limit(1)
+	if (!found) return
+	const followers = await db
+		.select({ id: follow.followerId })
+		.from(follow)
+		.where(
+			and(
+				eq(follow.followingId, found.author_id),
+				eq(follow.notifyPosts, true),
+				sql`not ${blocked_between(found.author_id, follow.followerId)}`,
+				sql`not exists(select 1 from mute m where m.muter_id = ${follow.followerId} and m.muted_id = ${found.author_id})`,
+			),
+		)
+		.orderBy(asc(follow.createdAt), asc(follow.followerId))
+		.limit(POST_ALERTS_MAX)
+	for (const ids of chunks(
+		followers.map((row) => row.id),
+		USERS_PER_NOTIFY,
+	)) {
+		await notify(
+			db,
+			ids.map((user_id) => ({ user_id, actor_id: found.author_id, type: 'post', post_id })),
 		)
 	}
 }

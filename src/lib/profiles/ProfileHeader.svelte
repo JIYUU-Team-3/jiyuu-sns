@@ -9,6 +9,7 @@
 	import NumberRoll from '#lib/ui/NumberRoll.svelte'
 	import { lists_open } from './access'
 	import FollowButton from './FollowButton.svelte'
+	import PostAlertsButton from './PostAlertsButton.svelte'
 	import { edit_profile_href, followers_href, following_href } from './links'
 	import NameBadges from '#lib/profiles/NameBadges.svelte'
 	import { search_href } from '#lib/search/links'
@@ -71,6 +72,7 @@
 				<span class="desk-menu"><ProfileMenu {profile} /></span>
 				{#if !profile.blocked && !profile.blocks_you}
 					<MessageButton user_id={profile.id} handle={profile.handle} />
+					{#if profile.followed}<PostAlertsButton {profile} />{/if}
 					<FollowButton {profile} />
 				{/if}
 			{/if}
