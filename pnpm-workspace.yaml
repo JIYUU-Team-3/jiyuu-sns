@@ -14,3 +14,5 @@ overrides:
   # fixed in 5.9.3). SvelteKit already resolves a patched one; this brings svelte's copy along.
   # Drop it once svelte depends on >=5.9.3 itself.
   'svelte>devalue': '^5.9.3'
+  'source-map-js': '>=1.2.2'
+  'sharp': '>=0.35.5'
