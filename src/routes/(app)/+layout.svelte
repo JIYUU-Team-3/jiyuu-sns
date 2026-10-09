@@ -40,6 +40,7 @@
 	const on_bookmarks = $derived(page.route.id === '/(app)/bookmarks')
 	const on_inbox = $derived(page.route.id === '/(app)/messages')
 	const in_chat = $derived(page.route.id === '/(app)/messages/[id]')
+	const in_post = $derived(page.route.id === '/(app)/p/[id]')
 
 	const unread = $derived(await get_unread_count().catch(() => 0))
 	const unread_label = $derived(unread >= 100 ? '99+' : String(unread))
@@ -323,7 +324,7 @@
 <button
 	type="button"
 	class="fab"
-	class:hidden={on_messages}
+	class:hidden={on_messages || in_post}
 	aria-label={m.app_new_post()}
 	onclick={() => composer.open({ kind: 'new' })}
 >
