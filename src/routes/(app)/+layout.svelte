@@ -342,7 +342,7 @@
 		min-height: 100vh;
 	}
 
-	/* ---------- Side nav ---------- */
+	/* --------- Side nav --------- */
 	.side {
 		width: var(--nav-w);
 		flex: none;
