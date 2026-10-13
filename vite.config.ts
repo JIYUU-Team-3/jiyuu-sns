@@ -73,6 +73,7 @@ export default defineConfig({
 			emitTsDeclarations: true,
 			// The picked language wins over a link's; see define_chosen_strategy in src/lib/settings/locale.ts.
 			strategy: ['custom-chosen', 'url', 'baseLocale'],
+			routeStrategies: [{ match: '/api/:path(.*)?', exclude: true }],
 		}),
 	],
 	test: {

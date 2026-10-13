@@ -46,3 +46,16 @@ test('a shared link is where a new account lands after login and onboarding @wri
 	await page.goto(`/login?next=${encodeURIComponent(`/u/${handle}`)}`)
 	await expect(page).toHaveURL(`/u/${handle}`)
 })
+
+test('a picked language leaves the sign-in callback where it is', async ({
+	page,
+	context,
+	baseURL,
+}) => {
+	for (const locale of ['ja', 'km']) {
+		await context.addCookies([{ name: 'jiyuu-lang', value: locale, url: baseURL }])
+		const response = await page.goto('/api/auth/ok')
+		expect(response!.status()).toBe(200)
+		await expect(page).toHaveURL('/api/auth/ok')
+	}
+})
